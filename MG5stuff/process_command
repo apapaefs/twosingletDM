@@ -1,0 +1,3 @@
+import model loop_sm_twoscalar_generic
+generate g g > h h h [QCD]
+output gg_hhh

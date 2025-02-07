@@ -1,0 +1,458 @@
+launch gg_iota0/ -i
+
+launch run_m10.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 10.0
+0
+launch run_m15.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 15.0
+0
+launch run_m20.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 20.0
+0
+launch run_m25.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 25.0
+0
+launch run_m30.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 30.0
+0
+launch run_m35.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 35.0
+0
+launch run_m40.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 40.0
+0
+launch run_m45.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 45.0
+0
+launch run_m50.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 50.0
+0
+launch run_m55.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 55.0
+0
+launch run_m60.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 60.0
+0
+launch run_m65.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 65.0
+0
+launch run_m70.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 70.0
+0
+launch run_m75.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 75.0
+0
+launch run_m80.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 80.0
+0
+launch run_m85.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 85.0
+0
+launch run_m90.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 90.0
+0
+launch run_m95.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 95.0
+0
+launch run_m100.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 100.0
+0
+launch run_m105.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 105.0
+0
+launch run_m110.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 110.0
+0
+launch run_m115.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 115.0
+0
+launch run_m120.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 120.0
+0
+launch run_m125.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 125.0
+0
+launch run_m130.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 130.0
+0
+launch run_m135.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 135.0
+0
+launch run_m140.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 140.0
+0
+launch run_m145.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 145.0
+0
+launch run_m150.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 150.0
+0
+launch run_m160.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 160.0
+0
+launch run_m170.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 170.0
+0
+launch run_m180.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 180.0
+0
+launch run_m190.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 190.0
+0
+launch run_m200.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 200.0
+0
+launch run_m210.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 210.0
+0
+launch run_m220.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 220.0
+0
+launch run_m230.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 230.0
+0
+launch run_m240.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 240.0
+0
+launch run_m250.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 250.0
+0
+launch run_m260.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 260.0
+0
+launch run_m270.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 270.0
+0
+launch run_m280.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 280.0
+0
+launch run_m290.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 290.0
+0
+launch run_m300.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 300.0
+0
+launch run_m310.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 310.0
+0
+launch run_m320.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 320.0
+0
+launch run_m330.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 330.0
+0
+launch run_m340.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 340.0
+0
+launch run_m350.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 350.0
+0
+launch run_m360.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 360.0
+0
+launch run_m370.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 370.0
+0
+launch run_m380.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 380.0
+0
+launch run_m390.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 390.0
+0
+launch run_m400.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 400.0
+0
+launch run_m410.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 410.0
+0
+launch run_m420.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 420.0
+0
+launch run_m430.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 430.0
+0
+launch run_m440.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 440.0
+0
+launch run_m450.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 450.0
+0
+launch run_m460.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 460.0
+0
+launch run_m470.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 470.0
+0
+launch run_m480.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 480.0
+0
+launch run_m490.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 490.0
+0
+launch run_m500.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 500.0
+0
+launch run_m550.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 550.0
+0
+launch run_m600.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 600.0
+0
+launch run_m650.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 650.0
+0
+launch run_m700.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 700.0
+0
+launch run_m750.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 750.0
+0
+launch run_m800.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 800.0
+0
+launch run_m850.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 850.0
+0
+launch run_m900.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 900.0
+0
+launch run_m950.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 950.0
+0
+launch run_m1000.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1000.0
+0
+launch run_m1050.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1050.0
+0
+launch run_m1100.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1100.0
+0
+launch run_m1150.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1150.0
+0
+launch run_m1200.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1200.0
+0
+launch run_m1250.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1250.0
+0
+launch run_m1300.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1300.0
+0
+launch run_m1350.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1350.0
+0
+launch run_m1400.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1400.0
+0
+launch run_m1450.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1450.0
+0
+launch run_m1500.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1500.0
+0
+launch run_m1550.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1550.0
+0
+launch run_m1600.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1600.0
+0
+launch run_m1650.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1650.0
+0
+launch run_m1700.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1700.0
+0
+launch run_m1750.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1750.0
+0
+launch run_m1800.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1800.0
+0
+launch run_m1850.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1850.0
+0
+launch run_m1900.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1900.0
+0
+launch run_m1950.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 1950.0
+0
+launch run_m2000.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2000.0
+0
+launch run_m2050.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2050.0
+0
+launch run_m2100.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2100.0
+0
+launch run_m2150.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2150.0
+0
+launch run_m2200.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2200.0
+0
+launch run_m2250.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2250.0
+0
+launch run_m2300.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2300.0
+0
+launch run_m2350.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2350.0
+0
+launch run_m2400.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2400.0
+0
+launch run_m2450.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2450.0
+0
+launch run_m2500.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2500.0
+0
+launch run_m2550.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2550.0
+0
+launch run_m2600.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2600.0
+0
+launch run_m2650.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2650.0
+0
+launch run_m2700.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2700.0
+0
+launch run_m2750.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2750.0
+0
+launch run_m2800.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2800.0
+0
+launch run_m2850.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2850.0
+0
+launch run_m2900.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2900.0
+0
+launch run_m2950.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 2950.0
+0
+launch run_m3000.0 --accuracy=0.25 --points=300 --iterations=1
+0
+set Miota 3000.0
+0
