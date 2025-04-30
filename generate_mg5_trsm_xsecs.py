@@ -5,12 +5,14 @@ import numpy as np
 from math import log10, floor
 
 # MG5/aMC sub-dir (INCLUDE THE SLASH AT THE END!):
-MGLocation = '/home/apapaefs/Projects/TwoSingletDM/twosingletDM/MG5_aMC_v2_9_22/'
+MGLocation = '/home/apapaefs/Projects/TwoSingletDM/twosingletDM/MG5_aMC_v2_9_23/'
 
 
 # Process sub-dirs (INCLUDE THE SLASH AT THE END!):
 ProcLocation = {}
 ProcLocation['hh'] = 'gg_hh_twoscalar/'
+ProcLocation['hhh'] = 'gg_hhh_twoscalar/'
+
 
 def round_sig(x, sig=2):
     if x == 0.:

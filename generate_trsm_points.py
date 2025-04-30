@@ -12,6 +12,7 @@ from generate_mg5_trsm_xsecs import * # call MG5 to get the cross section for a 
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
 from prettytable import PrettyTable
 from datetime import date
+from singlet_EWPO import * # Electroweak Precision Observables
 
 ###########################################################
 # Handle the input here.
@@ -29,7 +30,7 @@ ini_seed=int(argv[1])
 ##############
 
 # print debug?
-debug = False
+debug = True
 
 # run MG5 on points that pass constraints?
 RunMG5 = True
@@ -98,7 +99,7 @@ def print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123
     print(tbl)
     #print('\n')
 
-def print_constraints(evo, thc, hb, hs):
+def print_constraints(evo, thc, hb, hs, ewpo, wmass):
     tbl = PrettyTable(["Constraint", "Pass/Fail"])
     constraint = {}
     if evo == True:
@@ -117,6 +118,14 @@ def print_constraints(evo, thc, hb, hs):
         constraint['hs'] = 'Pass'
     else:
         constraint['hs'] = 'Fail'
+    if ewpo == True:
+        constraint['ewpo'] = 'Pass'
+    else:
+        constraint['ewpo'] = 'Fail'
+    if wmass == True:
+        constraint['wmass'] = 'Pass'
+    else:
+        constraint['wmass'] = 'Fail'
     for key in constraint.keys():
         tbl.add_row([key, constraint[key]])
     print(tbl)
@@ -148,6 +157,15 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
     if debug is True:
         print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
+
+    # check EWPO
+    sinth = np.sin(a12)
+    EWPO_cur = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current
+
+    # check W mass:
+    wmass = check_wmass_tania(M2, sinth)
+    
+        
     # check HiggsTools:
     hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
     if debug is False:
@@ -167,16 +185,16 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     evo = True
     thc = True
     if debug is True:
-        print_constraints(evo, thc, hb, hs)
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
-    if evo is True and thc is True and hb is True and hs is True:
+    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True:
         if debug is False:
             print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs)
         if runmg5 is True:
             print('All constraints passed, running mg5 to test cross section, please wait!')
-            mg5xsec = get_mg5_xsec('hh', 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3,ecm=Energy)
+            mg5xsec = get_mg5_xsec('hhh', 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3,ecm=Energy)
             print('MG5 hh xsec [pb] =', mg5xsec)
             factorxsec = xs136_lo_h2 * h2_BRs[11]
             resfrac = factorxsec/mg5xsec
