@@ -77,8 +77,8 @@ def O_S(x):
 def O_T(x, c, expansion_param):
     return expansion_param * H_T(x, c)
 
-def O_U(x):
-    return (1./math.pi)* H_U(x)
+def O_U(x,c):
+    return (1./math.pi)* H_U(x,c)
 
 def Delta_S(m1, m2, sintheta, mz, mw):
     x1 = m1**2/mz**2
@@ -93,9 +93,10 @@ def Delta_T(m1, m2, sintheta, mz, mw):
     return sintheta**2 * (O_T(x2, c, expansion_param) - O_T(x1,c, expansion_param))
 
 def Delta_U(m1, m2, sintheta, mz, mw):
+    c = mw/mz
     x1 = m1**2/mz**2
     x2 = m2**2/mz**2
-    return sintheta**2 * (O_U(x2) - O_U(x1))
+    return sintheta**2 * (O_U(x2,c) - O_U(x1,c))
 
 # calculate the chisq for two correlated distributions, given the covariance off-diagonal elements cov12
 def calc_chisquared_correlated(delta1, delta2, err1, err2, cov12, delta_central1, delta_central2):
@@ -132,11 +133,17 @@ def calc_chisquared_correlated_wU(delta1, delta2, delta3, err1, err2, err3, cov1
     # see https://arxiv.org/pdf/1407.5342 eq. 17 onwards:
     sigma = np.array([err1, err2, err3]) # sigma_i
     rho = np.array( [[1, cov12, cov13], [cov12, 1, cov23], [cov13, cov23, 1]] ) # rho_ij
-    sigmasq = np.dot(sigma,np.dot(rho,sigma)) # sigma_ij^2
-    sigmasqInv = np.linalg.inverse(sigmasq) # (sigma_ij^2)^-1
+    #print(sigma)
+    #print(rho)
+    # sigma_ij^2:
+    sigmasq = np.empty((3,3))
+    for i in range(3):
+        for j in range(3):
+            sigmasq[i][j] = rho[i][j] * sigma[i] * sigma[j]
+    sigmasqInv = np.linalg.inv(sigmasq) # (sigma_ij^2)^-1
     deltaOmOc = np.array([(delta_central1-delta1), (delta_central2-delta2), (delta_central3-delta3)]) # DeltaO - DeltaO_central
     # delta_chisq: 
-    chisq_sum = np.dot( deltaOmOc, np.dot(sigmasqInv, deltaOmOc))
+    chisq_sum =  deltaOmOc.T @ sigmasqInv @ deltaOmOc
     return chisq_sum
 
 # function to get the total chi_squared given m2, m1, sintheta, mz, mw, S, T central, S, T errors, covariance:
@@ -150,7 +157,7 @@ def get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, co
 
 # function to check whether the chi-sq from EWPO excludes or not  (at 2sigma)
 def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU):
-    chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST)
+    chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU)
     if chisq > 7.82: # three degrees of freedom! 
         return False
     else:

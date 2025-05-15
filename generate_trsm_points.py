@@ -160,8 +160,12 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
 
     # check EWPO
     sinth = np.sin(a12)
-    # EWPO_cur = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current # U=0
-    EWPO_cur = check_EWPO_wU(125.09, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
+    EWPO_cur = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current # U=0
+    EWPO_cur_wU = check_EWPO_wU(125.09, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
+
+    if EWPO_cur != EWPO_cur_wU:
+        print("EWPOWARNING", EWPO_cur, EWPO_cur_wU)
+    
 
     # check W mass:
     wmass = check_wmass_tania(M2, sinth)
