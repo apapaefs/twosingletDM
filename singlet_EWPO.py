@@ -59,12 +59,16 @@ def B(x):
         exit()
 
 def H_S(x):
-    return (3./8.) * x - (1./12.) * x**2 + ( (3.-x)/4. + x**2/24. + 3./(4*(1-x)) ) * x * math.log(x) + (1 - x/3. + x**2/12.) * B(x) 
-
+    return (3./8.) * x - (1./12.) * x**2 + ( (3.-x)/4. + x**2/24. + 3./(4*(1-x)) ) * x * math.log(x) + (1 - x/3. + x**2/12.) * B(x)
 
 # c**2 = mw**2 / mz**2 
 def H_T(x,c):
     return (3. * x / 4.) * ( math.log(x) / (1.-x) - math.log(x/c**2)/(1.-x/c**2) )
+
+# c**2 = mw**2 / mz**2  
+def H_U(x,c):
+    return - H_S(x) + H_S(x/c**2)
+
 
 # the "observables"
 def O_S(x):
@@ -72,6 +76,9 @@ def O_S(x):
 
 def O_T(x, c, expansion_param):
     return expansion_param * H_T(x, c)
+
+def O_U(x):
+    return (1./math.pi)* H_U(x)
 
 def Delta_S(m1, m2, sintheta, mz, mw):
     x1 = m1**2/mz**2
@@ -84,6 +91,11 @@ def Delta_T(m1, m2, sintheta, mz, mw):
     x1 = m1**2/mz**2
     x2 = m2**2/mz**2
     return sintheta**2 * (O_T(x2, c, expansion_param) - O_T(x1,c, expansion_param))
+
+def Delta_U(m1, m2, sintheta, mz, mw):
+    x1 = m1**2/mz**2
+    x2 = m2**2/mz**2
+    return sintheta**2 * (O_U(x2) - O_U(x1))
 
 # calculate the chisq for two correlated distributions, given the covariance off-diagonal elements cov12
 def calc_chisquared_correlated(delta1, delta2, err1, err2, cov12, delta_central1, delta_central2):
@@ -115,9 +127,41 @@ def check_EWPO(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST):
     else:
         return True
 
+# calculate the chisq for two correlated distributions, given the covariance off-diagonal elements cov12
+def calc_chisquared_correlated_wU(delta1, delta2, delta3, err1, err2, err3, cov12, cov13, cov23, delta_central1, delta_central2, delta_central3):
+    # see https://arxiv.org/pdf/1407.5342 eq. 17 onwards:
+    sigma = np.array([err1, err2, err3]) # sigma_i
+    rho = np.array( [[1, cov12, cov13], [cov12, 1, cov23], [cov13, cov23, 1]] ) # rho_ij
+    sigmasq = np.dot(sigma,np.dot(rho,sigma)) # sigma_ij^2
+    sigmasqInv = np.linalg.inverse(sigmasq) # (sigma_ij^2)^-1
+    deltaOmOc = np.array([(delta_central1-delta1), (delta_central2-delta2), (delta_central3-delta3)]) # DeltaO - DeltaO_central
+    # delta_chisq: 
+    chisq_sum = np.dot( deltaOmOc, np.dot(sigmasqInv, deltaOmOc))
+    return chisq_sum
+
+# function to get the total chi_squared given m2, m1, sintheta, mz, mw, S, T central, S, T errors, covariance:
+# with U!=0
+def get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU):
+    deltaS = Delta_S(m1, m2, sintheta, mz, mw)
+    deltaT = Delta_T(m1, m2, sintheta, mz, mw)
+    deltaU = Delta_U(m1, m2, sintheta, mz, mw)
+    return calc_chisquared_correlated_wU(deltaS, deltaT, deltaU, errS, errT, errU, covST, covSU, covTU, Sc, Tc, Uc)
+
+
+# function to check whether the chi-sq from EWPO excludes or not  (at 2sigma)
+def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST):
+    chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST)
+    if chisq > 7.82: # three degrees of freedom! 
+        return False
+    else:
+        return True
+
 
    
 # the GFITTER CURRENT central values and errors, see https://arxiv.org/pdf/1407.3792.pdf, page 11
+
+# for U = 0:
+
 # central values:
 Delta_S_central = 0.06
 Delta_T_central = 0.10
@@ -135,6 +179,23 @@ errS_F = math.sqrt(0.017**2 + 0.006**2) # experimental + theoretical errors in q
 errT_F = math.sqrt(0.022**2 + 0.005**2) 
 # correlation (rho_12):
 covST_F=0.91
+
+
+# for U!=0:
+
+# central values:
+Delta_S_central_wU = 0.05
+Delta_T_central_wU = 0.09
+Delta_U_central_wU = 0.01
+# errors:
+errS_wU = 0.11
+errT_wU = 0.13
+errU_wU = 0.11
+# correlation:
+covST_wU=0.90
+covSU_wU=-0.59
+covTU_wU=-0.83
+
     
 test = False
 if test is True:
@@ -161,6 +222,8 @@ if test is True:
     
     
     # the GFITTER CURRENT central values and errors, see https://arxiv.org/pdf/1407.3792.pdf, page 11
+    
+    # for U = 0:
     # central values:
     Delta_S_central = 0.06
     Delta_T_central = 0.10
@@ -170,6 +233,8 @@ if test is True:
     # correlation (rho_12):
     covST=0.91
 
+    
+    
     # the GFITTER FUTURE central values and errors, see https://arxiv.org/pdf/1407.3792.pdf, page 13, Table 3
     # central values:
     Delta_S_central_F = 0.00
