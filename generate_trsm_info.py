@@ -22,8 +22,8 @@ import matplotlib.patches as mpatches
 
 
 # subdirectory that contains the coupling expressions
-#couplingsdir = 'couplings/' # full
-couplingsdir = 'cuplings1VEV/' # 1 vev only!
+couplingsdir = 'couplings/' # full
+#couplingsdir = 'couplings1VEV/' # 1 vev only!
 
 # round number to chosen number of significant digits
 def round_sig(x, sig=2):
