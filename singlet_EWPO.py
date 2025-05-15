@@ -149,7 +149,7 @@ def get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, co
 
 
 # function to check whether the chi-sq from EWPO excludes or not  (at 2sigma)
-def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST):
+def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU):
     chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST)
     if chisq > 7.82: # three degrees of freedom! 
         return False
