@@ -169,7 +169,7 @@ def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST,
 
 # for U = 0:
 
-# central values:
+# central values:(gfitter 2014)
 Delta_S_central = 0.06
 Delta_T_central = 0.10
 # errors:
@@ -188,20 +188,34 @@ errT_F = math.sqrt(0.022**2 + 0.005**2)
 covST_F=0.91
 
 
-# for U!=0:
-
+# for U!=0: (gfitter 2014)
 # central values:
-Delta_S_central_wU = 0.05
-Delta_T_central_wU = 0.09
-Delta_U_central_wU = 0.01
+#Delta_S_central_wU = 0.05
+#Delta_T_central_wU = 0.09
+#Delta_U_central_wU = 0.01
 # errors:
-errS_wU = 0.11
-errT_wU = 0.13
-errU_wU = 0.11
+#errS_wU = 0.11
+#errT_wU = 0.13
+#errU_wU = 0.11
 # correlation:
-covST_wU=0.90
-covSU_wU=-0.59
-covTU_wU=-0.83
+#covST_wU=0.90
+#covSU_wU=-0.59
+#covTU_wU=-0.83
+
+
+# for U!=0: (New fit by Jens Erler, private communication, May15th, 2025)
+# central values:
+Delta_S_central_wU = -0.79002E-03
+Delta_T_central_wU = 0.42426E-02
+Delta_U_central_wU = 0.10199E-02
+# errors:
+errS_wU = 0.33734E-02 
+errT_wU = 0.68276E-02
+errU_wU = 0.50140E-02
+# correlation:
+covST_wU=0.043
+covSU_wU=0.016
+covTU_wU=-0.062
 
     
 test = False
