@@ -110,6 +110,7 @@ def calc_chisquared_correlated(delta1, delta2, err1, err2, cov12, delta_central1
     Vinv[1][1] = detfac * err1**2
     J0 = (delta_central1-delta1)
     J1 = (delta_central2-delta2)
+    print('J= (old)', J0, J1)
     chisq_sum = J0 * Vinv[0][0] * J0 + J0 * Vinv[0][1] * J1 + J1 * Vinv[1][1] * J1 + J1 * Vinv[1][0] * J0
     return chisq_sum
 
@@ -123,6 +124,8 @@ def get_chisq_EWPO(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST):
 # function to check whether the chi-sq from EWPO excludes or not  (at 2sigma)
 def check_EWPO(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST):
     chisq = get_chisq_EWPO(m1, m2, sintheta, mz, mw, Sc, Tc, errS, errT, covST)
+    #print('ewpo chisq old =', chisq)
+
     if chisq > 5.99:
         return False
     else:
@@ -140,10 +143,13 @@ def calc_chisquared_correlated_wU(delta1, delta2, delta3, err1, err2, err3, cov1
     for i in range(3):
         for j in range(3):
             sigmasq[i][j] = rho[i][j] * sigma[i] * sigma[j]
-    sigmasqInv = np.linalg.inv(sigmasq) # (sigma_ij^2)^-1
-    deltaOmOc = np.array([(delta_central1-delta1), (delta_central2-delta2), (delta_central3-delta3)]) # DeltaO - DeltaO_central
+    Vinv = np.linalg.inv(sigmasq) # (sigma_ij^2)^-1
+    
+    J = np.array([(delta_central1-delta1), (delta_central2-delta2), (delta_central3-delta3)]) # DeltaO - DeltaO_central
+    #print('J=', J)
     # delta_chisq: 
-    chisq_sum =  deltaOmOc.T @ sigmasqInv @ deltaOmOc
+    chisq_sum =  J @ Vinv @ J
+    #chisq_sum = J[0] * Vinv[0][0] * J[0] + J[0] * Vinv[0][1] * J[1] + J[0] * Vinv[0][2] * J[2] + J[1] * Vinv[1][1] * J[1] + J[1] * Vinv[1][0] * J[0] +   J[1] * Vinv[1][2] * J[2] + J[2] * Vinv[2][0] * J[0] + J[2] * Vinv[2][1] * J[1] + J[2] * Vinv[2][2] * J[2]
     return chisq_sum
 
 # function to get the total chi_squared given m2, m1, sintheta, mz, mw, S, T central, S, T errors, covariance:
@@ -158,6 +164,7 @@ def get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, co
 # function to check whether the chi-sq from EWPO excludes or not  (at 2sigma)
 def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU):
     chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU)
+    #print('ewpo chisq =', chisq)
     if chisq > 7.82: # three degrees of freedom! 
         return False
     else:
@@ -205,17 +212,17 @@ covST_F=0.91
 
 # for U!=0: (New fit by Jens Erler, private communication, May15th, 2025)
 # central values:
-Delta_S_central_wU = -0.79002E-03
-Delta_T_central_wU = 0.42426E-02
-Delta_U_central_wU = 0.10199E-02
+Delta_S_central_wU = -0.45235E-01
+Delta_T_central_wU = 0.13373E-01
+Delta_U_central_wU =  -0.16131E-01
 # errors:
-errS_wU = 0.33734E-02 
-errT_wU = 0.68276E-02
-errU_wU = 0.50140E-02
+errS_wU = 0.94703E-01
+errT_wU = 0.11518 
+errU_wU = 0.87103E-01
 # correlation:
-covST_wU=0.043
-covSU_wU=0.016
-covTU_wU=-0.062
+covST_wU=0.048
+covSU_wU=0.747
+covTU_wU=-0.162
 
     
 test = False
