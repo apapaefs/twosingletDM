@@ -210,7 +210,7 @@ covST_F=0.91
 #covTU_wU=-0.83
 
 
-# for U!=0: (New fit by Jens Erler, private communication, May15th, 2025)
+# for U!=0: (New fit by Jens Erler, private communication, May 16th, 2025)
 # central values:
 Delta_S_central_wU = -0.45235E-01
 Delta_T_central_wU = 0.13373E-01
