@@ -99,6 +99,43 @@ def print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123
     print(tbl)
     #print('\n')
 
+# print the parameter point info for vx=0:
+def print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3):
+    
+    tbl = PrettyTable(["var", "value"])
+    tbl.add_row(['vs', vs])
+    tbl.add_row(['vx', vx])
+    tbl.add_row(['a12', a12])
+    tbl.add_row(['a13', a13])
+    tbl.add_row(['a23', a23])
+    tbl.add_row(['c1', math.cos(a12)])
+    tbl.add_row(['c2', math.cos(a13)])
+    tbl.add_row(['c3', math.cos(a23)])
+    tbl.add_row(['s1', math.sin(a12)])
+    tbl.add_row(['s2', math.sin(a13)])
+    tbl.add_row(['s3', math.sin(a23)])
+    tbl.add_row(['lX', lX])
+    tbl.add_row(['lPhiX', lPhiX])
+    tbl.add_row(['lSX', lSX])
+    tbl.add_row(['M2', M2])
+    tbl.add_row(['w2', w2])
+    tbl.add_row(['M3', M3])
+    tbl.add_row(['w3', w3])
+    tbl.add_row(['k1', k1])
+    tbl.add_row(['k2', k2])
+    tbl.add_row(['k3', k3])
+    tbl.add_row(['K111', K111])
+    tbl.add_row(['K112', K112])
+    tbl.add_row(['K113', K113])
+    tbl.add_row(['K123', K123])
+    tbl.add_row(['K122', K122])
+    tbl.add_row(['K1111', K1111])
+    tbl.add_row(['K1112', K1112])
+    tbl.add_row(['K1113', K1113])
+    tbl.add_row(['K133', K133])
+    print(tbl)
+    #print('\n')
+
 def print_constraints(evo, thc, hb, hs, ewpo, wmass):
     tbl = PrettyTable(["Constraint", "Pass/Fail"])
     constraint = {}
@@ -212,9 +249,75 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         return 1
     return 0
 
+# MAIN FUNCTION for vx=0:
+def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False):
+    # fix a23, a13, vx to zero:
+    vx_val = 0
+    a13 = 0
+    a23 = 0
+    # get the point information (widths, scalar couplings)
+    vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO, lX=lX, lPhiX=lPhiX, lSX=lSX)
+    Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
+    if debug is True:
+        print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
+
+    # check EWPO
+    sinth = np.sin(a12)
+    #EWPO_cur_old = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current # U=0
+    EWPO_cur = check_EWPO_wU(125.09, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
+
+    #if EWPO_cur != EWPO_cur_wU:
+    #    print("EWPOWARNING", EWPO_cur, EWPO_cur_wU)
+    
+
+    # check W mass:
+    wmass = check_wmass_tania(M2, sinth)
+    
+        
+    # check HiggsTools:
+    hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
+    if debug is False:
+        if hb is False or hs is False:
+            return 0
+    thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
+    if debug is False:
+        if thc is False:
+            return 0
+    # test the cosmological constraints
+    #evo = test_evo(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
+    #if debug is False:
+    #    if evo is False:
+    #        return 0
+    evo = True # TEMPORARY UNTIL ABOVE IS FIXED
+    # temporarily removing theory constraints: to be REINSTATED!
+    evo = True
+    thc = True
+    if debug is True:
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
+    # get the hh cross section
+    # if all constraints are ok, check the xsec for hhh:
+    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True:
+        if debug is False:
+            print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
+            print_constraints(evo, thc, hb, hs)
+        if runmg5 is True:
+            print('All constraints passed, running mg5 to test cross section, please wait!')
+            mg5xsec = get_mg5_xsec('hhh', 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3,ecm=Energy)
+            print('MG5 hh xsec [pb] =', mg5xsec)
+            factorxsec = xs136_lo_h2 * h2_BRs[11]
+            resfrac = factorxsec/mg5xsec
+            print('Factorized h2>h1h1 [pb] =', factorxsec)
+            print('Resonant fraction = ', resfrac)
+            write_valid_point_xsec(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, mg5xsec/xsec_sm[Energy],resfrac)
+
+        else:
+            write_valid_point(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23)
+        return 1
+    return 0
+
 # round to sgf significant figures
-def round_signif(m2, m3, vs, vx, a12, a13, a23, sgf):
-    return round_sig(m2, sgf), round_sig(m3, sgf), round_sig(vs, sgf), 0, round_sig(a12, sgf), 0, 0
+def round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, sgf):
+    return round_sig(m2, sgf), round_sig(m3, sgf), round_sig(vs, sgf), 0, round_sig(a12, sgf), 0, 0, round_sig(lX, sgf), round_sig(lPhiX, sgf), round_sig(lSX, sgf) 
 
 
 # random number either -1 or 1:
@@ -249,6 +352,17 @@ k1_max = 1.0
 num_m2 = 2
 num_m3 = 2
 
+# ranges of couplings if vx=0
+lX_min = -100
+lX_max= 100
+
+lPhiX_min = -100
+lPhiX_max = 100
+
+lSX_min = -100
+lSX_max = 100
+
+
 
 ############################################################
 # Scan begins here
@@ -268,9 +382,15 @@ for i in tqdm(range(0,nrandom)):
         k1=random.uniform(k1_min,k1_max)
         k2=np.sqrt(1-k1**2)
         k3=0
-        vx=random.uniform(vx_min, vx_max)
+        #vx=random.uniform(vx_min, vx_max)
+        vx = 0
         vs=random.uniform(vs_min, vs_max)
         m2=random.uniform(m2_min, m2_max)
+
+        lX=random.uniform(lX_min, lX_max)
+        lPhiX=random.uniform(lPhiX_min, lPhiX_max)
+        lSX=random.uniform(lSX_min, lSX_max)
+
         #if m2 > m3_min:
         #    m3_lim = m2
         #else:
@@ -280,17 +400,22 @@ for i in tqdm(range(0,nrandom)):
         a12 = np.arccos(k1)
         a13 = 0
         a23 = 0
+        
+
 
 
         # round to 4 significant figures:
-        m2, m3, vs, vx, a12, a13, a23 = round_signif(m2, m3, vs, vx, a12, a13, a23, 4)
+        m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
 
         # DM X: set vx = 1E-10 so that we avoid division by 0:
-        vx = 1E-10
+        #vx = 1E-10
         
         
         # evaluate: evalpoint is 1 if point passes, 0 if not
-        evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
+        if vx != 0:
+            evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
+        else:
+            evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5)
         # count the passing points:
         passcounter = passcounter + evalpoint
 print('Generated', nrandom,'points, out of which', passcounter, 'are viable')

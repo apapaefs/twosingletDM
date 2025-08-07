@@ -23,7 +23,7 @@ import matplotlib.patches as mpatches
 
 # subdirectory that contains the coupling expressions
 couplingsdir = 'couplings/' # full
-#couplingsdir = 'couplings1VEV/' # 1 vev only!
+couplingsdir_vxzero = 'couplings_vxzero/' # couplings for vx=0
 
 # round number to chosen number of significant digits
 def round_sig(x, sig=2):
@@ -121,14 +121,17 @@ def Rmatrix(a12, a13, a23):
     R[2][2] = c2 * c3
     return R
     
-def lambda_ijkm(i, j, k, m, M1, M2, M3, v, vs, vx, *R):
+def lambda_ijkm(i, j, k, m, M1, M2, M3, v, vs, vx, *R, lambdax=-999, lambdaphix=-999, lambdasx=-999):
     R11, R12, R13, R21, R22, R23, R31, R32, R33 = R[0][0], R[0][1], R[0][2], R[1][0], R[1][1], R[1][2], R[2][0], R[2][1], R[2][2]
 
     # sort the i, j, k, m
     ind = (i, j, k, m)
     ind_sort = sorted(ind)
     # get the coupling filename
-    couplfile = couplingsdir + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + str(ind_sort[3]) + '.dat'    
+    if vx != 0:
+        couplfile = couplingsdir + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + str(ind_sort[3]) + '.dat'
+    else:
+        couplfile = couplingsdir_vxzero + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + str(ind_sort[3]) + '.dat'
     # read in the file and evaluate
     if os.path.exists(couplfile) is True:
         couplstream = open(couplfile, 'r')
@@ -138,7 +141,7 @@ def lambda_ijkm(i, j, k, m, M1, M2, M3, v, vs, vx, *R):
         coupl = eval(line)
     return coupl
 
-def lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R):
+def lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R, lambdax=-999, lambdaphix=-999, lambdasx=-999):
     R11, R12, R13, R21, R22, R23, R31, R32, R33 = R[0][0], R[0][1], R[0][2], R[1][0], R[1][1], R[1][2], R[2][0], R[2][1], R[2][2]
     
     # sort the i, j, k, m
@@ -150,7 +153,10 @@ def lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R):
         return 0
     
     # get the coupling filename
-    couplfile = couplingsdir + 'Cubic_' + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + '.dat'    
+    if vx != 0:
+        couplfile = couplingsdir + 'Cubic_' + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + '.dat'
+    else:
+        couplfile = couplingsdir_vxzero + 'Cubic_' + str(ind_sort[0]) + str(ind_sort[1]) + str(ind_sort[2]) + '.dat'
     # read in the file and evaluate
     if os.path.exists(couplfile) is True:
         couplstream = open(couplfile, 'r')
@@ -441,12 +447,17 @@ XS_interpolator_SM_136TeV_LO = interpolate_HiggsXS(HiggsXS_136_LO)
 # get template:                
 param_card_template = getTemplate("param_card.dat")
 
-def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT):
+def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=-999, lPhiX=-999, lSX=-999):
     
     #calculate the cos functions
     c1 = math.cos(a12)
     c2 = math.cos(a13)
     c3 = math.cos(a23)
+
+    #define the lambdax, lambdaphix, lambdasx (only in the case that vx=0!):
+    lambdax = lX
+    lambdaphix = lPhiX
+    lambdasx = lSX
 
     # first get the R-matrix 
     R = Rmatrix(a12, a13, a23)
@@ -492,7 +503,7 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT):
     for i in ijk:
         for j in (jc for jc in ijk if jc <= i):
             for k in (kc for kc in ijk if kc <= j):
-                lambda_dict[tuple(sorted((i,j,k)))] = lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R)
+                lambda_dict[tuple(sorted((i,j,k)))] = lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R, lambdax=lambdax, lambdaphix=lambdaphix, lambdasx=lambdasx)
                 lambda_text = 'K' + str(sorted((i,j,k))[0]) + str(sorted((i,j,k))[1]) + str(sorted((i,j,k))[2])
                 paramsubs[lambda_text] = lambda_dict[tuple(sorted((i,j,k)))]
                 if PRINT: print(sorted((i,j,k)), '\t\t', paramsubs[lambda_text])
@@ -504,7 +515,7 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT):
         for j in (jc for jc in ijk if jc <= i):
             for k in (kc for kc in ijk if kc <= j):
                 for m in (mc for mc in ijk if mc <= j):
-                    lambda_dict[tuple(sorted((i,j,k,m)))] = lambda_ijkm(i, j, k, m, M1, M2, M3, v, vs, vx, *R)
+                    lambda_dict[tuple(sorted((i,j,k,m)))] = lambda_ijkm(i, j, k, m, M1, M2, M3, v, vs, vx, *R, lambdax=lambdax, lambdaphix=lambdaphix, lambdasx=lambdasx)
                     lambda_text = 'K' + str(sorted((i,j,k,m))[0]) + str(sorted((i,j,k,m))[1]) + str(sorted((i,j,k,m))[2]) + str(sorted((i,j,k,m))[3])
                     paramsubs[lambda_text] = lambda_dict[tuple(sorted((i,j,k,m)))]
                     if PRINT: print(sorted((i,j,k,m)), '\t\t', paramsubs[lambda_text])
@@ -576,7 +587,7 @@ def convert_to_HBHS(name, v, vs, vx, M1, M2, M3, a12, a13, a23, R, lambda_dict, 
 
 
 # function to generate the lamdbas
-def generate_lams(myseed, Mass2, Mass3, VS, VX, A12, A13, A23, PRINT):
+def generate_lams(myseed, Mass2, Mass3, VS, VX, A12, A13, A23, PRINT, lX=-999, lPhiX=-999, lSX=-999):
     v = 246.
     vs = VS#140.
     vx = VX#100.
@@ -588,8 +599,14 @@ def generate_lams(myseed, Mass2, Mass3, VS, VX, A12, A13, A23, PRINT):
     a13=A13#0.226
     a23=A23#-0.899
 
-    # get the point info 
-    v, vs, vx, M1, M2, M3, a12, a13, a23, R, lambda_dict, xs13_n3lo_h1, xs13_n3lo_h2, xs13_n3lo_h3, h1_BRs, h2_BRs, h3_BRs, paramsubs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT)
+    # get the point info
+    if vx != 0:
+        v, vs, vx, M1, M2, M3, a12, a13, a23, R, lambda_dict, xs13_n3lo_h1, xs13_n3lo_h2, xs13_n3lo_h3, h1_BRs, h2_BRs, h3_BRs, paramsubs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=0, lPhiX=0, lSX=0)
+    else:
+        if lX == -999 and lPhiX == -999 and lSX == -999:
+            print("WARNING: YOU HAVE TO SET lX, lPhiX and lSX for vx=0!")
+        v, vs, vx, M1, M2, M3, a12, a13, a23, R, lambda_dict, xs13_n3lo_h1, xs13_n3lo_h2, xs13_n3lo_h3, h1_BRs, h2_BRs, h3_BRs, paramsubs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=lX, lPhiX=lPhiX, lSX=lSX)
+
 
     k1 = R[0][0]
     k2 = R[1][0]
