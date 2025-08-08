@@ -409,6 +409,7 @@ for i in tqdm(range(0,nrandom)):
     if vx != 0:
             evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
     else:
+            # if point passes, file will be written with order: m2, m3, vs, a12, lX, lPhiX, lSX + any additional info to be determined
             evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5)
     # count the passing points:
     passcounter = passcounter + evalpoint
