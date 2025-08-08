@@ -33,7 +33,7 @@ ini_seed=int(argv[1])
 debug = True
 
 # run MG5 on points that pass constraints?
-RunMG5 = True
+RunMG5 = False
 
 # for random scan within ranges, how many points to run
 nrandom=1000
@@ -284,14 +284,10 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         if thc is False:
             return 0
     # test the cosmological constraints
-    #evo = test_evo(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
-    #if debug is False:
-    #    if evo is False:
-    #        return 0
-    evo = True # TEMPORARY UNTIL ABOVE IS FIXED
-    # temporarily removing theory constraints: to be REINSTATED!
-    evo = True
-    thc = True
+    evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
+    if debug is False:
+        if evo is False:
+            return 0
     if debug is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
     # get the hh cross section
