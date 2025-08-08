@@ -36,7 +36,7 @@ debug = True
 RunMG5 = False
 
 # for random scan within ranges, how many points to run
-nrandom=1000
+nrandom=100
 
 # Energy for xsec calculation
 Energy = 13.6
@@ -307,7 +307,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             write_valid_point_xsec(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, mg5xsec/xsec_sm[Energy],resfrac)
 
         else:
-            write_valid_point(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23)
+            write_valid_point(RunTag, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX)
         return 1
     return 0
 
@@ -374,46 +374,45 @@ if ResetOutput is True:
 passcounter = 0 # count number of passing points
 print('Generating points randomly within ranges')
 random.seed(ini_seed)
+
+
+# fixed parameters: 
+vx = 0
+k3=0
+a13 = 0
+a23 = 0
+RunTag = RunTag + '_vxzero'
+
 for i in tqdm(range(0,nrandom)):
-        k1=random.uniform(k1_min,k1_max)
-        k2=np.sqrt(1-k1**2)
-        k3=0
-        #vx=random.uniform(vx_min, vx_max)
-        vx = 0
-        vs=random.uniform(vs_min, vs_max)
-        m2=random.uniform(m2_min, m2_max)
-
-        lX=random.uniform(lX_min, lX_max)
-        lPhiX=random.uniform(lPhiX_min, lPhiX_max)
-        lSX=random.uniform(lSX_min, lSX_max)
-
-        #if m2 > m3_min:
-        #    m3_lim = m2
-        #else:
-        #    m3_lim = m3_min
-        m3=random.uniform(m2+mhiggs, m3_max)
-        #a12, a13, a23 = ks_to_angles(k1,k2,k3) 
-        a12 = np.arccos(k1)
-        a13 = 0
-        a23 = 0
+    # scan over free parameters
+    k1=random.uniform(k1_min,k1_max)
+    m2=random.uniform(m2_min, m2_max)
+    m3=random.uniform(m2+mhiggs, m3_max)
+    vs=random.uniform(vs_min, vs_max)
+    # free parameters for vx=0:
+    lX=random.uniform(lX_min, lX_max)
+    lPhiX=random.uniform(lPhiX_min, lPhiX_max)
+    lSX=random.uniform(lSX_min, lSX_max)
         
+ 
+    # dependent parameters
+    a12 = np.arccos(k1)
+    k2=np.sqrt(1-k1**2)
 
+    # optional (vx!=0), convert angles to k1, k2, k3: 
+    #a12, a13, a23 = ks_to_angles(k1,k2,k3) 
 
-
-        # round to 4 significant figures:
-        m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
-
-        # DM X: set vx = 1E-10 so that we avoid division by 0:
-        #vx = 1E-10
-        
-        
-        # evaluate: evalpoint is 1 if point passes, 0 if not
-        if vx != 0:
+    # round to 4 significant figures:
+    m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
+    
+    # evaluate: evalpoint is 1 if point passes, 0 if not
+    if vx != 0:
             evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
-        else:
+    else:
             evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5)
-        # count the passing points:
-        passcounter = passcounter + evalpoint
+    # count the passing points:
+    passcounter = passcounter + evalpoint
+    
 print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
 
 
