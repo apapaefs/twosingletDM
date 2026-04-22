@@ -1,0 +1,63 @@
+
+Dark matter candidate is '~X' with spin=0/2 mass=6.00E+01
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.00 5.99E-01
+     h2   500.00 1.71E+01
+
+Masses of odd sector Particles:
+~X       : MX      =  60.000 || 
+
+==== Calculation of relic density =====
+Xf=3.14e+01 Omega=4.19e-05
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   79% ~X ~X ->b B 
+    9% ~X ~X ->G G 
+    8% ~X ~X ->l L 
+    3% ~X ~X ->c C 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 9.50E-24 cm^3/s
+ contribution of processes
+  ~X,~X -> b B                    7.95E-01
+  ~X,~X -> G G                    8.50E-02
+  ~X,~X -> l L                    8.32E-02
+  ~X,~X -> c C                    3.39E-02
+  ~X,~X -> A A                    2.54E-03
+  ~X,~X -> m M                    2.95E-04
+  ~X,~X -> s S                    2.88E-04
+  ~X,~X -> u U                    7.91E-06
+  ~X,~X -> d D                    7.91E-06
+Photon flux  for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon flux = 4.52E-10[cm^2 s GeV]^{-1} for E=30.0[GeV]
+Positron flux  =  2.12E-08[cm^2 sr s GeV]^{-1} for E=30.0[GeV] 
+Antiproton flux  =  1.73E-07[cm^2 sr s GeV]^{-1} for E=30.0[GeV] 
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  -4.409E-08 [-4.409E-08]  SD  0.000E+00 [0.000E+00]
+neutron: SI  -4.453E-08 [-4.453E-08]  SD  0.000E+00 [0.000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 8.237E-07 [8.237E-07] SD 0.000E+00 [0.000E+00]
+ neutron SI 8.402E-07 [8.402E-07] SD 0.000E+00 [0.000E+00]
+
+===== Direct detection exclusion:======
+Excluded by XENON1T_2018  100.0%
+
+h1 :   total width=5.992625E-01 
+ and Branchings:
+1.336628E-05 h1 -> A,A
+4.466922E-04 h1 -> G,G
+1.426526E-06 h1 -> m,M
+4.026983E-04 h1 -> l,L
+3.830468E-08 h1 -> u,U
+3.830468E-08 h1 -> d,D
+1.627156E-04 h1 -> c,C
+1.384216E-06 h1 -> s,S
+3.819043E-03 h1 -> b,B
+9.951526E-01 h1 -> ~X,~X

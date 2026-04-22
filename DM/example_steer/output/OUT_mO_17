@@ -1,0 +1,70 @@
+
+Dark matter candidate is '~X' with spin=0/2 mass=8.10E+02
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.00 2.90E-03
+     h2   500.00 8.10E+00
+
+Masses of odd sector Particles:
+~X       : MX      = 810.000 || 
+
+==== Calculation of relic density =====
+Xf=2.49e+01 Omega=1.26e-01
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   39% ~X ~X ->W+ W- 
+   20% ~X ~X ->h1 h1 
+   19% ~X ~X ->h2 h2 
+   19% ~X ~X ->Z Z 
+    2% ~X ~X ->t T 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 2.14E-26 cm^3/s
+ contribution of processes
+  ~X,~X -> W+ W-                  3.75E-01
+  ~X,~X -> h1 h1                  1.93E-01
+  ~X,~X -> h2 h2                  1.89E-01
+  ~X,~X -> Z Z                    1.87E-01
+  ~X,~X -> A W+ W-                3.12E-02
+  ~X,~X -> t T                    2.44E-02
+  ~X,~X -> h1 h2                  2.15E-04
+  ~X,~X -> G G                    1.71E-04
+  ~X,~X -> b B                    5.61E-06
+  ~X,~X -> A A                    5.10E-06
+  ~X,~X -> l L                    9.17E-07
+  ~X,~X -> c C                    2.38E-07
+  ~X,~X -> m M                    3.24E-09
+  ~X,~X -> s S                    2.02E-09
+  ~X,~X -> u U                    8.71E-11
+  ~X,~X -> d D                    8.71E-11
+Photon flux  for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon flux = 2.42E-16[cm^2 s GeV]^{-1} for E=405.0[GeV]
+Positron flux  =  6.75E-15[cm^2 sr s GeV]^{-1} for E=405.0[GeV] 
+Antiproton flux  =  5.27E-14[cm^2 sr s GeV]^{-1} for E=405.0[GeV] 
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  4.037E-10 [4.037E-10]  SD  0.000E+00 [0.000E+00]
+neutron: SI  4.077E-10 [4.077E-10]  SD  0.000E+00 [0.000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 7.106E-11 [7.106E-11] SD 0.000E+00 [0.000E+00]
+ neutron SI 7.248E-11 [7.248E-11] SD 0.000E+00 [0.000E+00]
+
+===== Direct detection exclusion:======
+Not excluded by DD experiments  at 90% level 
+
+h1 :   total width=2.904867E-03 
+ and Branchings:
+2.757410E-03 h1 -> A,A
+9.215083E-02 h1 -> G,G
+2.942867E-04 h1 -> m,M
+8.307506E-02 h1 -> l,L
+7.902104E-06 h1 -> u,U
+7.902104E-06 h1 -> d,D
+3.356757E-02 h1 -> c,C
+2.855582E-04 h1 -> s,S
+7.878533E-01 h1 -> b,B

@@ -32,3 +32,26 @@ mkdir build; cd build; cmake ..; make -j12
 - You also need to place the HiggssBounds and HiggsSignals datasets in the twosingletDM directories: https://gitlab.com/higgsbounds/hbdataset and https://gitlab.com/higgsbounds/hsdataset.
 ## Execute:
 - To begin the scan, execute ```generate_trsm_points.py SEED``` where the SEED is an integer to be used as a seed for the random numbers. 
+
+
+## Install micrOMEGAs 6.1.15 and create TRSM:
+
+- ```cd DM``` and untar `micromegas_6.1.15.tar`: ```tar xvzf micromegas_6.1.15.tar```
+
+- ```cd micromegas_6.1.15/``` then follow the READ.ME instructions I and V:
+```[g]make``` and ```./newProject TRSM```
+
+- copy the desired model files from DM/models into micromegas. I use h4GOn:
+```cp ../models/h4GOn/* TRSM/work/models/```
+
+-  in TRSM/ there is a main.c file and a Makefile. Compile with:
+```make main=main.c``` or just ```make```
+The setup is complete and and micromegas is used by codes in DM/example.
+
+- To test manually, copy the example data point:
+```cp DM/data.par micromegas_6.1.15/TRSM/```
+```./main data.par```
+compare the output with DM/example_test.out
+
+## run micrOMEGAs with a steering code:
+- check out DM/example_steer/README.md and create another directory for the study you'd like to perform.

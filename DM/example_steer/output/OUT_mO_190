@@ -1,0 +1,68 @@
+
+Dark matter candidate is '~X' with spin=0/2 mass=4.60E+02
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.00 2.90E-03
+     h2   500.00 8.10E+00
+
+Masses of odd sector Particles:
+~X       : MX      = 460.000 || 
+
+==== Calculation of relic density =====
+Xf=2.78e+01 Omega=3.96e-03
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   37% ~X ~X ->h1 h2 
+   31% ~X ~X ->W+ W- 
+   15% ~X ~X ->Z Z 
+   12% ~X ~X ->h1 h1 
+    5% ~X ~X ->t T 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 7.99E-25 cm^3/s
+ contribution of processes
+  ~X,~X -> h1 h2                  3.76E-01
+  ~X,~X -> W+ W-                  3.05E-01
+  ~X,~X -> Z Z                    1.51E-01
+  ~X,~X -> h1 h1                  1.14E-01
+  ~X,~X -> t T                    5.42E-02
+  ~X,~X -> G G                    1.43E-04
+  ~X,~X -> b B                    1.59E-05
+  ~X,~X -> A A                    4.28E-06
+  ~X,~X -> l L                    2.38E-06
+  ~X,~X -> c C                    6.74E-07
+  ~X,~X -> m M                    8.43E-09
+  ~X,~X -> s S                    5.73E-09
+  ~X,~X -> u U                    2.26E-10
+  ~X,~X -> d D                    2.26E-10
+Photon flux  for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon flux = 3.65E-14[cm^2 s GeV]^{-1} for E=230.0[GeV]
+Positron flux  =  2.17E-12[cm^2 sr s GeV]^{-1} for E=230.0[GeV] 
+Antiproton flux  =  1.29E-11[cm^2 sr s GeV]^{-1} for E=230.0[GeV] 
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  -8.982E-09 [-8.982E-09]  SD  0.000E+00 [0.000E+00]
+neutron: SI  -9.071E-09 [-9.071E-09]  SD  0.000E+00 [0.000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 3.512E-08 [3.512E-08] SD 0.000E+00 [0.000E+00]
+ neutron SI 3.582E-08 [3.582E-08] SD 0.000E+00 [0.000E+00]
+
+===== Direct detection exclusion:======
+Excluded by LZ5Tmedian  100.0%
+
+h1 :   total width=2.904867E-03 
+ and Branchings:
+2.757410E-03 h1 -> A,A
+9.215083E-02 h1 -> G,G
+2.942867E-04 h1 -> m,M
+8.307506E-02 h1 -> l,L
+7.902104E-06 h1 -> u,U
+7.902104E-06 h1 -> d,D
+3.356757E-02 h1 -> c,C
+2.855582E-04 h1 -> s,S
+7.878533E-01 h1 -> b,B

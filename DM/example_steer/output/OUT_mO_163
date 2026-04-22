@@ -1,0 +1,62 @@
+
+Dark matter candidate is '~X' with spin=0/2 mass=1.10E+02
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.00 2.90E-03
+     h2   500.00 2.17E+01
+
+Masses of odd sector Particles:
+~X       : MX      = 110.000 || 
+
+==== Calculation of relic density =====
+Xf=2.95e+01 Omega=2.13e-04
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   71% ~X ~X ->W+ W- 
+   29% ~X ~X ->Z Z 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 1.51E-23 cm^3/s
+ contribution of processes
+  ~X,~X -> W+ W-                  7.12E-01
+  ~X,~X -> Z Z                    2.85E-01
+  ~X,~X -> b B                    1.70E-03
+  ~X,~X -> G G                    6.87E-04
+  ~X,~X -> l L                    2.00E-04
+  ~X,~X -> c C                    7.24E-05
+  ~X,~X -> A A                    2.06E-05
+  ~X,~X -> m M                    7.08E-07
+  ~X,~X -> s S                    6.16E-07
+  ~X,~X -> u U                    1.90E-08
+  ~X,~X -> d D                    1.90E-08
+Photon flux  for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon flux = 4.27E-11[cm^2 s GeV]^{-1} for E=55.0[GeV]
+Positron flux  =  2.23E-08[cm^2 sr s GeV]^{-1} for E=55.0[GeV] 
+Antiproton flux  =  4.32E-08[cm^2 sr s GeV]^{-1} for E=55.0[GeV] 
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  -3.306E-08 [-3.306E-08]  SD  0.000E+00 [0.000E+00]
+neutron: SI  -3.338E-08 [-3.338E-08]  SD  0.000E+00 [0.000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 4.696E-07 [4.696E-07] SD 0.000E+00 [0.000E+00]
+ neutron SI 4.790E-07 [4.790E-07] SD 0.000E+00 [0.000E+00]
+
+===== Direct detection exclusion:======
+Excluded by XENON1T_2018  100.0%
+
+h1 :   total width=2.904867E-03 
+ and Branchings:
+2.757410E-03 h1 -> A,A
+9.215083E-02 h1 -> G,G
+2.942867E-04 h1 -> m,M
+8.307506E-02 h1 -> l,L
+7.902104E-06 h1 -> u,U
+7.902104E-06 h1 -> d,D
+3.356757E-02 h1 -> c,C
+2.855582E-04 h1 -> s,S
+7.878533E-01 h1 -> b,B

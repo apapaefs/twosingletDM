@@ -1,0 +1,34 @@
+TRSM(+hgg+h4G)
+ Constraints 
+ Name  |> Expression                                                                        <|
+CW     |sqrt(1-SW^2) % cos of the Weinberg angle
+GF     |EE^2/(2*SW*MW)^2/Sqrt2 %  experimental value 1.166E-5 [1/GeV^2]
+MZ     |MW/CW % Z boson mass
+LamQCD |initQCD5(alphaSMZ, McMc, MbMb, Mtp)
+Mb     |MbEff(Q)
+Mc     |McEff(Q)
+Ms     |MqEff(0.096, Q) % s-quark effective mass  via 2MeV running one
+c12    |sqrt(1-s12^2)
+c23    |sqrt(1-s23^2)
+c13    |sqrt(1-s13^2)
+Vud    |c12*c13
+Vus    |s12*c13
+Vub    |s13
+Vcd    |-s12*c23-c12*s23*s13
+Vcs    |c12*c23-s12*s23*s13
+Vcb    |s23*c13
+Vtd    |s12*s23-c12*c23*s13
+Vts    |-c12*s23-s12*c23*s13
+Vtb    |c23*c13
+CosT   |sqrt(1-SinT^2) % cosine of the mixing angle between Higgs and phiS
+SinTT  |2*SinT*CosT
+LH     |(Mh^2*CosT^2+Mh2^2*SinT^2)/(2*(2*MW/EE*SW)^2) % Higgs lagrangian self coupling
+LS     |(Mh2^2*CosT^2+Mh^2*SinT^2)/(2*vevs^2) % SI lagrangian self coupling
+LHS    |(Mh2^2-Mh^2)*SinTT/(2*(2*MW/EE*SW)*vevs) % lagrangian Si and Higgs coupling
+muH    |-(2*MW/EE*SW)^2*LH-vevs^2*LHS/2 % square of the massive coupling for Higgs
+muS    |-vevs^2*LS-(2*MW/EE*SW)^2*LHS/2 % square of the massive coupling for Si
+muX    |(MX^2-LHX*(2*MW/EE*SW)^2-LSX*vevs^2)/2 % square of the massive coupling for X
+LAAh   |-cabs(lAAhiggs(Mh, "h1"))
+LGGh   |-cabs(lGGhiggs(Mh, "h1"))
+aQCDh  |alphaQCD(Mh)/acos(-1)
+RQCDh  |sqrt(1+149/12*aQCDh+68.6482*aQCDh^2-212.447*aQCDh^3)
