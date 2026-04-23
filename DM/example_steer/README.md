@@ -8,7 +8,7 @@ Contains the C++ sources and compiled executables:
 
 `example_steer/run/`
 Contains the runtime files:
-`oks.dat`, `cards/`, `MOrun.sh`, and job-submission scripts
+`oks.dat`, `cards/`, `MOrun.sh`, and job-submission scripts in `launch/`
 
 `example_steer/output/`
 Contains all outputs from micrOMEGAs and `mO_excluder`
@@ -18,7 +18,7 @@ Contains all outputs from micrOMEGAs and `mO_excluder`
 
 Example scan generation:
 cd DM/example_steer
-python3 generate_oks.py --lx-start 0.1 --lx-end 0.2 --lx-step 0.1 --lsx-start 0.1 --lsx-end 0.2 --lsx-step 0.1
+python3 generate_oks.py --mx-start 10 --mx-end 1000 --mx-step 10 --lsx-start 0.01 --lsx-end 1 --lsx-step 0.01
 
 Copy `oks.dat` into the run directory:
 cp oks.dat run/oks.dat

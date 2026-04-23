@@ -6,7 +6,7 @@ import sys
 def concat_dat_files(output_file, *input_files):
     """
     Concatenate two or more .dat files into a single output file.
-    Removes duplicate lines from the output.
+    Removes duplicate lines from the output and renumbers indices sequentially.
     
     Args:
         output_file (str): Path to the output concatenated .dat file
@@ -17,6 +17,7 @@ def concat_dat_files(output_file, *input_files):
     
     seen_lines = set()
     duplicate_count = 0
+    line_number = 1
     
     def get_line_key(line):
         """Extract all but the first number from a line for comparison."""
@@ -33,10 +34,18 @@ def concat_dat_files(output_file, *input_files):
             
             with open(input_file, 'r') as infile:
                 for line in infile:
-                    line_key = get_line_key(line)
+                    stripped = line.rstrip('\n')
+                    if not stripped.strip():
+                        continue
+                    line_key = get_line_key(stripped)
                     if line_key not in seen_lines:
-                        outfile.write(line)
+                        parts = stripped.split()
+                        if len(parts) > 1:
+                            outfile.write(f"{line_number} {' '.join(parts[1:])}\n")
+                        else:
+                            outfile.write(f"{line_number}\n")
                         seen_lines.add(line_key)
+                        line_number += 1
                     else:
                         duplicate_count += 1
     
