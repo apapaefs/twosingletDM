@@ -87,7 +87,7 @@ Reads `output/scan_results.dat` and plots `Omega` against one chosen variable.
 Example:
 python3 plot/plot_omega.py output MX
 
-This writes `plot/outplots/omega_vs_MX.png` by default.
+This writes `plot/outplots/omega_vs_MX.png` and `plot/outplots/log10_omega_vs_MX.png` by default.
 
 `plot/plot_relic_pass_2d.py`
 Reads `output/scan_results.dat`, keeps only points with `Omega <= 0.1224`, and
@@ -96,7 +96,7 @@ plots two chosen variables against each other.
 Example:
 python3 plot/plot_relic_pass_2d.py output MX LSX
 
-This writes `plot/outplots/relic_pass_MX_vs_LSX.png` by default.
+This writes `plot/outplots/relic_pass_LSX_vs_MX.png` and `plot/outplots/relic_pass_log10_LSX_vs_MX.png` by default.
 
 `plot/plot_relic_strict_2d.py`
 Reads `output/scan_results.dat`, keeps only points with
@@ -106,7 +106,7 @@ against each other.
 Example:
 python3 plot/plot_relic_strict_2d.py output MX LSX
 
-This writes `plot/outplots/relic_strict_MX_vs_LSX.png` by default.
+This writes `plot/outplots/relic_strict_LSX_vs_MX.png` and `plot/outplots/relic_strict_log10_LSX_vs_MX.png` by default.
 
 All plotting scripts accept `--output` to choose the image filename and `--show`
 to display the plot interactively.

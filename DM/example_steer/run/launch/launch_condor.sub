@@ -1,0 +1,14 @@
+executable              = exec.sh
+request_gpus            = 0
+## requirements = regexp("V100", TARGET.GPUs_DeviceName)
+## requirements = regexp("L40S", TARGET.GPUs_DeviceName)
+Request_Memory = 32000 Mb
+log                     = run_$(ClusterId)_$(ProcId).log
+output                  = run_outfile_$(ClusterId)_$(ProcId).txt
+error                   = run_errors_$(ClusterId)_$(ProcId).txt
+## Can use "el7", "el8", or "el9" for UseOS or you can specify your own 
+## SingularityImage but an OS must be specified and in string quotations. 
++UseOS                  = "el9"
+## Can choose "express", "short", "medium", or "long".
++JobCategory            = "medium"   
+queue
