@@ -18,7 +18,9 @@ Contains all outputs from micrOMEGAs and `mO_excluder`
 
 Example scan generation:
 cd DM/example_steer
-python3 generate_oks.py --mx-start 10 --mx-end 1000 --mx-step 10 --lsx-start 0.01 --lsx-end 1 --lsx-step 0.01
+python3 generate_oks.py --lhx-start 0.01 --lhx-end 1 --lhx-step 0.01 --lsx-start 0.01 --lsx-end 1 --lsx-step 0.01
+it can also generate logarithmically spaced points:
+python3 generate_oks.py --lhx-log --lhx-start 0.01 --lhx-end 1 --lhx-num-points 100 --mx-start 0.01 --mx-end 1 --mx-step 0.01
 
 Copy `oks.dat` into the run directory:
 cp oks.dat run/oks.dat

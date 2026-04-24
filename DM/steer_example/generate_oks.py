@@ -9,7 +9,7 @@ PARAMETERS = [
     ("lx", 0.2),
     ("lhx", 0.1),
     ("lsx", 0.1),
-    ("mx", 1000.0),
+    ("mx", 800.0),
     ("vevs", 500.0),
     ("sint", 0.3),
     ("mh2", 500.0),
@@ -47,6 +47,20 @@ def parse_args():
             help=f"Step size for {label}. Required when start and end differ.",
         )
 
+    for name, default in PARAMETERS:
+        label = name.upper() if name != "sint" else "SinT"
+        parser.add_argument(
+            f"--{name}-log",
+            action="store_true",
+            help=f"Use logarithmic spacing for {label}."
+        )
+        parser.add_argument(
+            f"--{name}-num-points",
+            type=int,
+            default=None,
+            help=f"Number of points for {label} when using logarithmic spacing."
+        )
+
     return parser.parse_args()
 
 
@@ -54,39 +68,63 @@ def build_scan_values(name, args):
     start = getattr(args, f"{name}_start")
     end = getattr(args, f"{name}_end")
     step = getattr(args, f"{name}_step")
+    log = getattr(args, f"{name}_log")
+    num_points = getattr(args, f"{name}_num_points")
 
-    if end is None:
-        end = start
+    if log:
+        if end is None:
+            end = start
 
-    if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-12):
-        return [start]
+        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-12):
+            return [start]
 
-    if step is None or step == 0.0:
-        raise ValueError(f"{name}: --{name}-step must be non-zero when start != end")
+        if start <= 0 or end <= 0:
+            raise ValueError(f"{name}: start and end must be positive for logarithmic spacing")
 
-    if (end - start) * step < 0:
-        raise ValueError(
-            f"{name}: --{name}-step must move from start toward end"
-        )
+        if num_points is None or num_points < 1:
+            raise ValueError(f"{name}: --{name}-num-points must be at least 1 for logarithmic spacing")
 
-    values = []
-    current = start
-    tolerance = abs(step) * 1e-9 + 1e-12
+        log_start = math.log10(start)
+        log_end = math.log10(end)
+        if num_points == 1:
+            return [start]
+        step_log = (log_end - log_start) / (num_points - 1)
+        values = [10 ** (log_start + i * step_log) for i in range(num_points)]
+        return values
 
-    if step > 0:
-        while current <= end + tolerance:
-            values.append(current)
-            current += step
     else:
-        while current >= end - tolerance:
-            values.append(current)
-            current += step
+        if end is None:
+            end = start
 
-    if not values:
-        raise ValueError(f"{name}: no scan points generated")
+        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-12):
+            return [start]
 
-    values[-1] = end
-    return values
+        if step is None or step == 0.0:
+            raise ValueError(f"{name}: --{name}-step must be non-zero when start != end")
+
+        if (end - start) * step < 0:
+            raise ValueError(
+                f"{name}: --{name}-step must move from start toward end"
+            )
+
+        values = []
+        current = start
+        tolerance = abs(step) * 1e-9 + 1e-12
+
+        if step > 0:
+            while current <= end + tolerance:
+                values.append(current)
+                current += step
+        else:
+            while current >= end - tolerance:
+                values.append(current)
+                current += step
+
+        if not values:
+            raise ValueError(f"{name}: no scan points generated")
+
+        values[-1] = end
+        return values
 
 
 def main():
