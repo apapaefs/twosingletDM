@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 COLUMNS = [
@@ -96,6 +97,7 @@ def main():
     rows = load_scan_results(scan_file)
     x_values = [row[variable] for row in rows]
     y_values = [row["Omega"] for row in rows]
+    log_y_values = [np.log10(row["Omega"]) for row in rows]
 
     figure, axis = plt.subplots(figsize=(7, 5))
     axis.scatter(x_values, y_values, s=28)
@@ -117,7 +119,24 @@ def main():
     else:
         plt.close(figure)
 
-    print(f"Saved plot to {output_path}")
+
+    figure, axis = plt.subplots(figsize=(7, 5))
+    axis.scatter(x_values, log_y_values, s=28)
+    axis.set_xlabel(variable)
+    axis.set_ylabel("log10(Omega)")
+    axis.set_title(f"Omega vs {variable}")
+    axis.grid(True, alpha=0.3)
+    figure.tight_layout()
+
+    output_path = (
+        Path(args.output)
+        if args.output
+        else outplots_dir / f"log10_omega_vs_{variable}.png"
+    )
+    figure.savefig(output_path, dpi=200)
+
+
+    print(f"Saved plots to {output_path}")
 
 
 if __name__ == "__main__":

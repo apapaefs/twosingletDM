@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 COLUMNS = [
@@ -116,6 +117,8 @@ def main():
         raise SystemExit(
             f"No points in {scan_file} satisfy {RELIC_MIN} <= Omega <= {RELIC_MAX}"
         )
+    else:
+        print(f"Found {len(selected_rows)} points in {scan_file} that satisfy {RELIC_MIN} <= Omega <= {RELIC_MAX}")
 
     x_values = [row[args.x_variable] for row in selected_rows]
     y_values = [row[args.y_variable] for row in selected_rows]
@@ -142,7 +145,29 @@ def main():
     else:
         plt.close(figure)
 
-    print(f"Saved plot to {output_path}")
+    figure, axis = plt.subplots(figsize=(7, 5))
+    axis.scatter(x_values, np.log10(y_values), s=28)
+    axis.set_xlabel(args.x_variable)
+    axis.set_ylabel(f"log10({args.y_variable})")
+    axis.set_title(
+        f"Strict relic-density points: log10 {args.y_variable} vs {args.x_variable}"
+    )
+    axis.grid(True, alpha=0.3)
+    figure.tight_layout()
+    
+    default_output = (
+        outplots_dir
+        / f"relic_strict_log10_{args.y_variable}_vs_{args.x_variable}.png"
+    )
+    output_path = Path(args.output) if args.output else default_output
+    figure.savefig(output_path, dpi=200)
+
+    if args.show:
+        plt.show()
+    else:
+        plt.close(figure)
+
+    print(f"Saved plots to {output_path}")
 
 
 if __name__ == "__main__":

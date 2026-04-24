@@ -1112,3 +1112,60 @@ Processing /project/atlas/users/okarkout/theo/dmonly/run/cards/MO_inp9.dat with 
 410.000 2.42e-02 2.823E-10
 processing 9	410	0.0242	2.823e-10
 Point agrees with DM data
+100 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp100.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp100.dat with micromegas
+1000.000 4.90e-02 1.218E-09
+processing 100	1000	0.049	1.218e-09
+Point agrees with DM data
+101 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp101.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp101.dat with micromegas
+10.000 7.30e-02 1.722E-05
+processing 101	10	0.073	1.722e-05
+excluded from dm 10
+Should be visible in LUX!
+102 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp102.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp102.dat with micromegas
+60.000 4.40e-05 5.550E-07
+processing 102	60	4.4e-05	5.55e-07
+excluded from dm 10
+Should be visible in LUX!
+103 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp103.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp103.dat with micromegas
+110.000 5.53e-04 1.675E-07
+processing 103	110	0.000553	1.675e-07
+excluded from dm 10
+Should be visible in LUX!
+104 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp104.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp104.dat with micromegas
+160.000 2.28e-04 7.957E-08
+processing 104	160	0.000228	7.957e-08
+excluded from dm 10
+Should be visible in LUX!
+105 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp105.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp105.dat with micromegas
+210.000 9.50e-05 4.632E-08
+processing 105	210	9.5e-05	4.632e-08
+Point agrees with DM data
+106 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp106.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp106.dat with micromegas
+260.000 1.78e-05 3.027E-08
+processing 106	260	1.78e-05	3.027e-08
+Point agrees with DM data
+107 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp107.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp107.dat with micromegas
+310.000 5.82e-04 2.132E-08
+processing 107	310	0.000582	2.132e-08
+Point agrees with DM data
+108 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp108.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp108.dat with micromegas
+360.000 2.11e-03 1.582E-08
+processing 108	360	0.00211	1.582e-08
+Point agrees with DM data
+109 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp109.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp109.dat with micromegas
+410.000 5.29e-03 1.220E-08
+processing 109	410	0.00529	1.22e-08
+excluded from dm 10
+Should be visible in LUX!
+10 /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp10.dat
+Processing /project/atlas/users/okarkout/theo/twosingletDM/DM/example_steer/run/cards/MO_inp10.dat with micromegas
