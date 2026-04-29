@@ -75,6 +75,7 @@ Columns:
 
 `output/dmexcl.dat`
 Generated only if at least one point fails any DM check.
+so allall.dat + dmexcl.dat = scan_results.dat
 Columns:
 `index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit LUXBaseLimit`
 
@@ -90,6 +91,39 @@ Example:
 python3 plot/plot_omega.py output MX
 
 This writes `plot/outplots/omega_vs_MX.png` and `plot/outplots/log10_omega_vs_MX.png` by default.
+
+`plot/plot_omega_colored.py`
+Reads `output/scan_results.dat` and plots `Omega` against one chosen variable,
+with another variable given a color map.
+
+Example:
+python plot_omega_colored.py /path/to/output MX LSX
+
+This writes `plot/outplots/omega_vs_MX_colored_by_LSX.png` and `plot/outplots/log10_omega_vs_MX_colored_by_LSX.png` by default.
+
+`plot/steer_plots.py`
+Reads `run/oks.dat`, detects which scan variables vary, and runs the plotting
+scripts automatically.
+
+Default usage:
+`python3 plot/steer_plots.py`
+
+This uses `output/` automatically as the output directory. If `MX` is one of the
+varying variables in `run/oks.dat`, it is used as the x-axis. The second varying
+variable is used as the y-axis for the 2D relic plots and as the color variable
+for `plot_omega_colored.py`.
+
+If only one scan variable varies, the driver still runs `plot_omega.py` and skips
+the plots that require a second variable.
+
+Example with explicit overrides:
+`python3 plot/steer_plots.py --outdir output_1 --xvar MX --yvar LSX`
+
+Options:
+`--outdir <directory>` overrides the default output directory.
+`--xvar <variable>` overrides the automatically selected x-axis variable.
+`--yvar <variable>` overrides the automatically selected secondary variable.
+
 
 `plot/plot_relic_pass_2d.py`
 Reads `output/scan_results.dat`, keeps only points with `Omega <= 0.1224`, and
