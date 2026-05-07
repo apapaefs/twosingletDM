@@ -33,6 +33,9 @@ g++ -O2 -std=c++11 -o mO_excluder mO_excluder.cpp
 Generate micrOMEGAs cards in `run/cards/`:
 ./write_mo
 
+To see the direct detection limits used, plot them using
+./mO_excluder --plot-dirdet-limits
+
 Run the full micrOMEGAs + exclusion chain:
 cd ../run
 MICROMEGAS_MAIN=<full_path>/twosingletDM/DM/micromegas_6.1.15/TRSM/main ./MOrun.sh
