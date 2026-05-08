@@ -21,9 +21,8 @@ COLUMNS = [
     "DirDet",
 ]
 
-RELIC_LIMIT = 0.1224
-RELIC_CENTRAL = 0.1199
-RELIC_TOLERANCE = 0.025
+RELIC_CENTRAL = 0.120
+RELIC_TOLERANCE = 0.001
 RELIC_MIN = RELIC_CENTRAL - RELIC_TOLERANCE
 RELIC_MAX = RELIC_CENTRAL + RELIC_TOLERANCE
 
@@ -34,7 +33,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Plot points that pass the relic-density cut "
-            f"(Omega <= {RELIC_LIMIT}) for two chosen variables."
+            f"(Omega <= {RELIC_MAX}) for two chosen variables."
         )
     )
     parser.add_argument(
@@ -113,11 +112,11 @@ def main():
     outplots_dir.mkdir(parents=True, exist_ok=True)
 
     rows = load_scan_results(scan_file)
-    # passed_rows = [row for row in rows if row["Omega"] <= RELIC_LIMIT]
+    # passed_rows = [row for row in rows if row["Omega"] <= RELIC_MAX]
     passed_rows = [row for row in rows if row["Omega"] <= RELIC_MIN] #for better colours, this adds only the points that are excluded from the strict exp. obs. of relic density 0.1199 \pm 0.025. The passng points are added in central_rows
     if not passed_rows:
         raise SystemExit(
-            f"No points in {scan_file} satisfy Omega <= {RELIC_LIMIT}"
+            f"No points in {scan_file} satisfy Omega <= {RELIC_MAX}"
         )
     
     x_values = [row[args.x_variable] for row in passed_rows]

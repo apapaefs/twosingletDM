@@ -21,7 +21,7 @@ COLUMNS = [
     "DirDet",
 ]
 
-RELIC_LIMIT = 0.1224
+RELIC_MAX = 0.121
 
 
 def parse_args():
@@ -103,7 +103,7 @@ def main():
 
     figure, axis = plt.subplots(figsize=(7, 5))
     axis.scatter(x_values, y_values, s=28)
-    axis.axhline(RELIC_LIMIT, color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_LIMIT}")
+    axis.axhline(RELIC_MAX, color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(variable)
     axis.set_ylabel(r'$\Omega h^2$')
     axis.set_title(f"Relic density vs {variable}")
@@ -126,7 +126,7 @@ def main():
 
     figure, axis = plt.subplots(figsize=(7, 5))
     axis.scatter(x_values, log_y_values, s=28)
-    axis.axhline(np.log10(RELIC_LIMIT), color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_LIMIT}")
+    axis.axhline(np.log10(RELIC_MAX), color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(variable)
     axis.set_ylabel(r'$\log_{10}(\Omega h^2)$')
     axis.set_title(f"Relic density vs {variable}")

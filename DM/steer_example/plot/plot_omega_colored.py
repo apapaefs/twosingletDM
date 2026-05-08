@@ -21,7 +21,7 @@ COLUMNS = [
     "DirDet",
 ]
 
-RELIC_LIMIT = 0.1224
+RELIC_MAX = 0.121
 
 
 def parse_args():
@@ -124,7 +124,7 @@ def main():
     # Linear scale plot
     figure, axis = plt.subplots(figsize=(8, 6))
     scatter = axis.scatter(x_values, y_values, c=color_values, s=28, cmap=args.cmap, alpha=0.7)
-    axis.axhline(RELIC_LIMIT, color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_LIMIT}")
+    axis.axhline(RELIC_MAX, color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(x_variable)
     axis.set_ylabel(r'$\Omega h^2$')
     axis.set_title(f"Relic density vs {x_variable} (colored by {color_variable})")
@@ -146,7 +146,7 @@ def main():
     log_y_values = np.log10(y_values)
     figure, axis = plt.subplots(figsize=(8, 6))
     scatter = axis.scatter(x_values, log_y_values, c=color_values, s=28, cmap=args.cmap, alpha=0.7)
-    axis.axhline(np.log10(RELIC_LIMIT), color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_LIMIT}")
+    axis.axhline(np.log10(RELIC_MAX), color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(x_variable)
     axis.set_ylabel(r'$\log_{10}(\Omega h^2)$')
     axis.set_title(f"Relic density vs {x_variable} (colored by {color_variable})")

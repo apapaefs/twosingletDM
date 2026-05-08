@@ -37,9 +37,8 @@ DM_COLUMNS = [
     "LUXBaseLimit",
 ]
 
-RELIC_LIMIT = 0.1224
-RELIC_CENTRAL = 0.1199
-RELIC_TOLERANCE = 0.025
+RELIC_CENTRAL = 0.120
+RELIC_TOLERANCE = 0.001
 RELIC_MIN = RELIC_CENTRAL - RELIC_TOLERANCE
 RELIC_MAX = RELIC_CENTRAL + RELIC_TOLERANCE
 
@@ -51,7 +50,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Plot accepted DM points and overlay experimentally excluded points "
-            f"in greyscale for two chosen variables, keeping only Omega <= {RELIC_LIMIT}."
+            f"in greyscale for two chosen variables, keeping only Omega <= {RELIC_MAX}."
         )
     )
     parser.add_argument(
@@ -264,11 +263,11 @@ def main():
 
     accepted_rows = load_rows(accepted_file, DM_COLUMNS)
     excluded_rows = load_rows(excluded_file, DM_COLUMNS) if excluded_file.is_file() else []
-    accepted_rows = [row for row in accepted_rows if row["Omega"] <= RELIC_LIMIT]
-    excluded_rows = [row for row in excluded_rows if row["Omega"] <= RELIC_LIMIT]
+    accepted_rows = [row for row in accepted_rows if row["Omega"] <= RELIC_MAX]
+    excluded_rows = [row for row in excluded_rows if row["Omega"] <= RELIC_MAX]
     if not accepted_rows and not excluded_rows:
         raise SystemExit(
-            f"No points in {output_dir} satisfy Omega <= {RELIC_LIMIT}"
+            f"No points in {output_dir} satisfy Omega <= {RELIC_MAX}"
         )
     accepted_norm = build_normalization(accepted_rows, accepted_file.name)
     excluded_norm = (
@@ -279,11 +278,11 @@ def main():
 
     print(
         f"Loaded {len(accepted_rows)} accepted points from {accepted_file} "
-        f"with Omega <= {RELIC_LIMIT}"
+        f"with Omega <= {RELIC_MAX}"
     )
     print(
         f"Loaded {len(excluded_rows)} excluded points from {excluded_file} "
-        f"with Omega <= {RELIC_LIMIT}"
+        f"with Omega <= {RELIC_MAX}"
     )
     strict_count = sum(
         1 for row in accepted_rows if RELIC_MIN <= row["Omega"] <= RELIC_MAX
