@@ -113,7 +113,7 @@ def main():
 
     rows = load_scan_results(scan_file)
     # passed_rows = [row for row in rows if row["Omega"] <= RELIC_MAX]
-    passed_rows = [row for row in rows if row["Omega"] <= RELIC_MIN] #for better colours, this adds only the points that are excluded from the strict exp. obs. of relic density 0.1199 \pm 0.025. The passng points are added in central_rows
+    passed_rows = [row for row in rows if row["Omega"] <= RELIC_MIN] #for better colours, this adds only the points that are excluded from the strict exp. obs. of relic density 0.12 \pm 0.001. The passng points are added in central_rows
     if not passed_rows:
         raise SystemExit(
             f"No points in {scan_file} satisfy Omega <= {RELIC_MAX}"

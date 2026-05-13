@@ -139,7 +139,7 @@ This writes `plot/outplots/relic_pass_LSX_vs_MX.png` and `plot/outplots/relic_pa
 
 `plot/plot_relic_strict_2d.py`
 Reads `output/scan_results.dat`, keeps only points with
-`0.1199 - 0.025 <= Omega <= 0.1199 + 0.025`, and plots two chosen variables
+`0.121 <= Omega <= 0.119`, and plots two chosen variables
 against each other.
 
 Example:
