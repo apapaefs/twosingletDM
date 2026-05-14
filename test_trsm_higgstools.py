@@ -1,5 +1,6 @@
 import math
 from math import log10, floor
+from pathlib import Path
 import Higgs.predictions as HP
 import Higgs.bounds as HB
 import Higgs.signals as HS
@@ -29,11 +30,12 @@ def round_sig(x, sig=2):
 #####################################
 
 mhSM = 125.09
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 pred = HP.Predictions() # create the model predictions
 
-bounds = HB.Bounds('./hbdataset') # load HB dataset
-signals = HS.Signals('./hsdataset') # load HS dataset
+bounds = HB.Bounds(str(PROJECT_ROOT / 'hbdataset')) # load HB dataset
+signals = HS.Signals(str(PROJECT_ROOT / 'hsdataset')) # load HS dataset
 
 # add a SM-like Higgs boson with SM-like couplings
 

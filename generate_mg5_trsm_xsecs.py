@@ -3,9 +3,13 @@ import os.path
 import math
 import numpy as np
 from math import log10, floor
+from pathlib import Path
 
 # MG5/aMC sub-dir (INCLUDE THE SLASH AT THE END!):
-MGLocation = '/home/apapaefs/Projects/TwoSingletDM/twosingletDM/MG5_aMC_v2_9_23/'
+MGLocation = os.environ.get(
+    "TRSM_MG5_LOCATION",
+    str(Path(__file__).resolve().parents[1] / "MG5_aMC_v3_5_15") + os.sep,
+)
 
 
 # Process sub-dirs (INCLUDE THE SLASH AT THE END!):

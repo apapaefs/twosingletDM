@@ -9,7 +9,10 @@ from test_trsm_evolution import * # RGE evolution
 from test_trsm_higgstools import * # HiggsTools setup 
 from trsm_kstoalphas import * # Convert from k1, k2, k3 to a12, a13, a23
 from generate_mg5_trsm_xsecs import * # call MG5 to get the cross section for a specific proces. Make sure that the process has been generated (and check run card for energy/cuts etc!)
+from mg5_process_runner import run_mg5_processes # run selected MG5 processes and collect cross sections
+from scan_output import write_valid_point as write_valid_point_file
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
+from test_trsm_DM import print_dm_info, test_dm # micrOMEGAs dark matter check for the vx=0 branch
 from prettytable import PrettyTable
 from datetime import date
 from singlet_EWPO import * # Electroweak Precision Observables
@@ -19,7 +22,7 @@ from singlet_EWPO import * # Electroweak Precision Observables
 # Random seed is the only input
 ###########################################################
 
-if len(sys.argv) < 1:
+if len(sys.argv) < 2:
     print('generate_trsm_points.py [seed]')
     exit()
 
@@ -34,6 +37,10 @@ debug = True
 
 # run MG5 on points that pass constraints?
 RunMG5 = False
+
+# MG5 processes to run when RunMG5 is True.
+# Available process names are defined by ProcLocation in generate_mg5_trsm_xsecs.py.
+MG5ProcessesToRun = [] # e.g. ['hh', 'hhh']
 
 # for random scan within ranges, how many points to run
 nrandom=100
@@ -136,7 +143,7 @@ def print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3,
     print(tbl)
     #print('\n')
 
-def print_constraints(evo, thc, hb, hs, ewpo, wmass):
+def print_constraints(evo, thc, hb, hs, ewpo=None, wmass=None, dm=None):
     tbl = PrettyTable(["Constraint", "Pass/Fail"])
     constraint = {}
     if evo == True:
@@ -155,14 +162,21 @@ def print_constraints(evo, thc, hb, hs, ewpo, wmass):
         constraint['hs'] = 'Pass'
     else:
         constraint['hs'] = 'Fail'
-    if ewpo == True:
-        constraint['ewpo'] = 'Pass'
-    else:
-        constraint['ewpo'] = 'Fail'
-    if wmass == True:
-        constraint['wmass'] = 'Pass'
-    else:
-        constraint['wmass'] = 'Fail'
+    if ewpo is not None:
+        if ewpo == True:
+            constraint['ewpo'] = 'Pass'
+        else:
+            constraint['ewpo'] = 'Fail'
+    if wmass is not None:
+        if wmass == True:
+            constraint['wmass'] = 'Pass'
+        else:
+            constraint['wmass'] = 'Fail'
+    if dm is not None:
+        if dm == True:
+            constraint['dm'] = 'Pass'
+        else:
+            constraint['dm'] = 'Fail'
     for key in constraint.keys():
         tbl.add_row([key, constraint[key]])
     print(tbl)
@@ -174,12 +188,50 @@ def write_valid_point_xsec(runtag, m2, m3, vs, vx, a12, a13, a23, xsec, resfrac)
     filestream.write(str(m2) + '\t' + str(m3) + '\t' + str(vs) + '\t' + str(vx) + '\t' + str(a12) + '\t' + str(a13) + '\t' + str(a23) + '\t' + str(xsec) + '\t' + str(resfrac) + '\n')
     filestream.close()
 
-# write the point without the xsec
-def write_valid_point(runtag, m2, m3, vs, vx, a12, a13, a23):
+def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, ewpo, wmass, dm=None, dm_exclusion_info=None):
+    point_info = {
+        "M2": M2,
+        "M3": M3,
+        "vs": vs,
+        "vx": vx,
+        "a12": a12,
+        "a13": a13,
+        "a23": a23,
+        "lX": lX,
+        "lPhiX": lPhiX,
+        "lSX": lSX,
+        "w1": w1,
+        "w2": w2,
+        "w3": w3,
+        "k1": k1,
+        "k2": k2,
+        "k3": k3,
+        "K111": K111,
+        "K112": K112,
+        "K113": K113,
+        "K123": K123,
+        "K122": K122,
+        "K1111": K1111,
+        "K1112": K1112,
+        "K1113": K1113,
+        "K133": K133,
+        "evo": evo,
+        "thc": thc,
+        "hb": hb,
+        "hs": hs,
+        "ewpo": ewpo,
+        "wmass": wmass,
+        "dm": dm,
+    }
+    if dm_exclusion_info is not None:
+        point_info.update(dm_exclusion_info)
+    return point_info
+
+
+# write the full accepted point record
+def write_valid_point(runtag, point_info, MG5xsecs=None):
     outfile = OutputDir + 'trsm_points_' + runtag + '.dat'
-    filestream = open(outfile,'a')
-    filestream.write(str(m2) + '\t' + str(m3) + '\t' + str(vs) + '\t' + str(vx) + '\t' + str(a12) + '\t' + str(a13) + '\t' + str(a23) + '\n')
-    filestream.close()
+    write_valid_point_file(outfile, point_info, MG5xsecs)
 
 def reset_output(runtag):
     outfile = OutputDir + 'trsm_points_' + runtag + '.dat'
@@ -234,18 +286,13 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         if debug is False:
             print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs)
+        MG5xsecs = {}
         if runmg5 is True:
-            print('All constraints passed, running mg5 to test cross section, please wait!')
-            mg5xsec = get_mg5_xsec('hhh', 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3,ecm=Energy)
-            print('MG5 hh xsec [pb] =', mg5xsec)
-            factorxsec = xs136_lo_h2 * h2_BRs[11]
-            resfrac = factorxsec/mg5xsec
-            print('Factorized h2>h1h1 [pb] =', factorxsec)
-            print('Resonant fraction = ', resfrac)
-            write_valid_point_xsec(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, mg5xsec/xsec_sm[Energy],resfrac)
-
-        else:
-            write_valid_point(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23)
+            print('All constraints passed, running selected MG5 processes, please wait!')
+            MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
+            print('MG5 cross sections [pb] =', MG5xsecs)
+        point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, None, None, None, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass)
+        write_valid_point(RunTag, point_info, MG5xsecs)
         return 1
     return 0
 
@@ -288,26 +335,27 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     if debug is False:
         if evo is False:
             return 0
+    dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
     if debug is True:
-        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
+        print_dm_info(dm[1])
+    if debug is False:
+        if dm[0] is False:
+            return 0
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
-    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True:
+    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True and dm[0] is True:
         if debug is False:
-            print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
-            print_constraints(evo, thc, hb, hs)
+            print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
+            print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
+            print_dm_info(dm[1])
+        MG5xsecs = {}
         if runmg5 is True:
-            print('All constraints passed, running mg5 to test cross section, please wait!')
-            mg5xsec = get_mg5_xsec('hhh', 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3,ecm=Energy)
-            print('MG5 hh xsec [pb] =', mg5xsec)
-            factorxsec = xs136_lo_h2 * h2_BRs[11]
-            resfrac = factorxsec/mg5xsec
-            print('Factorized h2>h1h1 [pb] =', factorxsec)
-            print('Resonant fraction = ', resfrac)
-            write_valid_point_xsec(RunTag, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, mg5xsec/xsec_sm[Energy],resfrac)
-
-        else:
-            write_valid_point(RunTag, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX)
+            print('All constraints passed, running selected MG5 processes, please wait!')
+            MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
+            print('MG5 cross sections [pb] =', MG5xsecs)
+        point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
+        write_valid_point(RunTag, point_info, MG5xsecs)
         return 1
     return 0
 
@@ -349,14 +397,14 @@ num_m2 = 2
 num_m3 = 2
 
 # ranges of couplings if vx=0
-lX_min = -100
-lX_max= 100
+lX_min = -1
+lX_max= 1
 
-lPhiX_min = -100
-lPhiX_max = 100
+lPhiX_min = -1
+lPhiX_max = 1
 
-lSX_min = -100
-lSX_max = 100
+lSX_min = -1
+lSX_max = 1
 
 
 
@@ -365,6 +413,7 @@ lSX_max = 100
 ############################################################
 
 print('\nScanning TRSM parameter space')
+RunTag = RunTag + '_vxzero'
 # reset the output file?
 if ResetOutput is True:
     reset_output(RunTag)
@@ -381,7 +430,6 @@ vx = 0
 k3=0
 a13 = 0
 a23 = 0
-RunTag = RunTag + '_vxzero'
 
 for i in tqdm(range(0,nrandom)):
     # scan over free parameters
@@ -415,6 +463,3 @@ for i in tqdm(range(0,nrandom)):
     passcounter = passcounter + evalpoint
     
 print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
-
-
-
