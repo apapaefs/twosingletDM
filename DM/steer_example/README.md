@@ -86,6 +86,27 @@ Marker files:
 `output/DM_EXCLUDED_<index>`, `output/RelDens_EXCLUDED_<index>`, `output/DirDet_EXCLUDED_<index>`
 These are created only for points that fail the corresponding check.
 
+Single-point utility:
+`run_single_point.py`
+Runs or post-processes one point without scanning over `run/cards/MO_inp*.dat`.
+It reproduces the `MOrun.sh` parsing step and the `mO_excluder.cpp` summary
+step in Python, writing single-point files such as `OUT_mO_100`,
+`DM_data_100`, and `scan_result_100.dat` into the chosen output directory.
+It does not append to the scan-wide aggregate files.
+
+To post-process an existing raw micrOMEGAs output:
+`python3 run_single_point.py --card run/cards/MO_inp100.dat --micromegas-output output/OUT_mO_100 --output-dir single_point_output`
+
+To run micrOMEGAs for one existing card:
+`python3 run_single_point.py --card run/cards/MO_inp100.dat --output-dir single_point_output`
+
+To run from explicit point values instead of a card:
+`python3 run_single_point.py --index 100 --lx 0.2 --lhx 0.1 --lsx 0.5 --mx 1000 --vevs 500 --sint 0.3 --mh2 500 --output-dir single_point_output`
+
+By default the direct-detection fit matches the existing files in `output/`.
+Use `--limit-model lz2025-source` to follow the active fit in
+`source/mO_excluder.cpp`.
+
 Plotting utilities:
 `plot/plot_omega.py`
 Reads `output/scan_results.dat` and plots `Omega` against one chosen variable.

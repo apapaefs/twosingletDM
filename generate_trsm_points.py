@@ -33,7 +33,7 @@ ini_seed=int(argv[1])
 ##############
 
 # print debug?
-debug = True
+debug = False
 
 # run MG5 on points that pass constraints?
 RunMG5 = False
@@ -66,7 +66,7 @@ OutputDir = 'output/'
 ResetOutput = True
 
 # Print additional TRSM point info?
-PRINTINFO = True
+PRINTINFO = False
 
 ###########################################################
 # some functions
@@ -285,7 +285,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True:
         if debug is False:
             print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
-            print_constraints(evo, thc, hb, hs)
+            print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
         MG5xsecs = {}
         if runmg5 is True:
             print('All constraints passed, running selected MG5 processes, please wait!')
@@ -320,7 +320,6 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     # check W mass:
     wmass = check_wmass_tania(M2, sinth)
     
-        
     # check HiggsTools:
     hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
     if debug is False:
@@ -397,14 +396,14 @@ num_m2 = 2
 num_m3 = 2
 
 # ranges of couplings if vx=0
-lX_min = -1
-lX_max= 1
+lX_min = -0.5
+lX_max= 0.5
 
-lPhiX_min = -1
-lPhiX_max = 1
+lPhiX_min = -0.5
+lPhiX_max = 0.5
 
-lSX_min = -1
-lSX_max = 1
+lSX_min = -0.5
+lSX_max = 0.5
 
 
 
