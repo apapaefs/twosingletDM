@@ -45,8 +45,8 @@ Phi = {
   higgsbase[[1]] + I*higgsbase[[2]],
   higgsbase[[4]] + I*higgsbase[[3]]
 }/Sqrt[2];
-X = higgsbase[[5]];
-S = higgsbase[[6]];
+X = higgsbase[[5]]/Sqrt[2];
+S = higgsbase[[6]]/Sqrt[2];
 (*Print fields*)
 Phi//MatrixForm//TraditionalForm
 X//MatrixForm//TraditionalForm
@@ -83,9 +83,9 @@ AdditionalConditions = {v1 -> vev0};
 
 MassInputRulesRaw = {
   lphi  -> Mhh/(2 v1^2),
-  ls    -> Mss/(8 vs^2),
-  lphis -> Mhs/(2 v1 vs),
-  mxSq  -> (m3^2 - lphix v1^2 - 2 lsx vs^2)/2
+  ls    -> Mss/(2 vs^2),
+  lphis -> Mhs/(v1 vs),
+  mxSq  -> m3^2 - (lphix v1^2 + lsx vs^2)/2
 };
 
 TadpoleRulesRaw = Solve[
@@ -334,13 +334,12 @@ Vgauge =
 
 
 GaugeCurvatureL4 = GenerateGaugeCurvature;
-If[GaugeCurvatureL4=={},"No entries for "Curvature_Gauge _G2H2 "",GaugeCurvatureL4//TableForm]
+If[GaugeCurvatureL4=={},"No entries for Curvature_Gauge_G2H2",GaugeCurvatureL4//TableForm]
 
 
 (* ::Chapter:: *)
 (*Lepton interaction*)
-(*This defines the interactions with Leptons. The N2HDM has several types to avoid FCNC. *)
-(*I am showing only Type 1 here as an example, meaning the Leptons and down-type quarks couple to the first doublet while the up-type quark couple to the second doublet.*)
+(**)
 
 
 Clear[eL, eR, muL, muR, tauL, tauR, veL, vmuL, vtauL,
@@ -490,6 +489,7 @@ CTCurvatureL4, (*Counterterm scalar curvatures L4 (calculated automatically)*)
 GaugeBasis, (*Gauge fields*)
 LepBase, (*Leptonic fields*)
 baseQuarks] (*Quark fields*)
+
 
 
 
