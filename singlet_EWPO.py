@@ -1,7 +1,10 @@
 #! /usr/bin/env python
 import math
+from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
+
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 # first some EW parameters:
 mz = 91.1876 # from the PDG: http://pdg.lbl.gov/2019/tables/rpp2019-sum-gauge-higgs-bosons.pdf
@@ -29,7 +32,7 @@ alpha = 7.2973525693E-3
 # W MASS CONSTRAINT                            #
 ################################################
 # the W mass constraint (Tania Robens, Snowmass white paper)
-datalist = [ ( np.loadtxt('datafiles/Tania_MW_SnowmassWhitepaper.dat'), 'total' ) ]
+datalist = [ ( np.loadtxt(SCRIPT_DIR / 'datafiles' / 'Tania_MW_SnowmassWhitepaper.dat'), 'total' ) ]
 for data, label in datalist:
         x1w = data[:,0]
         y1w = data[:,1]
@@ -410,4 +413,3 @@ if test is True:
     pl.savefig(outputdirectory + infile.replace('.dat','.pdf'), bbox_inches='tight')
     pl.savefig(outputdirectory + infile.replace('.dat','.png'), bbox_inches='tight', scale=0.1)
     pl.close(fig)
-

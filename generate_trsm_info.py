@@ -19,11 +19,13 @@ from matplotlib import container
 import matplotlib.font_manager as fm
 from matplotlib.ticker import MultipleLocator
 import matplotlib.patches as mpatches
+from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 # subdirectory that contains the coupling expressions
-couplingsdir = 'couplings/' # full
-couplingsdir_vxzero = 'couplings_vxzero/' # couplings for vx=0
+couplingsdir = str(SCRIPT_DIR / 'couplings') + os.sep # full
+couplingsdir_vxzero = str(SCRIPT_DIR / 'couplings_vxzero') + os.sep # couplings for vx=0
 
 # round number to chosen number of significant digits
 def round_sig(x, sig=2):
@@ -78,7 +80,7 @@ def mscatter(x,y,ax=None, m=None, **kw):
 
 # function to get template
 def getTemplate(basename):
-    with open('%s.template' % basename, 'r') as f:
+    with open(SCRIPT_DIR / ('%s.template' % basename), 'r') as f:
         templateText = f.read()
     return string.Template( templateText )
 
@@ -420,7 +422,7 @@ BR_text_array_h2 = [ '$b\\bar{b}$', '$\\tau \\tau$', '$\\mu \\mu$', '$c\\bar{c}$
 BR_text_array_h3 = [ '$b\\bar{b}$', '$\\tau \\tau$', '$\\mu \\mu$', '$c\\bar{c}$', '$s\\bar{s}$', '$t\\bar{t}$', '$gg$', '$\\gamma\\gamma$', '$Z \\gamma$', '$WW$', '$ZZ$', '$h_1 h1$', '$h_1 h_2$', '$h_2 h_2$', '$\\Gamma$' ]
 
 # the file containing the branching ratios for the SM Higgs boson:
-BR_file = "YR/higgsBR_YR4.txt"
+BR_file = str(SCRIPT_DIR / "YR" / "higgsBR_YR4.txt")
 # read the file:
 #print('reading in', BR_file)
 HiggsBRs = read_higgsBR(BR_file)
@@ -430,14 +432,14 @@ HiggsBRs = read_higgsBR(BR_file)
 BR_interpolators_SM = interpolate_HiggsBR(HiggsBRs)  # this returns the actual interpolators
 
 # the 13 TeV ggF cross sections at N^3LO
-XS13_file = "YR/higgsXS_YR4_13TeV_N3LO.txt"
+XS13_file = str(SCRIPT_DIR / "YR" / "higgsXS_YR4_13TeV_N3LO.txt")
 #print('reading in', XS13_file)
 HiggsXS_13_N3LO = read_higgsXS_N3LO(XS13_file)
 # get the interpolated XS
 XS_interpolator_SM_13TeV_N3LO = interpolate_HiggsXS(HiggsXS_13_N3LO)
 
 # the 13 TeV ggF cross sections at N^3LO
-XS136_file_LO = "YR/higgsXS_136TeV_LO.txt"
+XS136_file_LO = str(SCRIPT_DIR / "YR" / "higgsXS_136TeV_LO.txt")
 #print('reading in', XS13_file)
 HiggsXS_136_LO = read_higgsXS_LO(XS136_file_LO)
 # get the interpolated XS
