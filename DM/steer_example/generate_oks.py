@@ -25,6 +25,22 @@ def parse_args():
         default="oks.dat",
         help="Output file path. Defaults to oks.dat in the current directory.",
     )
+    parser.add_argument(
+        "--equal-couplings",
+        action="store_true",
+        help=(
+            "Force equal couplings in every generated point by writing LSX = LHX. "
+            "The LHX scan settings define the shared coupling values."
+        ),
+    )
+    parser.add_argument(
+        "--resonant-mx",
+        action="store_true",
+        help=(
+            "Force resonant dark matter masses in every generated point by writing "
+            "MX = Mh2 / 2. The Mh2 scan settings define the resonance values."
+        ),
+    )
 
     for name, default in PARAMETERS:
         label = name.upper() if name != "sint" else "SinT"
@@ -47,8 +63,6 @@ def parse_args():
             help=f"Step size for {label}. Required when start and end differ.",
         )
 
-    for name, default in PARAMETERS:
-        label = name.upper() if name != "sint" else "SinT"
         parser.add_argument(
             f"--{name}-log",
             action="store_true",
@@ -75,7 +89,7 @@ def build_scan_values(name, args):
         if end is None:
             end = start
 
-        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-12):
+        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-52):
             return [start]
 
         if start <= 0 or end <= 0:
@@ -96,7 +110,7 @@ def build_scan_values(name, args):
         if end is None:
             end = start
 
-        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-12):
+        if math.isclose(start, end, rel_tol=0.0, abs_tol=1e-52):
             return [start]
 
         if step is None or step == 0.0:
@@ -109,7 +123,7 @@ def build_scan_values(name, args):
 
         values = []
         current = start
-        tolerance = abs(step) * 1e-9 + 1e-12
+        tolerance = abs(step) * 1e-49 + 1e-52
 
         if step > 0:
             while current <= end + tolerance:
@@ -130,10 +144,26 @@ def build_scan_values(name, args):
 def main():
     args = parse_args()
     output_path = Path(args.output)
-    scan_axes = [build_scan_values(name, args) for name, _ in PARAMETERS]
+    scan_values = {name: build_scan_values(name, args) for name, _ in PARAMETERS}
+    independent_names = [name for name, _ in PARAMETERS]
+
+    if args.equal_couplings:
+        independent_names.remove("lsx")
+    if args.resonant_mx:
+        independent_names.remove("mx")
 
     with output_path.open("w", encoding="ascii") as stream:
-        for index, values in enumerate(itertools.product(*scan_axes), start=1):
+        scan_axes = [scan_values[name] for name in independent_names]
+        for index, independent_values in enumerate(
+            itertools.product(*scan_axes), start=1
+        ):
+            point = dict(zip(independent_names, independent_values))
+            if args.equal_couplings:
+                point["lsx"] = point["lhx"]
+            if args.resonant_mx:
+                point["mx"] = point["mh2"] / 2.0
+
+            values = [point[name] for name, _ in PARAMETERS]
             stream.write(
                 "{} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g}\n".format(
                     index, *values
