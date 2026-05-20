@@ -75,6 +75,7 @@ if [ -z "${MORUN_LOGGING_INITIALIZED:-}" ]; then
   export MORUN_LOGGING_INITIALIZED=1
   export LOG_FILE
   exec "${BASH:-/bin/bash}" "$0" "$@" 2>&1 | tee -a "$LOG_FILE"
+  exit $?
 fi
 
 input_files=("$CARD_DIR"/MO_inp*.dat)
