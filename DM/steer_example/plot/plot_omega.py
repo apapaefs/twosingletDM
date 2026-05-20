@@ -46,6 +46,11 @@ def parse_args():
         action="store_true",
         help="Also display the plot interactively.",
     )
+    parser.add_argument(
+        "--title-suffix",
+        default="",
+        help="Optional text appended to generated plot titles.",
+    )
     return parser.parse_args()
 
 
@@ -106,7 +111,7 @@ def main():
     axis.axhline(RELIC_MAX, color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(variable)
     axis.set_ylabel(r'$\Omega h^2$')
-    axis.set_title(f"Relic density vs {variable}")
+    axis.set_title(f"Relic density vs {variable} {args.title_suffix}".strip())
     axis.grid(True, alpha=0.3)
     axis.legend()
     figure.tight_layout()
@@ -129,7 +134,7 @@ def main():
     axis.axhline(np.log10(RELIC_MAX), color="red", linestyle="--", linewidth=1, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(variable)
     axis.set_ylabel(r'$\log_{10}(\Omega h^2)$')
-    axis.set_title(f"Relic density vs {variable}")
+    axis.set_title(f"Relic density vs {variable} {args.title_suffix}".strip())
     axis.grid(True, alpha=0.3)
     axis.legend()
     figure.tight_layout()

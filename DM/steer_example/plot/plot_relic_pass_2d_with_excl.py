@@ -37,25 +37,36 @@ DM_COLUMNS = [
     "LUXBaseLimit",
 ]
 
+INDIRECT_COLUMNS = [
+    *DM_COLUMNS,
+    "IndirAvailable",
+    "IndirEnergy",
+    "IndirFlux",
+    "IndirLimit",
+    "IndirRatio",
+]
+
 RELIC_CENTRAL = 0.120
 RELIC_TOLERANCE = 0.001
 RELIC_MIN = RELIC_CENTRAL - RELIC_TOLERANCE
 RELIC_MAX = RELIC_CENTRAL + RELIC_TOLERANCE
 
 ACCEPTED_CMAP = plt.cm.rainbow
-EXCLUDED_CMAP = plt.cm.Greys
+DIR_EXCLUDED_CMAP = plt.cm.Greys
+INDIR_EXCLUDED_CMAP = plt.cm.copper
+# INDIRECT_FAIL_COLOR = "saddlebrown"
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            "Plot accepted DM points and overlay experimentally excluded points "
+            "Plot relic- and direct-detection-passing DM points and overlay experimentally excluded points "
             f"in greyscale for two chosen variables, keeping only Omega <= {RELIC_MAX}."
         )
     )
     parser.add_argument(
         "output_dir",
-        help="Directory containing allall.dat and dmexcl.dat, typically dmonly/output.",
+        help="Directory containing all_dirpass.dat and dmexcl.dat, typically dmonly/output.",
     )
     parser.add_argument(
         "x_variable",
@@ -76,6 +87,19 @@ def parse_args():
         "--show",
         action="store_true",
         help="Also display the plot interactively.",
+    )
+    parser.add_argument(
+        "--title-suffix",
+        default="",
+        help="Optional text appended to generated plot titles.",
+    )
+    parser.add_argument(
+        "--mark-indirect-fail",
+        action="store_true",
+        help=(
+            "Overlay relic- and direct-detection-passing points that fail indirect detection "
+            "from indirexcl.dat in brown."
+        ),
     )
     return parser.parse_args()
 
@@ -134,29 +158,52 @@ def split_coordinates(rows, x_variable, y_variable, log_y=False):
     return x_values, y_values, omega_values
 
 
+def row_key(row):
+    return int(row["index"])
+
+
 def add_scatter_layers(
     axis,
     accepted_rows,
-    excluded_rows,
+    dir_excluded_rows,
+    indir_excluded_rows,
     x_variable,
     y_variable,
     accepted_norm,
-    excluded_norm,
+    dir_excluded_norm,
+    indir_excluded_norm,
     log_y=False,
 ):
-    excluded_scatter = None
+    dir_scatter = None
     accepted_scatter = None
+    indir_scatter = None
 
-    if excluded_rows:
+    if dir_excluded_rows:
         excl_x, excl_y, excl_omega = split_coordinates(
-            excluded_rows, x_variable, y_variable, log_y=log_y
+            dir_excluded_rows, x_variable, y_variable, log_y=log_y
         )
-        excluded_scatter = axis.scatter(
+        dir_scatter = axis.scatter(
             excl_x,
             excl_y,
             c=excl_omega,
-            cmap=EXCLUDED_CMAP,
-            norm=excluded_norm,
+            cmap=DIR_EXCLUDED_CMAP,
+            norm=dir_excluded_norm,
+            s=24,
+            edgecolors="none",
+            alpha=0.9,
+            # label="Excluded points",
+        )
+    
+    if indir_excluded_rows:
+        excl_x, excl_y, excl_omega = split_coordinates(
+            indir_excluded_rows, x_variable, y_variable, log_y=log_y
+        )
+        indir_scatter = axis.scatter(
+            excl_x,
+            excl_y,
+            c=excl_omega,
+            cmap=INDIR_EXCLUDED_CMAP,
+            norm=indir_excluded_norm,
             s=24,
             edgecolors="none",
             alpha=0.9,
@@ -194,45 +241,69 @@ def add_scatter_layers(
                 label="Central relic range",
             )
 
-    return accepted_scatter, excluded_scatter
+    # if indir_excluded_rows:
+    #     indirect_x, indirect_y, _ = split_coordinates(
+    #         indir_excluded_rows, x_variable, y_variable, log_y=log_y
+    #     )
+    #     indir_scatter = axis.scatter(
+    #         indirect_x,
+    #         indirect_y,
+    #         color=INDIRECT_FAIL_COLOR,
+    #         s=42,
+    #         marker="s",
+    #         edgecolors="black",
+    #         linewidths=0.35,
+    #         alpha=0.95,
+    #         label="Fails indirect detection",
+    #     )
+
+    return accepted_scatter, dir_scatter, indir_scatter
 
 
 def save_plot(
     accepted_rows,
-    excluded_rows,
+    dir_excluded_rows,
+    indir_excluded_rows,
     x_variable,
     y_variable,
     accepted_norm,
-    excluded_norm,
+    dir_excluded_norm,
+    indir_excluded_norm,
     output_path,
+    title_suffix="",
     log_y=False,
     show=False,
 ):
     figure, axis = plt.subplots(figsize=(7, 5))
-    accepted_scatter, excluded_scatter = add_scatter_layers(
+    accepted_scatter, dir_scatter, indir_scatter = add_scatter_layers(
         axis,
         accepted_rows,
-        excluded_rows,
+        dir_excluded_rows,
+        indir_excluded_rows,
         x_variable,
         y_variable,
         accepted_norm,
-        excluded_norm,
+        dir_excluded_norm,
+        indir_excluded_norm,
         log_y=log_y,
     )
 
     axis.set_xlabel(x_variable)
     axis.set_ylabel(f"log10({y_variable})" if log_y else y_variable)
-    axis.set_title(
-        "Accepted points coloured by Omega, excluded points in greyscale"
-    )
+    title = "Relic-passing points coloured by Omega"
+    # if indir_excluded_rows:
+    #     title += ", indirect failures in brown"
+    axis.set_title(f"{title} {title_suffix}".strip())
     axis.grid(True, alpha=0.3)
 
     if accepted_scatter is not None:
         figure.colorbar(accepted_scatter, ax=axis, label="Omega (accepted)")
-    if excluded_scatter is not None:
-        figure.colorbar(excluded_scatter, ax=axis, label="Omega (excluded)")
+    if dir_scatter is not None:
+        figure.colorbar(dir_scatter, ax=axis, label="Omega (excluded by direct detection)")
+    if indir_scatter is not None:
+        figure.colorbar(indir_scatter, ax=axis, label="Omega (excluded by indirect detection)")
 
-    handles, labels = axis.get_legend_handles_labels()
+    handles, _ = axis.get_legend_handles_labels()
     if handles:
         axis.legend(loc="best")
 
@@ -251,39 +322,63 @@ def main():
     validate_variable(args.y_variable)
 
     output_dir = Path(args.output_dir)
-    accepted_file = output_dir / "allall.dat"
-    excluded_file = output_dir / "dmexcl.dat"
+    accepted_file = output_dir / "all_dirpass.dat"
+    dir_excluded_file = output_dir / "dmexcl.dat"
+    indirect_file = output_dir / "indirexcl.dat"
 
-    if not accepted_file.is_file():
-        raise SystemExit(f"Could not find {accepted_file}")
+    if not (accepted_file.is_file() and dir_excluded_file.is_file() and indirect_file.is_file()):
+        raise SystemExit(f"Could not find one or more required files")
 
     script_dir = Path(__file__).resolve().parent
     outplots_dir = script_dir / "outplots"
     outplots_dir.mkdir(parents=True, exist_ok=True)
 
     accepted_rows = load_rows(accepted_file, DM_COLUMNS)
-    excluded_rows = load_rows(excluded_file, DM_COLUMNS) if excluded_file.is_file() else []
+    dir_excluded_rows = load_rows(dir_excluded_file, DM_COLUMNS) if dir_excluded_file.is_file() else []
+    indirect_rows = (
+        load_rows(indirect_file, INDIRECT_COLUMNS)
+        if args.mark_indirect_fail and indirect_file.is_file()
+        else []
+    )
     accepted_rows = [row for row in accepted_rows if row["Omega"] <= RELIC_MAX]
-    excluded_rows = [row for row in excluded_rows if row["Omega"] <= RELIC_MAX]
-    if not accepted_rows and not excluded_rows:
+    dir_excluded_rows = [row for row in dir_excluded_rows if row["Omega"] <= RELIC_MAX]
+    indirect_rows = [row for row in indirect_rows if row["Omega"] <= RELIC_MAX]
+
+    accepted_keys = {row_key(row) for row in accepted_rows}
+    dir_excluded_rows = [row for row in dir_excluded_rows if row_key(row) not in accepted_keys]
+    indir_excluded_rows = [
+        row for row in indirect_rows if row_key(row) in accepted_keys
+    ]
+
+    if not accepted_rows and not dir_excluded_rows:
         raise SystemExit(
             f"No points in {output_dir} satisfy Omega <= {RELIC_MAX}"
         )
     accepted_norm = build_normalization(accepted_rows, accepted_file.name)
-    excluded_norm = (
-        build_normalization(excluded_rows, excluded_file.name)
-        if excluded_rows
+    dir_excluded_norm = (
+        build_normalization(dir_excluded_rows, dir_excluded_file.name)
+        if dir_excluded_rows
+        else None
+    )
+    indir_excluded_norm = (
+        build_normalization(indir_excluded_rows, indirect_file.name)
+        if indir_excluded_rows
         else None
     )
 
     print(
-        f"Loaded {len(accepted_rows)} accepted points from {accepted_file} "
+        f"Loaded {len(accepted_rows)} relic- and direct-detection-passing points from {accepted_file} "
         f"with Omega <= {RELIC_MAX}"
     )
     print(
-        f"Loaded {len(excluded_rows)} excluded points from {excluded_file} "
+        f"Loaded {len(dir_excluded_rows)} excluded points from {dir_excluded_file} "
         f"with Omega <= {RELIC_MAX}"
     )
+    if args.mark_indirect_fail:
+        print(
+            f"Loaded {len(indir_excluded_rows)} relic- and direct-detection-passing indirect-failed "
+            f"points from {indirect_file}"
+        )
     strict_count = sum(
         1 for row in accepted_rows if RELIC_MIN <= row["Omega"] <= RELIC_MAX
     )
@@ -292,33 +387,42 @@ def main():
         f"{RELIC_MIN} <= Omega <= {RELIC_MAX}"
     )
 
-    default_output = (
-        outplots_dir / f"relic_pass_with_excl_{args.y_variable}_vs_{args.x_variable}.png"
+    output_tag = (
+        "relic_pass_with_excl_indirect"
+        if args.mark_indirect_fail
+        else "relic_pass_with_excl"
     )
+    default_output = outplots_dir / f"{output_tag}_{args.y_variable}_vs_{args.x_variable}.png"
     linear_output = Path(args.output) if args.output else default_output
     save_plot(
         accepted_rows,
-        excluded_rows,
+        dir_excluded_rows,
+        indir_excluded_rows,
         args.x_variable,
         args.y_variable,
         accepted_norm,
-        excluded_norm,
+        dir_excluded_norm,
+        indir_excluded_norm,
         linear_output,
+        title_suffix=args.title_suffix,
         show=args.show,
     )
 
     log_output = (
         outplots_dir
-        / f"relic_pass_with_excl_log10_{args.y_variable}_vs_{args.x_variable}.png"
+        / f"{output_tag}_log10_{args.y_variable}_vs_{args.x_variable}.png"
     )
     save_plot(
         accepted_rows,
-        excluded_rows,
+        dir_excluded_rows,
+        indir_excluded_rows,
         args.x_variable,
         args.y_variable,
         accepted_norm,
-        excluded_norm,
+        dir_excluded_norm,
+        indir_excluded_norm,
         log_output,
+        title_suffix=args.title_suffix,
         log_y=True,
         show=args.show,
     )

@@ -52,6 +52,11 @@ def parse_args():
         help="Also display the plot interactively.",
     )
     parser.add_argument(
+        "--title-suffix",
+        default="",
+        help="Optional text appended to generated plot titles.",
+    )
+    parser.add_argument(
         "--cmap",
         default="viridis",
         help="Matplotlib colormap name. Defaults to 'viridis'.",
@@ -127,7 +132,9 @@ def main():
     axis.axhline(RELIC_MAX, color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(x_variable)
     axis.set_ylabel(r'$\Omega h^2$')
-    axis.set_title(f"Relic density vs {x_variable} (colored by {color_variable})")
+    axis.set_title(
+        f"Relic density vs {x_variable} (colored by {color_variable}) {args.title_suffix}".strip()
+    )
     axis.grid(True, alpha=0.3)
     axis.legend()
     cbar = figure.colorbar(scatter, ax=axis)
@@ -149,7 +156,9 @@ def main():
     axis.axhline(np.log10(RELIC_MAX), color="red", linestyle="--", linewidth=1.5, label=f"Relic density upper limit = {RELIC_MAX}")
     axis.set_xlabel(x_variable)
     axis.set_ylabel(r'$\log_{10}(\Omega h^2)$')
-    axis.set_title(f"Relic density vs {x_variable} (colored by {color_variable})")
+    axis.set_title(
+        f"Relic density vs {x_variable} (colored by {color_variable}) {args.title_suffix}".strip()
+    )
     axis.grid(True, alpha=0.3)
     axis.legend()
     cbar = figure.colorbar(scatter, ax=axis)

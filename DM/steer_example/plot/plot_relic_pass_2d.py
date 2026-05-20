@@ -60,6 +60,11 @@ def parse_args():
         action="store_true",
         help="Also display the plot interactively.",
     )
+    parser.add_argument(
+        "--title-suffix",
+        default="",
+        help="Optional text appended to generated plot titles.",
+    )
     return parser.parse_args()
 
 
@@ -113,7 +118,7 @@ def main():
 
     rows = load_scan_results(scan_file)
     # passed_rows = [row for row in rows if row["Omega"] <= RELIC_MAX]
-    passed_rows = [row for row in rows if row["Omega"] <= RELIC_MIN] #for better colours, this adds only the points that are excluded from the strict exp. obs. of relic density 0.12 \pm 0.001. The passng points are added in central_rows
+    passed_rows = [row for row in rows if row["Omega"] <= RELIC_MIN] #for better colours, this adds only the points that are excluded from the strict exp. obs. of relic density 0.1199 \pm 0.025. The passng points are added in central_rows
     if not passed_rows:
         raise SystemExit(
             f"No points in {scan_file} satisfy Omega <= {RELIC_MAX}"
@@ -153,7 +158,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(args.y_variable)
     axis.set_title(
-        f"Relic-density-passing points, magenta points fit observed density"
+        f"Relic-density-passing points, magenta points fit observed density {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.colorbar(scatter, ax=axis, label="Omega")
@@ -194,7 +199,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(f"log10({args.y_variable})")
     axis.set_title(
-        f"Relic-density-passing points, magenta points fit observed density"
+        f"Relic-density-passing points, magenta points fit observed density {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.colorbar(scatter, ax=axis, label="Omega")

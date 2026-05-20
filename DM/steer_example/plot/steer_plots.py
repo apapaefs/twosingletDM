@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -98,6 +99,42 @@ def infer_varying_variables(rows):
     return varying
 
 
+def values_close(left, right):
+    return math.isclose(left, right, rel_tol=1e-9, abs_tol=1e-12)
+
+
+def detect_scan_rules(rows, varying_variables):
+    equal_couplings = (
+        "LHX" in varying_variables
+        and "LSX" in varying_variables
+        and all(values_close(row["LHX"], row["LSX"]) for row in rows)
+    )
+    resonant_mx = (
+        "MX" in varying_variables
+        and "Mh2" in varying_variables
+        and all(values_close(row["MX"], row["Mh2"] / 2.0) for row in rows)
+    )
+    return {
+        "equal_couplings": equal_couplings,
+        "resonant_mx": resonant_mx,
+    }
+
+
+def build_title_suffix(scan_rules):
+    parts = []
+    if scan_rules["resonant_mx"]:
+        parts.append("(MX = Mh2 / 2)")
+    if scan_rules["equal_couplings"]:
+        parts.append("(LHX = LSX)")
+    return " ".join(parts)
+
+
+def with_title_suffix(script_args, title_suffix):
+    if title_suffix:
+        return [*script_args, "--title-suffix", title_suffix]
+    return script_args
+
+
 def validate_variable(name, option_name):
     if name not in PLOT_COLUMNS:
         raise SystemExit(
@@ -105,12 +142,14 @@ def validate_variable(name, option_name):
         )
 
 
-def choose_xvar(varying_variables, requested_xvar):
+def choose_xvar(varying_variables, requested_xvar, scan_rules):
     if requested_xvar:
         validate_variable(requested_xvar, "x variable")
         if requested_xvar == "Omega":
             raise SystemExit("Omega cannot be used as --xvar.")
         return requested_xvar
+    if scan_rules["resonant_mx"]:
+        return "MX"
     if "MX" in varying_variables:
         return "MX"
     if varying_variables:
@@ -121,7 +160,7 @@ def choose_xvar(varying_variables, requested_xvar):
     )
 
 
-def choose_yvar(varying_variables, xvar, requested_yvar):
+def choose_yvar(varying_variables, xvar, requested_yvar, scan_rules):
     if requested_yvar:
         validate_variable(requested_yvar, "y variable")
         if requested_yvar == "Omega":
@@ -129,9 +168,16 @@ def choose_yvar(varying_variables, xvar, requested_yvar):
         if requested_yvar == xvar:
             raise SystemExit("--xvar and --yvar must be different.")
         return requested_yvar
+    if scan_rules["equal_couplings"] and xvar != "LHX":
+        return "LHX"
     for variable in varying_variables:
-        if variable != xvar:
-            return variable
+        if variable == xvar:
+            continue
+        if scan_rules["resonant_mx"] and xvar == "MX" and variable == "Mh2":
+            continue
+        if scan_rules["equal_couplings"] and variable == "LSX":
+            continue
+        return variable
     return None
 
 
@@ -160,12 +206,26 @@ def main():
 
     oks_rows = load_oks_rows(oks_file)
     varying_variables = infer_varying_variables(oks_rows)
-    xvar = choose_xvar(varying_variables, args.xvar)
-    yvar = choose_yvar(varying_variables, xvar, args.yvar)
+    scan_rules = detect_scan_rules(oks_rows, varying_variables)
+    title_suffix = build_title_suffix(scan_rules)
+    xvar = choose_xvar(varying_variables, args.xvar, scan_rules)
+    yvar = choose_yvar(varying_variables, xvar, args.yvar, scan_rules)
 
     print(f"Using output directory: {outdir}", flush=True)
     print(
         f"Detected varying scan variables: {', '.join(varying_variables) or 'none'}",
+        flush=True,
+    )
+    detected_rules = [
+        label
+        for key, label in (
+            ("resonant_mx", "MX = Mh2 / 2"),
+            ("equal_couplings", "LHX = LSX"),
+        )
+        if scan_rules[key]
+    ]
+    print(
+        f"Detected scan rules: {', '.join(detected_rules) or 'none'}",
         flush=True,
     )
     print(f"Using x variable: {xvar}", flush=True)
@@ -177,40 +237,53 @@ def main():
             flush=True,
         )
 
-    run_script(plot_dir / "plot_omega.py", outdir, [xvar], show=args.show)
+    run_script(plot_dir / "plot_omega.py", outdir, with_title_suffix([xvar], title_suffix), show=args.show)
 
     if yvar is not None:
         run_script(
             plot_dir / "plot_omega_colored.py",
             outdir,
-            [xvar, yvar],
+            with_title_suffix([xvar, yvar], title_suffix),
             show=args.show,
         )
         run_script(
             plot_dir / "plot_relic_pass_2d.py",
             outdir,
-            [xvar, yvar],
+            with_title_suffix([xvar, yvar], title_suffix),
             show=args.show,
         )
         run_script(
             plot_dir / "plot_relic_strict_2d.py",
             outdir,
-            [xvar, yvar],
+            with_title_suffix([xvar, yvar], title_suffix),
             show=args.show,
         )
 
-        accepted_file = outdir / "allall.dat"
+        accepted_file = outdir / "all_dirpass.dat"
         excluded_file = outdir / "dmexcl.dat"
         if accepted_file.is_file() and excluded_file.is_file():
             run_script(
                 plot_dir / "plot_relic_pass_2d_with_excl.py",
                 outdir,
-                [xvar, yvar],
+                with_title_suffix([xvar, yvar], title_suffix),
                 show=args.show,
             )
+            indirect_file = outdir / "indirexcl.dat"
+            if indirect_file.is_file():
+                run_script(
+                    plot_dir / "plot_relic_pass_2d_with_excl.py",
+                    outdir,
+                    with_title_suffix([xvar, yvar, "--mark-indirect-fail"], title_suffix),
+                    show=args.show,
+                )
+            else:
+                print(
+                    "Skipping indirect-failure overlay because indirexcl.dat is missing.",
+                    flush=True,
+                )
         else:
             print(
-                "Skipping plot_relic_pass_2d_with_excl.py because allall.dat or "
+                "Skipping plot_relic_pass_2d_with_excl.py because all_dirpass.dat or "
                 "dmexcl.dat is missing.",
                 flush=True,
             )

@@ -7,6 +7,8 @@
 #include <limits>
 #include <cstdlib>
 #include <cerrno>
+#include <vector>
+#include <cstring>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <cstdio>
@@ -204,6 +206,171 @@ void write_dirdet_limit_plot(const string& outputDir) {
   }
 }
 
+struct FermiLineLimitPoint {
+  double energyGeV;
+  double fluxLimitCm2S;
+};
+
+vector<FermiLineLimitPoint> fermi_lat_r16_line_limits() {
+  const double unit = 1.0e-9;
+  const double values[][2] = {
+    {5.00, 3.97}, {5.20, 2.96}, {5.41, 2.25}, {5.62, 1.83},
+    {5.85, 1.90}, {6.08, 2.03}, {6.33, 2.22}, {6.58, 2.21},
+    {6.84, 2.06}, {7.12, 2.05}, {7.40, 1.16}, {7.70, 0.56},
+    {8.01, 0.86}, {8.33, 1.51}, {8.67, 1.36}, {9.02, 1.08},
+    {9.39, 0.89}, {9.77, 0.73}, {10.17, 0.51}, {10.59, 0.87},
+    {11.02, 1.82}, {11.48, 1.48}, {11.96, 0.66}, {12.46, 0.50},
+    {12.98, 1.26}, {13.53, 1.55}, {14.10, 0.97}, {14.70, 0.43},
+    {15.33, 0.40}, {15.99, 0.37}, {16.69, 0.39}, {17.42, 0.61},
+    {18.18, 0.70}, {18.99, 0.55}, {19.84, 0.46}, {20.73, 0.45},
+    {21.66, 0.42}, {22.64, 0.50}, {23.66, 0.90}, {24.74, 0.77},
+    {25.86, 0.81}, {27.04, 0.72}, {28.28, 0.37}, {29.57, 0.24},
+    {30.93, 0.18}, {32.36, 0.19}, {33.85, 0.22}, {35.42, 0.58},
+    {37.07, 0.66}, {38.80, 0.45}, {40.62, 0.36}, {42.54, 0.65},
+    {44.55, 0.46}, {46.66, 0.50}, {48.88, 0.35}, {51.22, 0.16},
+    {53.69, 0.21}, {56.30, 0.50}, {59.05, 0.32}, {61.96, 0.35},
+    {65.04, 0.22}, {68.29, 0.37}, {71.75, 0.44}, {75.41, 0.29},
+    {79.30, 0.10}, {83.43, 0.09}, {87.82, 0.18}, {92.51, 0.10},
+    {97.50, 0.08}, {102.82, 0.14}, {108.49, 0.22}, {114.51, 0.33},
+    {120.89, 0.42}, {127.66, 0.37}, {134.86, 0.38}, {142.51, 0.28},
+    {150.66, 0.14}, {159.32, 0.18}, {168.56, 0.20}, {178.41, 0.20},
+    {188.92, 0.14}, {200.15, 0.12}, {212.16, 0.14}, {225.08, 0.06},
+    {239.01, 0.05}, {254.05, 0.08}, {270.33, 0.09}, {300.00, 0.13}
+  };
+
+  vector<FermiLineLimitPoint> limits;
+  const int nValues = sizeof(values) / sizeof(values[0]);
+  for (int i = 0; i < nValues; ++i) {
+    FermiLineLimitPoint point = {values[i][0], values[i][1] * unit};
+    limits.push_back(point);
+  }
+  return limits;
+}
+
+double fermi_lat_r16_line_limit(double energyGeV) {
+  const vector<FermiLineLimitPoint> limits = fermi_lat_r16_line_limits();
+  if (limits.empty() || energyGeV < limits.front().energyGeV ||
+      energyGeV > limits.back().energyGeV) {
+    return numeric_limits<double>::infinity();
+  }
+
+  for (size_t i = 0; i + 1 < limits.size(); ++i) {
+    const FermiLineLimitPoint& low = limits[i];
+    const FermiLineLimitPoint& high = limits[i + 1];
+    if (energyGeV == low.energyGeV) {
+      return low.fluxLimitCm2S;
+    }
+    if (energyGeV <= high.energyGeV) {
+      const double logEnergy =
+          (log(energyGeV) - log(low.energyGeV)) /
+          (log(high.energyGeV) - log(low.energyGeV));
+      return exp(log(low.fluxLimitCm2S) +
+                 logEnergy * (log(high.fluxLimitCm2S) -
+                              log(low.fluxLimitCm2S)));
+    }
+  }
+
+  return limits.back().fluxLimitCm2S;
+}
+
+struct IndirectLimitResult {
+  bool available;
+  bool excluded;
+  int channelsSeen;
+  int channelsUsed;
+  double maxRatio;
+  double energyGeV;
+  double fluxCm2S;
+  double limitCm2S;
+};
+
+struct IndirectLineChannel {
+  double energyGeV;
+  double fluxCm2S;
+};
+
+IndirectLimitResult assess_indirect_limit(const vector<IndirectLineChannel>& channels) {
+  IndirectLimitResult result;
+  result.available = false;
+  result.excluded = false;
+  result.channelsSeen = 0;
+  result.channelsUsed = 0;
+  result.maxRatio = 0.0;
+  result.energyGeV = numeric_limits<double>::quiet_NaN();
+  result.fluxCm2S = numeric_limits<double>::quiet_NaN();
+  result.limitCm2S = numeric_limits<double>::quiet_NaN();
+
+  for (vector<IndirectLineChannel>::const_iterator it = channels.begin();
+       it != channels.end(); ++it) {
+    ++result.channelsSeen;
+
+    const double energy = it->energyGeV;
+    const double flux = it->fluxCm2S;
+    const double limit = fermi_lat_r16_line_limit(energy);
+
+    if (!isfinite(limit) || limit <= 0.0 || !isfinite(flux) || flux < 0.0) {
+      continue;
+    }
+
+    ++result.channelsUsed;
+    result.available = true;
+    const double ratio = flux / limit;
+    if (ratio > result.maxRatio) {
+      result.maxRatio = ratio;
+      result.energyGeV = energy;
+      result.fluxCm2S = flux;
+      result.limitCm2S = limit;
+    }
+  }
+
+  result.excluded = result.available && result.maxRatio > 1.0;
+  return result;
+}
+
+void write_indirect_limit_plot(const string& outputDir) {
+  if (!ensure_directory(outputDir)) {
+    cerr << "Could not create output directory " << outputDir << endl;
+    return;
+  }
+
+  const string dataPath = output_path(outputDir, "a_fermi_lat_line_limit_r16.dat");
+  const string scriptPath = output_path(outputDir, "a_fermi_lat_line_limit_r16.gnuplot");
+  const string plotPath = output_path(outputDir, "a_fermi_lat_line_limit_r16.png");
+
+  const vector<FermiLineLimitPoint> limits = fermi_lat_r16_line_limits();
+  ofstream data(dataPath.c_str());
+  data << "# Fermi-LAT 95% CL observed gamma-gamma line flux upper limits, R16 ROI\n";
+  data << "# Source: arXiv:1305.5597, Tables VII-X. Flux column Phi_gammagamma.\n";
+  data << "# E_gamma_GeV\tPhi_limit_cm-2_s-1" << endl;
+  for (vector<FermiLineLimitPoint>::const_iterator it = limits.begin();
+       it != limits.end(); ++it) {
+    data << it->energyGeV << "\t" << it->fluxLimitCm2S << endl;
+  }
+  data.close();
+
+  ofstream script(scriptPath.c_str());
+  script << "set terminal pngcairo size 1000,750 enhanced font 'Arial,12'\n";
+  script << "set output " << shell_quote(plotPath) << "\n";
+  script << "set logscale xy\n";
+  script << "set grid\n";
+  script << "set xlabel 'line photon energy E_{gamma} [GeV]'\n";
+  script << "set ylabel '95% CL line flux upper limit [cm^{-2} s^{-1}]'\n";
+  script << "set title 'Fermi-LAT gamma-ray line limit, R16 ROI (arXiv:1305.5597)'\n";
+  script << "plot " << shell_quote(dataPath)
+         << " using 1:2 with linespoints linewidth 2 pointtype 7 pointsize 0.45"
+         << " title 'Observed Phi_{gamma gamma} limit'\n";
+  script.close();
+
+  const string command = "gnuplot " + shell_quote(scriptPath);
+  if (system(command.c_str()) != 0) {
+    cerr << "Wrote " << dataPath << " and " << scriptPath
+         << "; install gnuplot or run the script manually to create "
+         << plotPath << endl;
+  } else {
+    cout << "Wrote " << dataPath << " and " << plotPath << endl;
+  }
+}
+
 int main(int argc, char* argv[]){
 
   bool rescale=true; // multicomp dm rescaling ??
@@ -215,11 +382,17 @@ int main(int argc, char* argv[]){
     return 0;
   }
 
-  if(argc!=5){
+  if (argc == 2 && string(argv[1]) == "--plot-indirect-limits") {
+    write_indirect_limit_plot(outputDir);
+    return 0;
+  }
+
+  if (argc < 5 || ((argc - 5) % 2) != 0) {
     cout<<"Sth wrong with inp!!"<<endl;
     cout<<"i have "<<argc<<" arguments"<<endl;
-    cout<<"usage: "<<argv[0]<<" index m_DM Omega DirDet"<<endl;
+    cout<<"usage: "<<argv[0]<<" index m_DM Omega DirDet [E_gamma Phi_R16]..."<<endl;
     cout<<"       "<<argv[0]<<" --plot-dirdet-limits"<<endl;
+    cout<<"       "<<argv[0]<<" --plot-indirect-limits"<<endl;
     return 1;
   }
 
@@ -227,6 +400,12 @@ int main(int argc, char* argv[]){
   double m_DM  = (double)atof(argv[2]);
   double Omega = (double)atof(argv[3]);
   double DirDet = (double)atof(argv[4]);
+
+  vector<IndirectLineChannel> indirectChannels;
+  for (int i = 5; i + 1 < argc; i += 2) {
+    IndirectLineChannel channel = {atof(argv[i]), atof(argv[i + 1])};
+    indirectChannels.push_back(channel);
+  }
 
   cout<<"processing "<<index<<"\t"<<m_DM<<"\t"<<Omega<<"\t"<<DirDet<<endl;
 
@@ -271,8 +450,11 @@ int main(int argc, char* argv[]){
   bool DMisok = true;
   bool OMGok = true;
   bool DIRok = true;
+  bool INDok = true;
 
-  const double relicUpperLimit = 0.1224;
+  const double relicUpperLimit = 0.121;
+  const double relicStrictCentral = 0.12;
+  const double relicStrictWidth = 0.001;
   const double LUX = DirDetexcl(m_DM);
   double dirDetLimit = LUX;
 
@@ -284,15 +466,32 @@ int main(int argc, char* argv[]){
     }
   }
 
-  ofstream DM(output_path(outputDir, "DM_data").c_str());
-  DM << index << "\t" << lx << "\t" << lhx << "\t" << lsx << "\t" << mx << "\t"
-     << vevs << "\t" << sint << "\t" << mh2 << "\t" << m_DM << "\t" << Omega
-     << "\t" << DirDet << "\t" << dirDetLimit << "\t" << LUX << endl;
-  DM.close();
-
   ostringstream baseLine;
   baseLine << index << "\t" << lx << "\t" << lhx << "\t" << lsx << "\t" << mx
            << "\t" << vevs << "\t" << sint << "\t" << mh2 << "\t" << m_DM;
+
+  const IndirectLimitResult indirect = assess_indirect_limit(indirectChannels);
+
+  ostringstream dmLine;
+  dmLine << baseLine.str() << "\t" << Omega << "\t" << DirDet << "\t"
+         << dirDetLimit << "\t" << LUX;
+
+  ostringstream indirectLine;
+  indirectLine << dmLine.str() << "\t" << (indirect.available ? 1 : 0)
+               << "\t" << indirect.energyGeV << "\t" << indirect.fluxCm2S
+               << "\t" << indirect.limitCm2S << "\t" << indirect.maxRatio;
+
+  ofstream DM(output_path(outputDir + "/DM_data", "DM_data").c_str());
+  DM << dmLine.str() << endl;
+  DM.close();
+
+  if (Omega <= relicUpperLimit) {
+    append_line(output_path(outputDir, "relic_pass.dat"), dmLine.str());
+  }
+
+  if (fabs(Omega - relicStrictCentral) <= relicStrictWidth) {
+    append_line(output_path(outputDir, "relic_strict.dat"), dmLine.str());
+  }
 
   if (Omega > relicUpperLimit) {
     DMisok = false;
@@ -311,33 +510,45 @@ int main(int argc, char* argv[]){
     append_line(output_path(outputDir, "luxexcl.dat"), luxLine.str());
   }
 
+  if (OMGok && DIRok) {
+    append_line(output_path(outputDir, "all_dirpass.dat"), dmLine.str());
+  }
+
+  if (indirect.excluded) {
+    DMisok = false;
+    INDok = false;
+    append_line(output_path(outputDir, "indirexcl.dat"), indirectLine.str());
+  } else {
+    append_line(output_path(outputDir, "indirpass.dat"), indirectLine.str());
+  }
+
   if (!DMisok) {
-    cout<<"excluded from dm "<<OMGok<<DIRok<<endl;
-    ostringstream dmLine;
-    dmLine << baseLine.str() << "\t" << Omega << "\t" << DirDet << "\t"
-           << dirDetLimit << "\t" << LUX;
+    cout<<"excluded from dm "<<OMGok<<DIRok<<INDok<<endl;
     append_line(output_path(outputDir, "dmexcl.dat"), dmLine.str());
 
-    ofstream excl(output_path(outputDir, "DM_EXCLUDED").c_str());
-    excl.close();
+    // ofstream excl(output_path(outputDir + "/DM_EXCLUDED", "DM_EXCLUDED").c_str());
+    // excl.close();
 
     if (!OMGok) {
-      ofstream RelDens(output_path(outputDir, "RelDens_EXCLUDED").c_str());
-      RelDens.close();
+      // ofstream RelDens(output_path(outputDir + "/RelDens_EXCLUDED", "RelDens_EXCLUDED").c_str());
+      // RelDens.close();
       cout<<"Too high relic dens"<<endl;
     }
 
     if (!DIRok) {
-      ofstream DirDetExcl(output_path(outputDir, "DirDet_EXCLUDED").c_str());
-      DirDetExcl.close();
+      // ofstream DirDetExcl(output_path(outputDir + "/DirDet_EXCLUDED", "DirDet_EXCLUDED").c_str());
+      // DirDetExcl.close();
       cout<<"Should be visible in LUX!"<<endl;
+    }
+
+    if (!INDok) {
+      // ofstream IndirDetExcl(output_path(outputDir + "/IndirDet_EXCLUDED", "IndirDet_EXCLUDED").c_str());
+      // IndirDetExcl.close();
+      cout<<"Excluded by Fermi-LAT gamma-line indirect detection"<<endl;
     }
   } else {
     cout<<"Point agrees with DM data"<<endl;
-    ostringstream okLine;
-    okLine << baseLine.str() << "\t" << Omega << "\t" << DirDet << "\t"
-           << dirDetLimit << "\t" << LUX;
-    append_line(output_path(outputDir, "allall.dat"), okLine.str());
+    append_line(output_path(outputDir, "allall.dat"), dmLine.str());
   }
 
   return 0;

@@ -32,14 +32,22 @@ extract_neutron_si_cross_section() {
   ' "$1"
 }
 
-extract_mdm() {
+extract_fermi_lat_line_args() {
   awk '
-    /(^|[[:space:]])(MHX|MX)[[:space:]]*=/ {
-      for (i = 1; i <= NF; ++i) {
-        if ($i == "=" && i < NF) {
-          print $(i + 1)
-          exit
-        }
+    function parse_value(line, key, value) {
+      if (match(line, key "[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?", value)) {
+        sub(key, "", value[0])
+        return value[0]
+      }
+      return ""
+    }
+
+    /FermiLAT_line_channel/ {
+      e_gamma = parse_value($0, "E_gamma=")
+      phi_r16 = parse_value($0, "Phi_R16=")
+      if (e_gamma != "" && phi_r16 != "") {
+        print e_gamma
+        print phi_r16
       }
     }
   ' "$1"
@@ -52,6 +60,13 @@ safe_move() {
 }
 
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR/OUT_mO"
+mkdir -p "$OUTPUT_DIR/DM_data"
+mkdir -p "$OUTPUT_DIR/DM_EXCLUDED"
+mkdir -p "$OUTPUT_DIR/RelDens_EXCLUDED"
+mkdir -p "$OUTPUT_DIR/DirDet_EXCLUDED"
+mkdir -p "$OUTPUT_DIR/IndirDet_EXCLUDED"
+
 export MO_EXCLUDER_OUTPUT_DIR="$OUTPUT_DIR"
 export MO_EXCLUDER_OKS_FILE="$OKS_FILE"
 
@@ -84,9 +99,12 @@ for input_file in "${input_files[@]}"; do
 
   "$MICROMEGAS_MAIN" "$input_file" > MO_out
 
-  MDM=$(extract_mdm MO_out)
+  # MDM=$(extract_mdm MO_out) 
+  MDM=$(extract_input_value "MX" "$input_file")
   omega=$(extract_omega MO_out)
   dirdet=$(extract_neutron_si_cross_section MO_out)
+  mapfile -t fermi_lat_line_args < <(extract_fermi_lat_line_args MO_out)
+  
 
   lx=$(extract_input_value "LX" "$input_file")
   lhx=$(extract_input_value "LHX" "$input_file")
@@ -102,23 +120,28 @@ for input_file in "${input_files[@]}"; do
   if [ -x "$EXCLUDER" ] && [ -f "$OKS_FILE" ]; then
     (
       cd "$SCRIPT_DIR/../source" || exit 1
-      MO_EXCLUDER_OUTPUT_DIR="$OUTPUT_DIR" MO_EXCLUDER_OKS_FILE="$OKS_FILE" "$EXCLUDER" "$index" "$MDM" "$omega" "$dirdet"
+      MO_EXCLUDER_OUTPUT_DIR="$OUTPUT_DIR" MO_EXCLUDER_OKS_FILE="$OKS_FILE" "$EXCLUDER" "$index" "$MDM" "$omega" "$dirdet" "${fermi_lat_line_args[@]}"
     )
   else
     echo "Skipping mO_excluder for $input_file: $EXCLUDER or $OKS_FILE missing"
   fi
+  
+  safe_move MO_out "$OUTPUT_DIR/OUT_mO/OUT_mO_${index}"
+  safe_move "$OUTPUT_DIR/DM_data/DM_data" "$OUTPUT_DIR/DM_data/DM_data_${index}"
+  safe_move "$OUTPUT_DIR/DM_EXCLUDED/DM_EXCLUDED" "$OUTPUT_DIR/DM_EXCLUDED/DM_EXCLUDED_${index}"
+  safe_move "$OUTPUT_DIR/RelDens_EXCLUDED/RelDens_EXCLUDED" "$OUTPUT_DIR/RelDens_EXCLUDED/RelDens_EXCLUDED_${index}"
+  safe_move "$OUTPUT_DIR/DirDet_EXCLUDED/DirDet_EXCLUDED" "$OUTPUT_DIR/DirDet_EXCLUDED/DirDet_EXCLUDED_${index}"
+  safe_move "$OUTPUT_DIR/IndirDet_EXCLUDED/IndirDet_EXCLUDED" "$OUTPUT_DIR/IndirDet_EXCLUDED/IndirDet_EXCLUDED_${index}"
 
-  safe_move MO_out "$OUTPUT_DIR/OUT_mO_${index}"
-  safe_move "$OUTPUT_DIR/DM_data" "$OUTPUT_DIR/DM_data_${index}"
-  safe_move "$OUTPUT_DIR/DM_EXCLUDED" "$OUTPUT_DIR/DM_EXCLUDED_${index}"
-  safe_move "$OUTPUT_DIR/RelDens_EXCLUDED" "$OUTPUT_DIR/RelDens_EXCLUDED_${index}"
-  safe_move "$OUTPUT_DIR/DirDet_EXCLUDED" "$OUTPUT_DIR/DirDet_EXCLUDED_${index}"
-
-  if [ -f "$OUTPUT_DIR/RelDens_EXCLUDED_${index}" ]; then
+  if [ -f "$OUTPUT_DIR/RelDens_EXCLUDED/RelDens_EXCLUDED_${index}" ]; then
     echo "$index $lx $lhx $lsx $mx $vevs $sint $mh2 $MDM $omega $dirdet" >> "$OUTPUT_DIR/RelDensEXCL.dat"
   fi
 
-  if [ -f "$OUTPUT_DIR/DirDet_EXCLUDED_${index}" ]; then
+  if [ -f "$OUTPUT_DIR/DirDet_EXCLUDED/DirDet_EXCLUDED_${index}" ]; then
     echo "$index $lx $lhx $lsx $mx $vevs $sint $mh2 $MDM $omega $dirdet" >> "$OUTPUT_DIR/DirDetEXCL.dat"
+  fi
+
+  if [ -f "$OUTPUT_DIR/IndirDet_EXCLUDED/IndirDet_EXCLUDED_${index}" ]; then
+    echo "$index $lx $lhx $lsx $mx $vevs $sint $mh2 $MDM $omega $dirdet" >> "$OUTPUT_DIR/IndirDetEXCL.dat"
   fi
 done

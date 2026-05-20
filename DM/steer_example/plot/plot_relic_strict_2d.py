@@ -58,6 +58,11 @@ def parse_args():
         action="store_true",
         help="Also display the plot interactively.",
     )
+    parser.add_argument(
+        "--title-suffix",
+        default="",
+        help="Optional text appended to generated plot titles.",
+    )
     return parser.parse_args()
 
 
@@ -128,7 +133,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(args.y_variable)
     axis.set_title(
-        f"Strict relic-density points: {args.y_variable} vs {args.x_variable}"
+        f"Strict relic-density points: {args.y_variable} vs {args.x_variable} {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.tight_layout()
@@ -150,7 +155,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(f"log10({args.y_variable})")
     axis.set_title(
-        f"Strict relic-density points: log10 {args.y_variable} vs {args.x_variable}"
+        f"Strict relic-density points: log10 {args.y_variable} vs {args.x_variable} {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.tight_layout()
