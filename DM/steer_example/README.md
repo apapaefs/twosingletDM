@@ -19,8 +19,23 @@ Contains all outputs from micrOMEGAs and `mO_excluder`
 Example scan generation:
 cd DM/example_steer
 python3 generate_oks.py --lhx-start 0.01 --lhx-end 1 --lhx-step 0.01 --lsx-start 0.01 --lsx-end 1 --lsx-step 0.01
-it can also generate logarithmically spaced points:
+It can also generate logarithmically spaced points:
 python3 generate_oks.py --lhx-log --lhx-start 0.01 --lhx-end 1 --lhx-num-points 100 --mx-start 0.01 --mx-end 1 --mx-step 0.01
+To set a default value for a parameter x and not vary it, use --x-start and do not provide --x-end.
+
+Constrained scan generation:
+`--equal-couplings` writes `LSX = LHX` for every generated point. The `LHX` scan options define the shared coupling values, and the `LSX` scan options are ignored while this rule is active.
+
+Example:
+python3 generate_oks.py --equal-couplings --lhx-start 0.01 --lhx-end 1 --lhx-step 0.01
+
+`--resonant-mx` writes `MX = Mh2 / 2` for every generated point. The `Mh2` scan options define the resonance values, and the `MX` scan options are ignored while this rule is active.
+
+Example:
+python3 generate_oks.py --resonant-mx --mh2-start 200 --mh2-end 1000 --mh2-step 100
+
+The two rules can be combined:
+python3 generate_oks.py --equal-couplings --resonant-mx --lhx-start 0.01 --lhx-end 1 --lhx-step 0.01 --mh2-start 200 --mh2-end 1000 --mh2-step 100
 
 Copy `oks.dat` into the run directory:
 cp oks.dat run/oks.dat
@@ -33,8 +48,9 @@ g++ -O2 -std=c++11 -o mO_excluder mO_excluder.cpp
 Generate micrOMEGAs cards in `run/cards/`:
 ./write_mo
 
-To see the direct detection limits used, plot them using
+To see the detection limits used, plot them using
 ./mO_excluder --plot-dirdet-limits
+./mO_excluder --plot-indirect-limits
 
 Run the full micrOMEGAs + exclusion chain:
 cd ../run
@@ -58,13 +74,28 @@ Always generated. Captures the terminal output printed by `run/MOrun.sh`.
 Always generated. One line per processed point:
 `index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet`
 
-`output/DM_data_<index>`
+`output/DM_data/DM_data_<index>`
 Always generated per processed point. Summary from `source/mO_excluder`:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit LUXBaseLimit`
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit`
 
 `output/allall.dat`
-Generated only if at least one point passes all DM checks.
+Generated only if at least one point passes the relic-density upper limit,
+direct-detection limit, and indirect-detection limit.
 Accepted points with the same columns as `DM_data_<index>`.
+
+`output/all_dirpass.dat`
+Generated only if at least one point passes the relic-density upper limit and
+the direct-detection limit.
+This includes points that later fail indirect-detection checks.
+Columns are the same as `DM_data_<index>`.
+
+`output/relic_pass.dat`
+Generated only if at least one point passes the relic-density upper limit
+`Omega <= 0.121`. Columns are the same as `DM_data_<index>`.
+
+`output/relic_strict.dat`
+Generated only if at least one point satisfies the strict relic-density band
+`0.119 <= Omega <= 0.121`. Columns are the same as `DM_data_<index>`.
 
 `output/omexcl.dat`
 Generated only if at least one point is excluded by relic density.
@@ -74,38 +105,34 @@ Columns:
 `output/luxexcl.dat`
 Generated only if at least one point is excluded by direct detection.
 Columns:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit LUXBaseLimit`
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit`
+
+`output/indirexcl.dat`
+Generated only if at least one point is excluded by indirect detection.
+The indirect check reads `FermiLAT_line_channel` lines from the current
+micrOMEGAs output, compares each channel's `Phi_R16` integrated line flux
+against the interpolated Fermi-LAT R16 gamma-line flux limit from
+arXiv:1305.5597, and excludes the point if any channel has
+`IndirRatio = IndirFlux / IndirLimit > 1`.
+Columns:
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
+
+`output/indirpass.dat`
+Generated only if at least one point is not excluded by indirect detection.
+so `output/indirpass.dat` + `output/indirexcl.dat` = all points.
+This means that some (most) of the points in `output/indirpass.dat` are excluded by other limits.
+Columns:
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
 
 `output/dmexcl.dat`
 Generated only if at least one point fails any DM check.
 so allall.dat + dmexcl.dat = scan_results.dat
-Columns:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit LUXBaseLimit`
+Columns are the same as `DM_data_<index>`.
 
-Marker files:
-`output/DM_EXCLUDED_<index>`, `output/RelDens_EXCLUDED_<index>`, `output/DirDet_EXCLUDED_<index>`
+Marker files (commented out in mO_excluder for now):
+`output/DM_EXCLUDED/DM_EXCLUDED_<index>`, `output/RelDens_EXCLUDED/RelDens_EXCLUDED_<index>`,
+`output/DirDet_EXCLUDED/DirDet_EXCLUDED_<index>`, `output/IndirDet_EXCLUDED/IndirDet_EXCLUDED_<index>`
 These are created only for points that fail the corresponding check.
-
-Single-point utility:
-`run_single_point.py`
-Runs or post-processes one point without scanning over `run/cards/MO_inp*.dat`.
-It reproduces the `MOrun.sh` parsing step and the `mO_excluder.cpp` summary
-step in Python, writing single-point files such as `OUT_mO_100`,
-`DM_data_100`, and `scan_result_100.dat` into the chosen output directory.
-It does not append to the scan-wide aggregate files.
-
-To post-process an existing raw micrOMEGAs output:
-`python3 run_single_point.py --card run/cards/MO_inp100.dat --micromegas-output output/OUT_mO_100 --output-dir single_point_output`
-
-To run micrOMEGAs for one existing card:
-`python3 run_single_point.py --card run/cards/MO_inp100.dat --output-dir single_point_output`
-
-To run from explicit point values instead of a card:
-`python3 run_single_point.py --index 100 --lx 0.2 --lhx 0.1 --lsx 0.5 --mx 1000 --vevs 500 --sint 0.3 --mh2 500 --output-dir single_point_output`
-
-By default the direct-detection fit matches the existing files in `output/`.
-Use `--limit-model lz2025-source` to follow the active fit in
-`source/mO_excluder.cpp`.
 
 Plotting utilities:
 `plot/plot_omega.py`
@@ -136,6 +163,13 @@ This uses `output/` automatically as the output directory. If `MX` is one of the
 varying variables in `run/oks.dat`, it is used as the x-axis. The second varying
 variable is used as the y-axis for the 2D relic plots and as the color variable
 for `plot_omega_colored.py`.
+
+The driver also detects constrained scans in `run/oks.dat`. If both `MX` and
+`Mh2` vary while all rows satisfy `MX = Mh2 / 2`, it keeps `MX` on the x-axis,
+avoids using `Mh2` as the secondary variable when another varying variable is
+available, and appends `(MX = Mh2 / 2)` to plot titles. If both `LHX` and `LSX`
+vary while all rows satisfy `LHX = LSX`, it uses `LHX` as the secondary variable
+when possible and appends `(LHX = LSX)` to plot titles.
 
 If only one scan variable varies, the driver still runs `plot_omega.py` and skips
 the plots that require a second variable.
