@@ -150,6 +150,7 @@ def main():
     print(f"Saved plot to {output_path}")
 
     # Log scale plot
+    color_values = np.log10(color_values)
     log_y_values = np.log10(y_values)
     figure, axis = plt.subplots(figsize=(8, 6))
     scatter = axis.scatter(x_values, log_y_values, c=color_values, s=28, cmap=args.cmap, alpha=0.7)
@@ -157,12 +158,12 @@ def main():
     axis.set_xlabel(x_variable)
     axis.set_ylabel(r'$\log_{10}(\Omega h^2)$')
     axis.set_title(
-        f"Relic density vs {x_variable} (colored by {color_variable}) {args.title_suffix}".strip()
+        f"Relic density vs {x_variable} (colored by log({color_variable})) {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     axis.legend()
     cbar = figure.colorbar(scatter, ax=axis)
-    cbar.set_label(color_variable)
+    cbar.set_label("log("+color_variable+")")
     figure.tight_layout()
 
     log_output_path = (
