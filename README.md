@@ -31,7 +31,43 @@ mkdir build; cd build; cmake ..; make -j12
 - You may need to ```make install```, otherwise make sure HiggsTools is in your PYTHONPATH
 - You also need to place the HiggssBounds and HiggsSignals datasets in the twosingletDM directories: https://gitlab.com/higgsbounds/hbdataset and https://gitlab.com/higgsbounds/hsdataset.
 ## Execute:
-- To begin the scan, execute ```generate_trsm_points.py SEED``` where the SEED is an integer to be used as a seed for the random numbers. 
+- To begin the default random scan, execute:
+```bash
+python3 generate_trsm_points.py SEED --nrandom 500
+```
+where `SEED` is an integer used as the random-number seed. If `--nrandom` is
+omitted, the script defaults to 100 random points.
+
+- To evaluate one explicit vx=0 point, provide the same point parameters used by
+the EWPT helper:
+```bash
+python3 generate_trsm_points.py 123 \
+  --m2 380 --m3 500 --vs 200 --a12 -0.15 \
+  --lx 0.10 --lphix 0.050 --lsx 0.15
+```
+The random scan remains the default; explicit point mode is used only when all
+of `--m2`, `--m3`, `--vs`, `--a12`, `--lx`, `--lphix`, and `--lsx` are given.
+The current vx=0 random scan samples both positive and negative `a12`.
+
+- To run BSMPT EWPT checks only after a generated point passes the existing
+viability checks, add `--run-ewpt`:
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --run-ewpt \
+  --ewpt-require-eq418 \
+  --ewpt-thigh 1000 \
+  --ewpt-plot-phases \
+  --ewpt-workdir ../tests/trsm-ewpt-seed-123
+```
+`--ewpt-require-eq418` applies the Eq. 4.18 quartic-coupling positivity check
+before launching BSMPT, which avoids spending time on EWPT runs that fail this
+analytic prefilter. Viable candidate information is printed before this skip, so
+discarded points can still be inspected later.
+
+- If the EWPT campaign logs show `ModuleNotFoundError` for packages such as
+`scipy`, run with the same Python interpreter used in the working environment,
+for example `/Users/apapaefs/.venvs/compphys/bin/python`.
 
 ## Run TRSM EWPT checks with BSMPT
 
@@ -146,6 +182,85 @@ Run the focused test suite after editing the EWPT runner:
 
 ```bash
 python3 test_trsm_ewpt_runner.py
+```
+
+## Run Multi-Seed TRSM Campaigns
+
+`run_trsm_seed_campaign.py` launches `generate_trsm_points.py` over a contiguous
+seed range, keeps a live per-seed log, aggregates viable point files, and ranks
+the best EWPT points by `ew_jump/T`.
+
+Example from this `twosingletDM` directory:
+
+```bash
+python3 run_trsm_seed_campaign.py \
+  --seed-start 1 \
+  --nseeds 20 \
+  --nrandom 500 \
+  --jobs 4 \
+  --heartbeat-seconds 30 \
+  --campaign-dir ../tests/trsm-campaign-001 \
+  --run-cwd /Users/apapaefs/Projects/TwoSingletDM/twosingletDM \
+  --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
+  --run-ewpt \
+  --ewpt-require-eq418 \
+  --ewpt-thigh 1000
+```
+
+Example from the parent `TwoSingletDM` directory:
+
+```bash
+python3 twosingletDM/run_trsm_seed_campaign.py \
+  --seed-start 1 \
+  --nseeds 20 \
+  --nrandom 500 \
+  --jobs 4 \
+  --heartbeat-seconds 30 \
+  --campaign-dir tests/trsm-campaign-001 \
+  --run-cwd /Users/apapaefs/Projects/TwoSingletDM \
+  --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
+  --run-ewpt \
+  --ewpt-require-eq418 \
+  --ewpt-thigh 1000
+```
+
+While running, the launcher prints startup, launch, heartbeat, and completion
+lines such as:
+
+```text
+Starting TRSM seed campaign: seeds=1..20 nseeds=20 jobs=4 logs=...
+[launch] seed=1
+[running] active=4 seeds=1,2,3,4
+[3/20 done] seed=17 viable=4 ewpt_runs=2 best_ew_jump/T=0.31 elapsed=...
+```
+
+For detailed live output from one seed, tail its log in another terminal:
+
+```bash
+tail -f ../tests/trsm-campaign-001/logs/seed_1.log
+```
+
+Campaign outputs are written to:
+
+```text
+campaign_summary.tsv
+campaign_summary.json
+combined_points.tsv
+best_points.tsv
+logs/seed_<seed>.log
+ewpt/seed_<seed>/point_*/ewpt_summary.txt
+```
+
+`best_points.tsv` uses the largest available first-order EWPT strength with the
+priority `nucl`, then `perc`, then `compl`, then `crit`.
+
+Run the focused tests for the scan and campaign helpers with:
+
+```bash
+python3 test_generate_trsm_points_runner.py
+python3 test_run_trsm_seed_campaign.py
+python3 test_trsm_ewpt_runner.py
+python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py
 ```
 
 

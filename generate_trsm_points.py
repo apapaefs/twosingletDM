@@ -1,8 +1,119 @@
-from sys import argv
-import random
+import argparse
+import json
 import math
 import os
-from sys import argv
+import random
+from datetime import date
+from pathlib import Path
+
+
+TRSM_POINT_ARGS = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate TRSM points. By default this runs the existing random "
+            "vx=0 scan; providing all explicit point parameters skips the "
+            "random scan and evaluates that one point."
+        )
+    )
+    parser.add_argument(
+        "seed",
+        nargs="?",
+        type=int,
+        default=1,
+        help="Random seed for the default random scan, or bookkeeping seed for a single point.",
+    )
+    parser.add_argument(
+        "--m1",
+        type=float,
+        default=125.09,
+        help="Accepted for consistency with test_trsm_ewpt.py; generate_lams currently fixes M1=125.09.",
+    )
+    parser.add_argument("--m2", type=float)
+    parser.add_argument("--m3", type=float)
+    parser.add_argument("--vs", type=float)
+    parser.add_argument("--a12", type=float)
+    parser.add_argument("--lx", type=float)
+    parser.add_argument("--lphix", type=float)
+    parser.add_argument("--lsx", type=float)
+    parser.add_argument(
+        "--nrandom",
+        type=int,
+        default=100,
+        help="Number of points for the default random scan.",
+    )
+    parser.add_argument(
+        "--run-ewpt",
+        action="store_true",
+        help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
+    )
+    parser.add_argument(
+        "--ewpt-executable",
+        type=Path,
+        help="CalcTemps executable passed to the EWPT runner.",
+    )
+    parser.add_argument(
+        "--ewpt-minima-executable",
+        type=Path,
+        help="MinimaTracer executable passed to the EWPT runner.",
+    )
+    parser.add_argument(
+        "--ewpt-thigh",
+        type=float,
+        default=300.0,
+        help="High-temperature bound passed to MinimaTracer and CalcTemps.",
+    )
+    parser.add_argument(
+        "--ewpt-multistepmode",
+        default="default",
+        help="BSMPT multistepmode passed to MinimaTracer and CalcTemps.",
+    )
+    parser.add_argument(
+        "--ewpt-workdir",
+        type=Path,
+        help="Base directory for EWPT outputs; each viable point gets a point_XXXXXX subdirectory.",
+    )
+    parser.add_argument(
+        "--ewpt-plot-phases",
+        action="store_true",
+        help="Write MinimaTracer phase plots for viable points.",
+    )
+    parser.add_argument(
+        "--ewpt-plot-output",
+        type=Path,
+        help="Phase plot basename inside each viable point EWPT workdir.",
+    )
+    parser.add_argument(
+        "--ewpt-plot-format",
+        choices=["png", "pdf", "both"],
+        default="both",
+        help="Phase plot format for --ewpt-plot-phases.",
+    )
+    parser.add_argument(
+        "--ewpt-require-eq418",
+        action="store_true",
+        help="Before running EWPT, require the Eq. 4.18 quartic-coupling positivity check.",
+    )
+    parser.add_argument("--ewpt-sym-threshold", type=float, default=1.0)
+    parser.add_argument("--ewpt-w1-threshold", type=float, default=5.0)
+    parser.add_argument("--ewpt-wx-threshold", type=float, default=1.0)
+    parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
+    args = parser.parse_args(argv)
+
+    provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
+    if provided and len(provided) != len(TRSM_POINT_ARGS):
+        missing = ", ".join(f"--{name}" for name in TRSM_POINT_ARGS if name not in provided)
+        parser.error(f"explicit point mode requires all point parameters; missing {missing}")
+    if provided and not math.isclose(args.m1, 125.09, rel_tol=0.0, abs_tol=1e-9):
+        parser.error("--m1 is accepted for CLI compatibility, but this generator currently fixes M1=125.09")
+    return args
+
+
+cli_args = parse_args()
+ini_seed = cli_args.seed
+
 from generate_trsm_info import * # TRSM info generator (branching ratios, mixing matrices, etc.)
 from test_trsm_evolution import * # RGE evolution
 #from twosinglet_sigmahhh_read_pickle_nn import * # Triple Higgs Cross Section
@@ -14,19 +125,7 @@ from scan_output import write_valid_point as write_valid_point_file
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
 from test_trsm_DM import print_dm_info, test_dm # micrOMEGAs dark matter check for the vx=0 branch
 from prettytable import PrettyTable
-from datetime import date
 from singlet_EWPO import * # Electroweak Precision Observables
-
-###########################################################
-# Handle the input here.
-# Random seed is the only input
-###########################################################
-
-if len(sys.argv) < 2:
-    print('generate_trsm_points.py [seed]')
-    exit()
-
-ini_seed=int(argv[1])
 
 #############
 # OPTIONS
@@ -43,7 +142,7 @@ RunMG5 = False
 MG5ProcessesToRun = [] # e.g. ['hh', 'hhh']
 
 # for random scan within ranges, how many points to run
-nrandom=100
+nrandom=cli_args.nrandom
 
 # Energy for xsec calculation
 Energy = 13.6
@@ -233,10 +332,108 @@ def write_valid_point(runtag, point_info, MG5xsecs=None):
     outfile = OutputDir + 'trsm_points_' + runtag + '.dat'
     write_valid_point_file(outfile, point_info, MG5xsecs)
 
+def output_path(runtag):
+    return OutputDir + 'trsm_points_' + runtag + '.dat'
+
 def reset_output(runtag):
-    outfile = OutputDir + 'trsm_points_' + runtag + '.dat'
+    outfile = output_path(runtag)
     filestream = open(outfile,'w')
     filestream.close()
+
+
+def ewpt_point_workdir(args, point_index):
+    base_dir = args.ewpt_workdir
+    if base_dir is None:
+        base_dir = Path(OutputDir) / ("ewpt_" + RunTag)
+    return Path(base_dir).expanduser() / f"point_{point_index:06d}"
+
+
+def ewpt_row_from_point_info(point_info):
+    return {
+        "m1": 125.09,
+        "m2": point_info["M2"],
+        "m3": point_info["M3"],
+        "vs": point_info["vs"],
+        "a12": point_info["a12"],
+        "lx": point_info["lX"],
+        "lphix": point_info["lPhiX"],
+        "lsx": point_info["lSX"],
+    }
+
+
+def format_ewpt_candidate(row):
+    keys = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
+    return "Viable EWPT candidate: " + " ".join(
+        f"{key}={row[key]}" for key in keys
+    )
+
+
+def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=None):
+    if not args.run_ewpt or not passed:
+        return None
+
+    if ewpt_module is None:
+        import test_trsm_ewpt as ewpt_module
+
+    if args.ewpt_require_eq418:
+        ewpt_row = ewpt_row_from_point_info(point_info)
+        print(format_ewpt_candidate(ewpt_row))
+        eq_4_18 = ewpt_module.check_eq_4_18(ewpt_row)
+        if not eq_4_18.satisfied:
+            condition_summary = "; ".join(
+                f"{name}={value}" for name, value in eq_4_18.conditions.items()
+            )
+            print(
+                "Point is viable but failed Eq. 4.18; skipping EWPT:",
+                condition_summary,
+            )
+            return None
+
+    workdir = ewpt_point_workdir(args, point_index)
+    workdir.mkdir(parents=True, exist_ok=True)
+    point = ewpt_module.TRSMEWPTPoint(
+        index=point_index,
+        m2=point_info["M2"],
+        m3=point_info["M3"],
+        vs=point_info["vs"],
+        a12=point_info["a12"],
+        lx=point_info["lX"],
+        lphix=point_info["lPhiX"],
+        lsx=point_info["lSX"],
+    )
+    config_kwargs = {
+        "multistepmode": args.ewpt_multistepmode,
+        "thigh": args.ewpt_thigh,
+        "plot_phases": args.ewpt_plot_phases,
+        "plot_output": args.ewpt_plot_output,
+        "plot_format": args.ewpt_plot_format,
+        "sym_threshold": args.ewpt_sym_threshold,
+        "w1_threshold": args.ewpt_w1_threshold,
+        "wx_threshold": args.ewpt_wx_threshold,
+        "ws_threshold": args.ewpt_ws_threshold,
+    }
+    if args.ewpt_executable is not None:
+        config_kwargs["executable"] = args.ewpt_executable
+    if args.ewpt_minima_executable is not None:
+        config_kwargs["minima_executable"] = args.ewpt_minima_executable
+    config = ewpt_module.EWPTConfig(**config_kwargs)
+
+    print("Point is viable; running EWPT analysis in", workdir)
+    result = ewpt_module.run_trsm_ewpt(
+        point,
+        config=config,
+        workdir=workdir,
+        keep_files=True,
+    )
+    summary = ewpt_module.summarize_result(result)
+    print(summary)
+    (workdir / "ewpt_summary.txt").write_text(summary + "\n", encoding="utf-8")
+    (workdir / "ewpt_result.json").write_text(
+        json.dumps(ewpt_module.result_to_json(result), indent=2, sort_keys=True, default=str) + "\n",
+        encoding="utf-8",
+    )
+    print("EWPT summary written to", workdir / "ewpt_summary.txt")
+    return result
 
     
 # MAIN FUNCTION:
@@ -297,7 +494,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     return 0
 
 # MAIN FUNCTION for vx=0:
-def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False):
+def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1):
     # fix a23, a13, vx to zero:
     vx_val = 0
     a13 = 0
@@ -305,7 +502,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     # get the point information (widths, scalar couplings)
     vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO, lX=lX, lPhiX=lPhiX, lSX=lSX)
     Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
-    if debug is True:
+    if debug is True or report is True:
         print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
 
     # check EWPO
@@ -322,41 +519,44 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     
     # check HiggsTools:
     hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
-    if debug is False:
+    if debug is False and report is False:
         if hb is False or hs is False:
             return 0
     thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
-    if debug is False:
+    if debug is False and report is False:
         if thc is False:
             return 0
     # test the cosmological constraints
     evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
-    if debug is False:
+    if debug is False and report is False:
         if evo is False:
             return 0
     dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
-    if debug is True:
+    if debug is True or report is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
-    if debug is False:
+    if debug is False and report is False:
         if dm[0] is False:
             return 0
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
-    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True and dm[0] is True:
-        if debug is False:
+    passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True and dm[0] is True
+    if passed or write_all is True:
+        if debug is False and report is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
             print_dm_info(dm[1])
         MG5xsecs = {}
-        if runmg5 is True:
+        if passed and runmg5 is True:
             print('All constraints passed, running selected MG5 processes, please wait!')
             MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
             print('MG5 cross sections [pb] =', MG5xsecs)
         point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
         write_valid_point(RunTag, point_info, MG5xsecs)
-        return 1
-    return 0
+        if report is True:
+            print('Point record written to', output_path(RunTag))
+        run_ewpt_if_requested(point_info, passed, cli_args, point_index)
+    return 1 if passed else 0
 
 # round to sgf significant figures
 def round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, sgf):
@@ -373,11 +573,11 @@ def randsign():
 ############################################################
 
 # ranges of masses m2 and m3 to scan over
-m2_min=255
+m2_min=150
 m2_max=450
 
 m3_min=350
-m3_max=600
+m3_max=750
 
 # ranges of vevs
 vs_min=0
@@ -396,69 +596,116 @@ num_m2 = 2
 num_m3 = 2
 
 # ranges of couplings if vx=0
-lX_min = -0.5
+# NOTE: REQUIRE POSITIVE TO SATISFY EQUATION 4.18
+lX_min = 0.0
 lX_max= 0.5
 
-lPhiX_min = -0.5
+lPhiX_min = 0.0
 lPhiX_max = 0.5
 
-lSX_min = -0.5
+lSX_min = 0.0
 lSX_max = 0.5
-
 
 
 ############################################################
 # Scan begins here
 ############################################################
 
-print('\nScanning TRSM parameter space')
-RunTag = RunTag + '_vxzero'
-# reset the output file?
-if ResetOutput is True:
-    reset_output(RunTag)
+def has_explicit_point(args):
+    return all(getattr(args, name) is not None for name in TRSM_POINT_ARGS)
 
 
-# SCAN:
-passcounter = 0 # count number of passing points
-print('Generating points randomly within ranges')
-random.seed(ini_seed)
+def run_single_vxzero_point(args):
+    print('Evaluating one explicit vx=0 TRSM point')
+    print(
+        'm2 =', args.m2,
+        'm3 =', args.m3,
+        'vs =', args.vs,
+        'a12 =', args.a12,
+        'lx =', args.lx,
+        'lphix =', args.lphix,
+        'lsx =', args.lsx,
+    )
+    evalpoint = evaluate_trsm_point_vxzero(
+        ini_seed,
+        args.m2,
+        args.m3,
+        args.vs,
+        args.a12,
+        args.lx,
+        args.lphix,
+        args.lsx,
+        runmg5=RunMG5,
+        report=True,
+        write_all=True,
+        point_index=1,
+    )
+    print('Evaluated 1 explicit point, out of which', evalpoint, 'are viable')
+    return evalpoint
 
 
-# fixed parameters: 
-vx = 0
-k3=0
-a13 = 0
-a23 = 0
+def run_random_vxzero_scan():
+    # SCAN:
+    passcounter = 0 # count number of passing points
+    print('Generating points randomly within ranges')
+    random.seed(ini_seed)
 
-for i in tqdm(range(0,nrandom)):
-    # scan over free parameters
-    k1=random.uniform(k1_min,k1_max)
-    m2=random.uniform(m2_min, m2_max)
-    m3=random.uniform(m2+mhiggs, m3_max)
-    vs=random.uniform(vs_min, vs_max)
-    # free parameters for vx=0:
-    lX=random.uniform(lX_min, lX_max)
-    lPhiX=random.uniform(lPhiX_min, lPhiX_max)
-    lSX=random.uniform(lSX_min, lSX_max)
-        
- 
-    # dependent parameters
-    a12 = np.arccos(k1)
-    k2=np.sqrt(1-k1**2)
+    # fixed parameters:
+    vx = 0
+    k3=0
+    a13 = 0
+    a23 = 0
 
-    # optional (vx!=0), convert angles to k1, k2, k3: 
-    #a12, a13, a23 = ks_to_angles(k1,k2,k3) 
+    for i in tqdm(range(0,nrandom)):
+        # scan over free parameters
+        k1=random.uniform(k1_min,k1_max)
+        m2=random.uniform(m2_min, m2_max)
+        m3=random.uniform(m2+mhiggs, m3_max)
+        vs=random.uniform(vs_min, vs_max)
+        # free parameters for vx=0:
+        lX=random.uniform(lX_min, lX_max)
+        lPhiX=random.uniform(lPhiX_min, lPhiX_max)
+        lSX=random.uniform(lSX_min, lSX_max)
 
-    # round to 4 significant figures:
-    m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
-    
-    # evaluate: evalpoint is 1 if point passes, 0 if not
-    if vx != 0:
-            evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
-    else:
-            # if point passes, file will be written with order: m2, m3, vs, a12, lX, lPhiX, lSX + any additional info to be determined
-            evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5)
-    # count the passing points:
-    passcounter = passcounter + evalpoint
-    
-print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
+        # dependent parameters
+        a12 = randsign() * np.arccos(k1)
+        k2=randsign() * np.sqrt(1-k1**2)
+
+        # optional (vx!=0), convert angles to k1, k2, k3:
+        #a12, a13, a23 = ks_to_angles(k1,k2,k3)
+
+        # round to 4 significant figures:
+        m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
+
+        # evaluate: evalpoint is 1 if point passes, 0 if not
+        if vx != 0:
+                evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
+        else:
+                # if point passes, file will be written with order: m2, m3, vs, a12, lX, lPhiX, lSX + any additional info to be determined
+                evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5, point_index=i + 1)
+        # count the passing points:
+        passcounter = passcounter + evalpoint
+
+    print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
+    return passcounter
+
+
+def main():
+    global RunTag
+
+    print('\nScanning TRSM parameter space')
+    RunTag = RunTag + '_vxzero'
+    if has_explicit_point(cli_args):
+        RunTag = RunTag + '_manual'
+
+    # reset the output file?
+    if ResetOutput is True:
+        reset_output(RunTag)
+
+    if has_explicit_point(cli_args):
+        return run_single_vxzero_point(cli_args)
+    return run_random_vxzero_scan()
+
+
+if __name__ == "__main__":
+    main()
