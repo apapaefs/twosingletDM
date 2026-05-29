@@ -139,6 +139,7 @@ class TestTRSMSeedCampaign(unittest.TestCase):
                 "--campaign-dir",
                 "campaign",
                 "--run-ewpt",
+                "--write-dm-failed",
                 "--ewpt-require-eq418",
                 "--ewpt-thigh",
                 "1000",
@@ -159,6 +160,7 @@ class TestTRSMSeedCampaign(unittest.TestCase):
         self.assertIn("--nrandom", command)
         self.assertIn("250", command)
         self.assertIn("--run-ewpt", command)
+        self.assertIn("--write-dm-failed", command)
         self.assertIn("--ewpt-require-eq418", command)
         self.assertIn("--ewpt-workdir", command)
         self.assertIn("/tmp/ewpt/seed_5", command)

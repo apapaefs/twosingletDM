@@ -45,6 +45,14 @@ def parse_args(argv=None):
         help="Number of points for the default random scan.",
     )
     parser.add_argument(
+        "--write-dm-failed",
+        action="store_true",
+        help=(
+            "Also write points that pass all non-DM vx=0 checks but fail the "
+            "dark-matter check to trsm_points_<tag>_dm_failed.dat."
+        ),
+    )
+    parser.add_argument(
         "--run-ewpt",
         action="store_true",
         help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
@@ -329,16 +337,26 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
 
 # write the full accepted point record
 def write_valid_point(runtag, point_info, MG5xsecs=None):
-    outfile = OutputDir + 'trsm_points_' + runtag + '.dat'
+    outfile = output_path(runtag)
     write_valid_point_file(outfile, point_info, MG5xsecs)
 
-def output_path(runtag):
-    return OutputDir + 'trsm_points_' + runtag + '.dat'
+def write_dm_failed_point(runtag, point_info):
+    outfile = dm_failed_output_path(runtag)
+    write_valid_point_file(outfile, point_info)
+
+def output_path(runtag, suffix=""):
+    return OutputDir + 'trsm_points_' + runtag + suffix + '.dat'
+
+def dm_failed_output_path(runtag):
+    return output_path(runtag, "_dm_failed")
 
 def reset_output(runtag):
     outfile = output_path(runtag)
     filestream = open(outfile,'w')
     filestream.close()
+    if cli_args.write_dm_failed:
+        filestream = open(dm_failed_output_path(runtag),'w')
+        filestream.close()
 
 
 def ewpt_point_workdir(args, point_index):
@@ -535,12 +553,17 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     if debug is True or report is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
+    pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
+    point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
+    if cli_args.write_dm_failed and pre_dm_passed and dm[0] is False:
+        write_dm_failed_point(RunTag, point_info)
+        print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
     if debug is False and report is False:
         if dm[0] is False:
             return 0
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
-    passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True and dm[0] is True
+    passed = pre_dm_passed and dm[0] is True
     if passed or write_all is True:
         if debug is False and report is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
@@ -551,7 +574,6 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             print('All constraints passed, running selected MG5 processes, please wait!')
             MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
             print('MG5 cross sections [pb] =', MG5xsecs)
-        point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
         write_valid_point(RunTag, point_info, MG5xsecs)
         if report is True:
             print('Point record written to', output_path(RunTag))

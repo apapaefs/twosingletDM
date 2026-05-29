@@ -54,6 +54,7 @@ viability checks, add `--run-ewpt`:
 ```bash
 python3 generate_trsm_points.py 123 \
   --nrandom 500 \
+  --write-dm-failed \
   --run-ewpt \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000 \
@@ -64,6 +65,16 @@ python3 generate_trsm_points.py 123 \
 before launching BSMPT, which avoids spending time on EWPT runs that fail this
 analytic prefilter. Viable candidate information is printed before this skip, so
 discarded points can still be inspected later.
+
+`--write-dm-failed` writes points that pass the non-DM checks but fail the
+dark-matter check to a separate sidecar file:
+
+```text
+output/trsm_points_<run-tag>_dm_failed.dat
+```
+
+The usual `trsm_points_<run-tag>.dat` file remains reserved for points that pass
+the full viability selection.
 
 - If the EWPT campaign logs show `ModuleNotFoundError` for packages such as
 `scipy`, run with the same Python interpreter used in the working environment,
@@ -202,6 +213,7 @@ python3 run_trsm_seed_campaign.py \
   --campaign-dir ../tests/trsm-campaign-001 \
   --run-cwd /Users/apapaefs/Projects/TwoSingletDM/twosingletDM \
   --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
+  --write-dm-failed \
   --run-ewpt \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000
@@ -219,6 +231,7 @@ python3 twosingletDM/run_trsm_seed_campaign.py \
   --campaign-dir tests/trsm-campaign-001 \
   --run-cwd /Users/apapaefs/Projects/TwoSingletDM \
   --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
+  --write-dm-failed \
   --run-ewpt \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000

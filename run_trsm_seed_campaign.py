@@ -86,6 +86,11 @@ def parse_args(argv=None):
         default=default_python_executable(),
         help="Python interpreter used for seed subprocesses; defaults to the active virtualenv Python if available.",
     )
+    parser.add_argument(
+        "--write-dm-failed",
+        action="store_true",
+        help="Forward --write-dm-failed to generate_trsm_points.py for each seed.",
+    )
     parser.add_argument("--run-ewpt", action="store_true")
     parser.add_argument("--ewpt-require-eq418", action="store_true")
     parser.add_argument("--ewpt-thigh", type=float, default=300.0)
@@ -137,6 +142,10 @@ def seed_output_path(run_cwd, seed, run_date=None):
     return Path(run_cwd) / "output" / f"trsm_points_{run_tag(seed, run_date)}.dat"
 
 
+def seed_dm_failed_output_path(run_cwd, seed, run_date=None):
+    return Path(run_cwd) / "output" / f"trsm_points_{run_tag(seed, run_date)}_dm_failed.dat"
+
+
 def build_generator_command(args, seed, generator_script, ewpt_workdir):
     command = [
         str(args.python_executable),
@@ -146,6 +155,8 @@ def build_generator_command(args, seed, generator_script, ewpt_workdir):
         "--nrandom",
         str(args.nrandom),
     ]
+    if args.write_dm_failed:
+        command.append("--write-dm-failed")
     if args.run_ewpt:
         command.extend(["--run-ewpt", "--ewpt-workdir", str(ewpt_workdir)])
         if args.ewpt_require_eq418:
@@ -327,6 +338,9 @@ def run_seed(seed, args):
     point_output = seed_output_path(run_cwd, seed, run_date)
     if point_output.exists():
         point_output.unlink()
+    dm_failed_output = seed_dm_failed_output_path(run_cwd, seed, run_date)
+    if args.write_dm_failed and dm_failed_output.exists():
+        dm_failed_output.unlink()
     generator_script = Path(args.generator_script).expanduser().resolve()
     command = build_generator_command(args, seed, generator_script, ewpt_workdir)
 
@@ -475,6 +489,7 @@ def write_campaign_outputs(args, seed_results):
             "campaign_dir": str(campaign_dir),
             "generator_script": str(Path(args.generator_script).expanduser().resolve()),
             "run_cwd": str(Path(args.run_cwd).expanduser().resolve()),
+            "write_dm_failed": args.write_dm_failed,
             "run_ewpt": args.run_ewpt,
             "ewpt_require_eq418": args.ewpt_require_eq418,
             "ewpt_thigh": args.ewpt_thigh,
