@@ -51,6 +51,11 @@ DM_EXCLUSION_COLUMNS = [
 ]
 
 
+EWPT_COLUMNS = [
+    "ewpt_ew_true_over_T",
+]
+
+
 def mg5_columns(mg5xsecs):
     return [f"mg5_xsec_{process}_pb" for process in mg5xsecs.keys()]
 
@@ -64,14 +69,14 @@ def format_output_value(value):
 def output_columns(mg5xsecs):
     if mg5xsecs is None:
         mg5xsecs = {}
-    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + mg5_columns(mg5xsecs)
+    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + mg5_columns(mg5xsecs)
 
 
 def output_row(point_info, mg5xsecs=None):
     if mg5xsecs is None:
         mg5xsecs = {}
 
-    values = [point_info.get(column) for column in POINT_COLUMNS + DM_EXCLUSION_COLUMNS]
+    values = [point_info.get(column) for column in POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS]
     values.extend(mg5xsecs[process] for process in mg5xsecs.keys())
     return "\t".join(format_output_value(value) for value in values)
 

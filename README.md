@@ -66,6 +66,17 @@ before launching BSMPT, which avoids spending time on EWPT runs that fail this
 analytic prefilter. Viable candidate information is printed before this skip, so
 discarded points can still be inspected later.
 
+When `--run-ewpt` is enabled and BSMPT returns a first-order transition
+strength, the viable-point TSV also includes:
+
+```text
+ewpt_ew_true_over_T
+```
+
+This is selected from the available BSMPT strengths with priority `nucl`, then
+`perc`, then `compl`, then `crit`. If EWPT is not run, Eq. 4.18 skips the run, or
+no finite strength is available, the column is written as `nan`.
+
 `--write-dm-failed` writes points that pass the non-DM checks but fail the
 dark-matter check to a separate sidecar file:
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 TRSM_POINT_ARGS = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
+EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
 
 
 def parse_args(argv=None):
@@ -386,6 +387,39 @@ def format_ewpt_candidate(row):
     )
 
 
+def finite_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isfinite(number):
+        return number
+    return None
+
+
+def select_primary_ewpt_strength(payload):
+    strengths = payload.get("transition_strengths") or []
+    for temperature_kind in EWPT_STRENGTH_PRIORITY:
+        candidates = []
+        for strength in strengths:
+            if strength.get("temperature_kind") != temperature_kind:
+                continue
+            ew_true_over_T = finite_number(strength.get("ew_true_over_T"))
+            if ew_true_over_T is None:
+                continue
+            candidates.append((ew_true_over_T, strength))
+        if candidates:
+            return max(candidates, key=lambda item: item[0])[1]
+    return None
+
+
+def add_ewpt_strength_info(point_info, payload):
+    strength = select_primary_ewpt_strength(payload)
+    if strength is None:
+        return
+    point_info["ewpt_ew_true_over_T"] = finite_number(strength.get("ew_true_over_T"))
+
+
 def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=None):
     if not args.run_ewpt or not passed:
         return None
@@ -444,10 +478,12 @@ def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=Non
         keep_files=True,
     )
     summary = ewpt_module.summarize_result(result)
+    payload = ewpt_module.result_to_json(result)
+    add_ewpt_strength_info(point_info, payload)
     print(summary)
     (workdir / "ewpt_summary.txt").write_text(summary + "\n", encoding="utf-8")
     (workdir / "ewpt_result.json").write_text(
-        json.dumps(ewpt_module.result_to_json(result), indent=2, sort_keys=True, default=str) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n",
         encoding="utf-8",
     )
     print("EWPT summary written to", workdir / "ewpt_summary.txt")
@@ -574,10 +610,17 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             print('All constraints passed, running selected MG5 processes, please wait!')
             MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
             print('MG5 cross sections [pb] =', MG5xsecs)
+        ewpt_error = None
+        if passed:
+            try:
+                run_ewpt_if_requested(point_info, passed, cli_args, point_index)
+            except Exception as error:
+                ewpt_error = error
         write_valid_point(RunTag, point_info, MG5xsecs)
         if report is True:
             print('Point record written to', output_path(RunTag))
-        run_ewpt_if_requested(point_info, passed, cli_args, point_index)
+        if ewpt_error is not None:
+            raise ewpt_error
     return 1 if passed else 0
 
 # round to sgf significant figures
