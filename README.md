@@ -98,6 +98,60 @@ for both viable and DM-failed points; by itself it only targets DM-failed points
 `scipy`, run with the same Python interpreter used in the working environment,
 for example `/Users/apapaefs/.venvs/compphys/bin/python`.
 
+## Plot TRSM Scan Observables
+
+`plot_trsm_observables.py` makes human-editable scatter plots from the TSV files
+written by `generate_trsm_points.py`. The default preset is
+`ewpt_ew_true_over_T` vs `M2`:
+
+```bash
+python3 plot_trsm_observables.py \
+  output/trsm_points_13.6-20260529-1234-False_vxzero_dm_failed.dat \
+  --output-dir plots \
+  --format both
+```
+
+Useful one-off customizations:
+
+```bash
+python3 plot_trsm_observables.py output/trsm_points_13.6-20260529-1234-False_vxzero_dm_failed.dat \
+  --x M2 \
+  --y ewpt_ew_true_over_T \
+  --color-by dm_omega \
+  --size-by dm_dir_det \
+  --marker-by dm_relic_excluded \
+  --output-stem ewpt_vs_M2_dm_style
+```
+
+To add a named plot permanently, edit the `PLOT_PRESETS` dictionary near the top
+of `plot_trsm_observables.py`. To inspect available columns:
+
+```bash
+python3 plot_trsm_observables.py output/trsm_points_13.6-20260529-1234-False_vxzero_dm_failed.dat --list-columns
+```
+
+The plotting script also supports derived observables, defined as Python
+functions in the `DERIVED_OBSERVABLES` dictionary near the top of the file. For
+example:
+
+```python
+DERIVED_OBSERVABLES = {
+    "M2_over_M3": lambda row: safe_divide(obs(row, "M2"), obs(row, "M3")),
+    "log10_dm_omega": lambda row: safe_log10(obs(row, "dm_omega")),
+}
+```
+
+Derived observables are added as columns automatically and can be used anywhere
+raw columns can be used:
+
+```bash
+python3 plot_trsm_observables.py output/trsm_points_13.6-20260529-1234-False_vxzero_dm_failed.dat \
+  --x M2_over_M3 \
+  --y ewpt_ew_true_over_T \
+  --color-by log10_dm_omega \
+  --output-stem ewpt_vs_M2_over_M3
+```
+
 ## Run TRSM EWPT checks with BSMPT
 
 The helper script `test_trsm_ewpt.py` writes a one-point `TRSM_Input.tsv`, runs
