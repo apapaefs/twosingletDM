@@ -59,6 +59,15 @@ def parse_args(argv=None):
         help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
     )
     parser.add_argument(
+        "--run-ewpt-on-dm-failed",
+        action="store_true",
+        help=(
+            "Also run test_trsm_ewpt.py/BSMPT for vx=0 points that pass all "
+            "non-DM checks but fail the dark-matter check. These points are "
+            "written to the _dm_failed sidecar."
+        ),
+    )
+    parser.add_argument(
         "--ewpt-executable",
         type=Path,
         help="CalcTemps executable passed to the EWPT runner.",
@@ -355,7 +364,7 @@ def reset_output(runtag):
     outfile = output_path(runtag)
     filestream = open(outfile,'w')
     filestream.close()
-    if cli_args.write_dm_failed:
+    if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
         filestream = open(dm_failed_output_path(runtag),'w')
         filestream.close()
 
@@ -420,8 +429,14 @@ def add_ewpt_strength_info(point_info, payload):
     point_info["ewpt_ew_true_over_T"] = finite_number(strength.get("ew_true_over_T"))
 
 
-def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=None):
-    if not args.run_ewpt or not passed:
+def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=None, allow_dm_failed=False):
+    run_for_viable = getattr(args, "run_ewpt", False) and passed
+    run_for_dm_failed = (
+        getattr(args, "run_ewpt_on_dm_failed", False)
+        and allow_dm_failed
+        and not passed
+    )
+    if not (run_for_viable or run_for_dm_failed):
         return None
 
     if ewpt_module is None:
@@ -470,7 +485,10 @@ def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=Non
         config_kwargs["minima_executable"] = args.ewpt_minima_executable
     config = ewpt_module.EWPTConfig(**config_kwargs)
 
-    print("Point is viable; running EWPT analysis in", workdir)
+    if run_for_dm_failed:
+        print("Point passes non-DM constraints but fails DM; running EWPT analysis in", workdir)
+    else:
+        print("Point is viable; running EWPT analysis in", workdir)
     result = ewpt_module.run_trsm_ewpt(
         point,
         config=config,
@@ -591,9 +609,25 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         print_dm_info(dm[1])
     pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
     point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
-    if cli_args.write_dm_failed and pre_dm_passed and dm[0] is False:
-        write_dm_failed_point(RunTag, point_info)
-        print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
+    dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
+    if dm_failed_but_otherwise_allowed:
+        ewpt_error = None
+        if cli_args.run_ewpt_on_dm_failed:
+            try:
+                run_ewpt_if_requested(
+                    point_info,
+                    False,
+                    cli_args,
+                    point_index,
+                    allow_dm_failed=True,
+                )
+            except Exception as error:
+                ewpt_error = error
+        if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
+            write_dm_failed_point(RunTag, point_info)
+            print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
+        if ewpt_error is not None:
+            raise ewpt_error
     if debug is False and report is False:
         if dm[0] is False:
             return 0
@@ -638,7 +672,7 @@ def randsign():
 ############################################################
 
 # ranges of masses m2 and m3 to scan over
-m2_min=150
+m2_min=5
 m2_max=450
 
 m3_min=350

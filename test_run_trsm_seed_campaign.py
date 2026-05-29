@@ -36,6 +36,7 @@ def write_fake_generator(path):
             parser.add_argument("--nrandom", type=int)
             parser.add_argument("--sleep", type=float, default=0.0)
             parser.add_argument("--run-ewpt", action="store_true")
+            parser.add_argument("--run-ewpt-on-dm-failed", action="store_true")
             parser.add_argument("--ewpt-workdir", type=Path)
             parser.add_argument("--ewpt-require-eq418", action="store_true")
             parser.add_argument("--ewpt-thigh")
@@ -140,6 +141,7 @@ class TestTRSMSeedCampaign(unittest.TestCase):
                 "campaign",
                 "--run-ewpt",
                 "--write-dm-failed",
+                "--run-ewpt-on-dm-failed",
                 "--ewpt-require-eq418",
                 "--ewpt-thigh",
                 "1000",
@@ -161,6 +163,7 @@ class TestTRSMSeedCampaign(unittest.TestCase):
         self.assertIn("250", command)
         self.assertIn("--run-ewpt", command)
         self.assertIn("--write-dm-failed", command)
+        self.assertIn("--run-ewpt-on-dm-failed", command)
         self.assertIn("--ewpt-require-eq418", command)
         self.assertIn("--ewpt-workdir", command)
         self.assertIn("/tmp/ewpt/seed_5", command)
@@ -190,6 +193,32 @@ class TestTRSMSeedCampaign(unittest.TestCase):
         )
 
         self.assertEqual(command[0], "/tmp/custom-python")
+
+    def test_dm_failed_ewpt_only_still_forwards_campaign_workdir(self):
+        campaign = load_module()
+        args = campaign.parse_args(
+            [
+                "--seed-start",
+                "5",
+                "--nseeds",
+                "1",
+                "--campaign-dir",
+                "campaign",
+                "--run-ewpt-on-dm-failed",
+            ]
+        )
+
+        command = campaign.build_generator_command(
+            args,
+            seed=5,
+            generator_script=Path("/tmp/fake_generator.py"),
+            ewpt_workdir=Path("/tmp/ewpt/seed_5"),
+        )
+
+        self.assertIn("--run-ewpt-on-dm-failed", command)
+        self.assertIn("--ewpt-workdir", command)
+        self.assertIn("/tmp/ewpt/seed_5", command)
+        self.assertNotIn("--run-ewpt", command)
 
     def test_default_python_executable_prefers_active_virtualenv(self):
         campaign = load_module()

@@ -56,6 +56,7 @@ python3 generate_trsm_points.py 123 \
   --nrandom 500 \
   --write-dm-failed \
   --run-ewpt \
+  --run-ewpt-on-dm-failed \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000 \
   --ewpt-plot-phases \
@@ -86,6 +87,12 @@ output/trsm_points_<run-tag>_dm_failed.dat
 
 The usual `trsm_points_<run-tag>.dat` file remains reserved for points that pass
 the full viability selection.
+
+`--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
+that fail only the dark-matter check. It runs BSMPT for those points and writes
+them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` when BSMPT
+returns a finite strength. Use it together with `--run-ewpt` if you want BSMPT
+for both viable and DM-failed points; by itself it only targets DM-failed points.
 
 - If the EWPT campaign logs show `ModuleNotFoundError` for packages such as
 `scipy`, run with the same Python interpreter used in the working environment,
@@ -226,6 +233,7 @@ python3 run_trsm_seed_campaign.py \
   --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
   --write-dm-failed \
   --run-ewpt \
+  --run-ewpt-on-dm-failed \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000
 ```
@@ -244,6 +252,7 @@ python3 twosingletDM/run_trsm_seed_campaign.py \
   --python-executable /Users/apapaefs/.venvs/compphys/bin/python \
   --write-dm-failed \
   --run-ewpt \
+  --run-ewpt-on-dm-failed \
   --ewpt-require-eq418 \
   --ewpt-thigh 1000
 ```

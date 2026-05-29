@@ -92,6 +92,7 @@ def parse_args(argv=None):
         help="Forward --write-dm-failed to generate_trsm_points.py for each seed.",
     )
     parser.add_argument("--run-ewpt", action="store_true")
+    parser.add_argument("--run-ewpt-on-dm-failed", action="store_true")
     parser.add_argument("--ewpt-require-eq418", action="store_true")
     parser.add_argument("--ewpt-thigh", type=float, default=300.0)
     parser.add_argument("--ewpt-plot-phases", action="store_true")
@@ -157,8 +158,12 @@ def build_generator_command(args, seed, generator_script, ewpt_workdir):
     ]
     if args.write_dm_failed:
         command.append("--write-dm-failed")
+    if args.run_ewpt_on_dm_failed:
+        command.append("--run-ewpt-on-dm-failed")
     if args.run_ewpt:
-        command.extend(["--run-ewpt", "--ewpt-workdir", str(ewpt_workdir)])
+        command.append("--run-ewpt")
+    if args.run_ewpt or args.run_ewpt_on_dm_failed:
+        command.extend(["--ewpt-workdir", str(ewpt_workdir)])
         if args.ewpt_require_eq418:
             command.append("--ewpt-require-eq418")
         command.extend(["--ewpt-thigh", str(args.ewpt_thigh)])
@@ -339,7 +344,7 @@ def run_seed(seed, args):
     if point_output.exists():
         point_output.unlink()
     dm_failed_output = seed_dm_failed_output_path(run_cwd, seed, run_date)
-    if args.write_dm_failed and dm_failed_output.exists():
+    if (args.write_dm_failed or args.run_ewpt_on_dm_failed) and dm_failed_output.exists():
         dm_failed_output.unlink()
     generator_script = Path(args.generator_script).expanduser().resolve()
     command = build_generator_command(args, seed, generator_script, ewpt_workdir)
@@ -491,6 +496,7 @@ def write_campaign_outputs(args, seed_results):
             "run_cwd": str(Path(args.run_cwd).expanduser().resolve()),
             "write_dm_failed": args.write_dm_failed,
             "run_ewpt": args.run_ewpt,
+            "run_ewpt_on_dm_failed": args.run_ewpt_on_dm_failed,
             "ewpt_require_eq418": args.ewpt_require_eq418,
             "ewpt_thigh": args.ewpt_thigh,
         },

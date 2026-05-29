@@ -106,6 +106,8 @@ def ewpt_args(**overrides):
         "ewpt_w1_threshold": 5.0,
         "ewpt_wx_threshold": 1.0,
         "ewpt_ws_threshold": 1.0,
+        "run_ewpt_on_dm_failed": False,
+        "write_dm_failed": False,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -220,6 +222,13 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.write_dm_failed)
 
+    def test_parse_args_accepts_ewpt_on_dm_failed_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--run-ewpt-on-dm-failed"])
+
+        self.assertTrue(args.run_ewpt_on_dm_failed)
+
     def test_dm_failed_option_writes_sidecar_for_otherwise_allowed_point(self):
         generator = load_generator_module()
         records = []
@@ -230,7 +239,11 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         generator.write_valid_point_file = fake_write
         generator.RunTag = "unit"
         generator.OutputDir = "output/"
-        generator.cli_args = SimpleNamespace(run_ewpt=False, write_dm_failed=True)
+        generator.cli_args = SimpleNamespace(
+            run_ewpt=False,
+            write_dm_failed=True,
+            run_ewpt_on_dm_failed=False,
+        )
         generator.np = SimpleNamespace(sin=lambda value: value)
         for name in [
             "Mz",
@@ -335,6 +348,30 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             )
         )
         self.assertEqual(fake_ewpt.calls, [])
+
+    def test_ewpt_hook_runs_for_dm_failed_point_when_explicitly_enabled(self):
+        generator = load_generator_module()
+        fake_ewpt = FakeEWPTModule()
+        point_info = viable_point_info()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = generator.run_ewpt_if_requested(
+                point_info=point_info,
+                passed=False,
+                args=ewpt_args(
+                    run_ewpt=False,
+                    run_ewpt_on_dm_failed=True,
+                    ewpt_workdir=Path(tmpdir),
+                ),
+                point_index=7,
+                ewpt_module=fake_ewpt,
+                allow_dm_failed=True,
+            )
+
+        self.assertEqual(result.tag, "fake-result")
+        self.assertEqual(len(fake_ewpt.calls), 1)
+        self.assertEqual(fake_ewpt.calls[0]["point"].index, 7)
+        self.assertEqual(point_info["ewpt_ew_true_over_T"], 0.9)
 
     def test_ewpt_hook_skips_when_eq418_prefilter_fails(self):
         generator = load_generator_module()
@@ -500,6 +537,101 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertEqual(rows[0]["ewpt_ew_true_over_T"], 1.23)
+
+    def test_dm_failed_point_runs_ewpt_and_writes_strength_sidecar_when_enabled(self):
+        generator = load_generator_module()
+        rows = []
+        ewpt_calls = []
+
+        def fake_write(path, point_info, mg5xsecs=None):
+            rows.append((Path(path), dict(point_info)))
+
+        generator.write_valid_point_file = fake_write
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = ewpt_args(run_ewpt=False, run_ewpt_on_dm_failed=True)
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.analyze_parampoint = lambda *args, **kwargs: (True, True)
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            False,
+            {},
+            {"dm_mdm": 750.0, "dm_relic_excluded": True},
+        )
+
+        def fake_ewpt(point_info, passed, args, point_index, **kwargs):
+            ewpt_calls.append((passed, kwargs.get("allow_dm_failed")))
+            point_info["ewpt_ew_true_over_T"] = 0.77
+
+        generator.run_ewpt_if_requested = fake_ewpt
+
+        result = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            point_index=9,
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(ewpt_calls, [(False, True)])
+        self.assertEqual(rows[0][0], Path("output/trsm_points_unit_dm_failed.dat"))
+        self.assertEqual(rows[0][1]["ewpt_ew_true_over_T"], 0.77)
 
 
 if __name__ == "__main__":
