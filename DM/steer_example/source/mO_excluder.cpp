@@ -527,6 +527,22 @@ int main(int argc, char* argv[]){
                << "\t" << indirect.energyGeV << "\t" << indirect.fluxCm2S
                << "\t" << indirect.limitCm2S << "\t" << indirect.maxRatio;
 
+  // Create empty output files to ensure they exist even if no data is written
+  ofstream(output_path(outputDir, "relic_pass.dat").c_str()).close();
+  ofstream(output_path(outputDir, "relic_strict.dat").c_str()).close();
+  ofstream(output_path(outputDir, "omexcl.dat").c_str()).close();
+  ofstream(output_path(outputDir, "luxexcl.dat").c_str()).close();
+  ofstream(output_path(outputDir, "luxpass.dat").c_str()).close();
+  ofstream(output_path(outputDir, "all_dirpass.dat").c_str()).close();
+  ofstream(output_path(outputDir, "omgpass_dirfail.dat").c_str()).close();
+  ofstream(output_path(outputDir, "indirexcl.dat").c_str()).close();
+  ofstream(output_path(outputDir, "indirpass.dat").c_str()).close();
+  ofstream(output_path(outputDir, "indir_caughtit.dat").c_str()).close();
+  ofstream(output_path(outputDir, "dir_caughtit.dat").c_str()).close();
+  ofstream(output_path(outputDir, "dir_indir_caughtit.dat").c_str()).close();
+  ofstream(output_path(outputDir, "dmexcl.dat").c_str()).close();
+  ofstream(output_path(outputDir, "allall.dat").c_str()).close();
+
   ofstream DM(output_path(outputDir + "/DM_data", "DM_data").c_str());
   DM << indirectLine.str() << endl;
   DM.close();
