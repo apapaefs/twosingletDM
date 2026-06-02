@@ -54,6 +54,14 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--write-all-points",
+        action="store_true",
+        help=(
+            "Write every evaluated vx=0 point to the main output file, "
+            "regardless of constraints, and run EWPT for every point."
+        ),
+    )
+    parser.add_argument(
         "--run-ewpt",
         action="store_true",
         help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
@@ -429,20 +437,49 @@ def add_ewpt_strength_info(point_info, payload):
     point_info["ewpt_ew_true_over_T"] = finite_number(strength.get("ew_true_over_T"))
 
 
-def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=None, allow_dm_failed=False):
+def add_ewpt_phase_history_info(point_info, payload):
+    minimatracer = payload.get("minimatracer") or {}
+    global_phase_path = minimatracer.get("global_phase_path") or []
+    if isinstance(global_phase_path, str):
+        labels = [label.strip() for label in global_phase_path.split("->") if label.strip()]
+    else:
+        labels = [str(label) for label in global_phase_path]
+    if labels:
+        point_info["ewpt_global_phase_path"] = " -> ".join(labels)
+        point_info["ewpt_has_x_broken"] = any("X_BROKEN" in label for label in labels)
+    ew_step_index = minimatracer.get("ew_step_index")
+    if ew_step_index is not None:
+        point_info["ewpt_ew_step_index"] = ew_step_index
+
+
+def add_ewpt_info(point_info, payload):
+    add_ewpt_strength_info(point_info, payload)
+    add_ewpt_phase_history_info(point_info, payload)
+
+
+def run_ewpt_if_requested(
+    point_info,
+    passed,
+    args,
+    point_index,
+    ewpt_module=None,
+    allow_dm_failed=False,
+    allow_any_failed=False,
+):
     run_for_viable = getattr(args, "run_ewpt", False) and passed
     run_for_dm_failed = (
         getattr(args, "run_ewpt_on_dm_failed", False)
         and allow_dm_failed
         and not passed
     )
-    if not (run_for_viable or run_for_dm_failed):
+    run_for_any_point = getattr(args, "write_all_points", False) and allow_any_failed
+    if not (run_for_viable or run_for_dm_failed or run_for_any_point):
         return None
 
     if ewpt_module is None:
         import test_trsm_ewpt as ewpt_module
 
-    if args.ewpt_require_eq418:
+    if args.ewpt_require_eq418 and not run_for_any_point:
         ewpt_row = ewpt_row_from_point_info(point_info)
         print(format_ewpt_candidate(ewpt_row))
         eq_4_18 = ewpt_module.check_eq_4_18(ewpt_row)
@@ -485,7 +522,11 @@ def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=Non
         config_kwargs["minima_executable"] = args.ewpt_minima_executable
     config = ewpt_module.EWPTConfig(**config_kwargs)
 
-    if run_for_dm_failed:
+    if run_for_any_point and not passed:
+        print("Writing all points enabled; running EWPT analysis despite failed constraints in", workdir)
+    elif run_for_any_point:
+        print("Writing all points enabled; running EWPT analysis in", workdir)
+    elif run_for_dm_failed:
         print("Point passes non-DM constraints but fails DM; running EWPT analysis in", workdir)
     else:
         print("Point is viable; running EWPT analysis in", workdir)
@@ -497,7 +538,7 @@ def run_ewpt_if_requested(point_info, passed, args, point_index, ewpt_module=Non
     )
     summary = ewpt_module.summarize_result(result)
     payload = ewpt_module.result_to_json(result)
-    add_ewpt_strength_info(point_info, payload)
+    add_ewpt_info(point_info, payload)
     print(summary)
     (workdir / "ewpt_summary.txt").write_text(summary + "\n", encoding="utf-8")
     (workdir / "ewpt_result.json").write_text(
@@ -567,6 +608,8 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
 
 # MAIN FUNCTION for vx=0:
 def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1):
+    write_all_points = write_all or getattr(cli_args, "write_all_points", False)
+    force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
     # fix a23, a13, vx to zero:
     vx_val = 0
     a13 = 0
@@ -591,16 +634,16 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     
     # check HiggsTools:
     hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
-    if debug is False and report is False:
+    if debug is False and report is False and write_all_points is False:
         if hb is False or hs is False:
             return 0
     thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
-    if debug is False and report is False:
+    if debug is False and report is False and write_all_points is False:
         if thc is False:
             return 0
     # test the cosmological constraints
     evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
-    if debug is False and report is False:
+    if debug is False and report is False and write_all_points is False:
         if evo is False:
             return 0
     dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
@@ -612,7 +655,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
     if dm_failed_but_otherwise_allowed:
         ewpt_error = None
-        if cli_args.run_ewpt_on_dm_failed:
+        if cli_args.run_ewpt_on_dm_failed and force_ewpt_for_all_points is False:
             try:
                 run_ewpt_if_requested(
                     point_info,
@@ -628,13 +671,13 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
         if ewpt_error is not None:
             raise ewpt_error
-    if debug is False and report is False:
+    if debug is False and report is False and write_all_points is False:
         if dm[0] is False:
             return 0
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
     passed = pre_dm_passed and dm[0] is True
-    if passed or write_all is True:
+    if passed or write_all_points is True:
         if debug is False and report is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
@@ -645,9 +688,18 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
             print('MG5 cross sections [pb] =', MG5xsecs)
         ewpt_error = None
-        if passed:
+        if passed or force_ewpt_for_all_points:
             try:
-                run_ewpt_if_requested(point_info, passed, cli_args, point_index)
+                ewpt_kwargs = {}
+                if force_ewpt_for_all_points:
+                    ewpt_kwargs["allow_any_failed"] = True
+                run_ewpt_if_requested(
+                    point_info,
+                    passed,
+                    cli_args,
+                    point_index,
+                    **ewpt_kwargs,
+                )
             except Exception as error:
                 ewpt_error = error
         write_valid_point(RunTag, point_info, MG5xsecs)
