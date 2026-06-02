@@ -26,7 +26,7 @@ RELIC_TOLERANCE = 0.001
 RELIC_MIN = RELIC_CENTRAL - RELIC_TOLERANCE
 RELIC_MAX = RELIC_CENTRAL + RELIC_TOLERANCE
 
-OMEGA_CMAP = plt.cm.rainbow
+OMEGA_CMAP = plt.cm.cool
 
 
 def parse_args():
@@ -158,7 +158,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(args.y_variable)
     axis.set_title(
-        f"Relic-density-passing points, magenta points fit observed density {args.title_suffix}".strip()
+        f"Relic-density-passing points, magentas fit observed density {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.colorbar(scatter, ax=axis, label="Omega")
@@ -199,7 +199,7 @@ def main():
     axis.set_xlabel(args.x_variable)
     axis.set_ylabel(f"log10({args.y_variable})")
     axis.set_title(
-        f"Relic-density-passing points, magenta points fit observed density {args.title_suffix}".strip()
+        f"Relic-density-passing points, magentas fit observed density {args.title_suffix}".strip()
     )
     axis.grid(True, alpha=0.3)
     figure.colorbar(scatter, ax=axis, label="Omega")

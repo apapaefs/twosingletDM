@@ -128,8 +128,6 @@ def load_rows(data_file: Path, columns):
                     f"{data_file}:{line_number}: could not parse numeric values "
                     f"from line: {stripped}"
                 ) from exc
-    if len(rows) == 0:
-        print(f"Warning: No rows loaded from {data_file}")
     return rows
 
 
@@ -162,8 +160,8 @@ def split_coordinates(rows, x_variable, y_variable, log_y=False):
     return x_values, y_values, omega_values
 
 
-# def row_key(row):
-#     return int(row["index"])
+def row_key(row):
+    return int(row["index"])
 
 
 def add_scatter_layers(
@@ -327,9 +325,8 @@ def main():
     accepted_file = output_dir / "all_dirpass.dat"
     if args.mark_indirect_fail:
         accepted_file = output_dir / "allall.dat"
-    dir_excluded_file = output_dir / "omgpass_dirfail.dat"
-    indirect_file = output_dir / "indir_caughtit.dat"
-
+    dir_excluded_file = output_dir / "dmexcl.dat"
+    indirect_file = output_dir / "indirexcl.dat"
 
     if not (accepted_file.is_file() and dir_excluded_file.is_file() and indirect_file.is_file()):
         raise SystemExit(f"Could not find one or more required files")
@@ -338,27 +335,25 @@ def main():
     outplots_dir = script_dir / "outplots"
     outplots_dir.mkdir(parents=True, exist_ok=True)
 
-    # if args.mark_indirect_fail:
-    #     accepted_rows = load_rows(accepted_file, INDIRECT_COLUMNS)
-    # else:
-    #     accepted_rows = load_rows(accepted_file, INDIRECT_COLUMNS)
-    accepted_rows = load_rows(accepted_file, INDIRECT_COLUMNS)
+    if args.mark_indirect_fail:
+        accepted_rows = load_rows(accepted_file, INDIRECT_COLUMNS)
+    else:
+        accepted_rows = load_rows(accepted_file, DM_COLUMNS)
     dir_excluded_rows = load_rows(dir_excluded_file, INDIRECT_COLUMNS) if dir_excluded_file.is_file() else []
     indirect_rows = (
         load_rows(indirect_file, INDIRECT_COLUMNS)
         if args.mark_indirect_fail and indirect_file.is_file()
         else []
     )
-    # accepted_rows = [row for row in accepted_rows if row["Omega"] <= RELIC_MAX]
-    # dir_excluded_rows = [row for row in dir_excluded_rows if row["Omega"] <= RELIC_MAX]
-    # indirect_rows = [row for row in indirect_rows if row["Omega"] <= RELIC_MAX]
+    accepted_rows = [row for row in accepted_rows if row["Omega"] <= RELIC_MAX]
+    dir_excluded_rows = [row for row in dir_excluded_rows if row["Omega"] <= RELIC_MAX]
+    indirect_rows = [row for row in indirect_rows if row["Omega"] <= RELIC_MAX]
 
-    # accepted_keys = {row_key(row) for row in accepted_rows}
-    # dir_excluded_rows = [row for row in dir_excluded_rows if row_key(row) not in accepted_keys]
-    indir_excluded_rows = indirect_rows
-    # indir_excluded_rows = [
-    #     row for row in indirect_rows if row_key(row) in accepted_keys
-    # ]
+    accepted_keys = {row_key(row) for row in accepted_rows}
+    dir_excluded_rows = [row for row in dir_excluded_rows if row_key(row) not in accepted_keys]
+    indir_excluded_rows = [
+        row for row in indirect_rows if row_key(row) in accepted_keys
+    ]
 
     if not accepted_rows and not dir_excluded_rows:
         raise SystemExit(

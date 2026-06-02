@@ -423,9 +423,9 @@ printf("\n==== Indirect detection =======\n");
           continue;
         }
 
-        if (eGamma < 5.0 || eGamma > 300.0) {
+        if (eGamma < 0.214 || eGamma > 462) {
           printf("Photon-line channel %s %s has E_gamma=%.6E GeV, outside "
-                "Fermi-LAT table range 5-300 GeV. Flux not printed for limits.\n",
+                "Fermi-LAT table range 0.214-462 GeV. Flux not printed for limits.\n",
                 p3, p4, eGamma);
           continue;
         }
@@ -464,7 +464,7 @@ printf("\n==== Indirect detection =======\n");
       } else {
         printf("FermiLAT_line_flux_R16 could not be calculated properly: "
               "line channels were found, but none were inside the usable "
-              "Fermi-LAT 5-300 GeV energy range or passed validity checks.\n");
+              "Fermi-LAT 0.214-462 GeV energy range or passed validity checks.\n");
       }
 
       if (invalidLine) {

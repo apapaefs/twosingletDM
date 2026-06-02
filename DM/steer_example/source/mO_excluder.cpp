@@ -211,31 +211,45 @@ struct FermiLineLimitPoint {
   double fluxLimitCm2S;
 };
 
-vector<FermiLineLimitPoint> fermi_lat_r16_line_limits() {
-  const double unit = 1.0e-9;
+// old Fermi-LAT results
+// vector<FermiLineLimitPoint> fermi_lat_r16_line_limits() {
+//   const double unit = 1.0e-9;
+//   const double values[][2] = {
+    // {5.00, 3.97}, {5.20, 2.96}, {5.41, 2.25}, {5.62, 1.83},
+    // {5.85, 1.90}, {6.08, 2.03}, {6.33, 2.22}, {6.58, 2.21},
+    // {6.84, 2.06}, {7.12, 2.05}, {7.40, 1.16}, {7.70, 0.56},
+    // {8.01, 0.86}, {8.33, 1.51}, {8.67, 1.36}, {9.02, 1.08},
+    // {9.39, 0.89}, {9.77, 0.73}, {10.17, 0.51}, {10.59, 0.87},
+    // {11.02, 1.82}, {11.48, 1.48}, {11.96, 0.66}, {12.46, 0.50},
+    // {12.98, 1.26}, {13.53, 1.55}, {14.10, 0.97}, {14.70, 0.43},
+    // {15.33, 0.40}, {15.99, 0.37}, {16.69, 0.39}, {17.42, 0.61},
+    // {18.18, 0.70}, {18.99, 0.55}, {19.84, 0.46}, {20.73, 0.45},
+    // {21.66, 0.42}, {22.64, 0.50}, {23.66, 0.90}, {24.74, 0.77},
+    // {25.86, 0.81}, {27.04, 0.72}, {28.28, 0.37}, {29.57, 0.24},
+    // {30.93, 0.18}, {32.36, 0.19}, {33.85, 0.22}, {35.42, 0.58},
+    // {37.07, 0.66}, {38.80, 0.45}, {40.62, 0.36}, {42.54, 0.65},
+    // {44.55, 0.46}, {46.66, 0.50}, {48.88, 0.35}, {51.22, 0.16},
+    // {53.69, 0.21}, {56.30, 0.50}, {59.05, 0.32}, {61.96, 0.35},
+    // {65.04, 0.22}, {68.29, 0.37}, {71.75, 0.44}, {75.41, 0.29},
+    // {79.30, 0.10}, {83.43, 0.09}, {87.82, 0.18}, {92.51, 0.10},
+    // {97.50, 0.08}, {102.82, 0.14}, {108.49, 0.22}, {114.51, 0.33},
+    // {120.89, 0.42}, {127.66, 0.37}, {134.86, 0.38}, {142.51, 0.28},
+    // {150.66, 0.14}, {159.32, 0.18}, {168.56, 0.20}, {178.41, 0.20},
+    // {188.92, 0.14}, {200.15, 0.12}, {212.16, 0.14}, {225.08, 0.06},
+    // {239.01, 0.05}, {254.05, 0.08}, {270.33, 0.09}, {300.00, 0.13}
+  // };
+
+// Updated Fermi-LAT results
+vector<FermiLineLimitPoint> fermi_lat_r16_line_limits_1() {
+  const double unit = 1.0e-8;
   const double values[][2] = {
-    {5.00, 3.97}, {5.20, 2.96}, {5.41, 2.25}, {5.62, 1.83},
-    {5.85, 1.90}, {6.08, 2.03}, {6.33, 2.22}, {6.58, 2.21},
-    {6.84, 2.06}, {7.12, 2.05}, {7.40, 1.16}, {7.70, 0.56},
-    {8.01, 0.86}, {8.33, 1.51}, {8.67, 1.36}, {9.02, 1.08},
-    {9.39, 0.89}, {9.77, 0.73}, {10.17, 0.51}, {10.59, 0.87},
-    {11.02, 1.82}, {11.48, 1.48}, {11.96, 0.66}, {12.46, 0.50},
-    {12.98, 1.26}, {13.53, 1.55}, {14.10, 0.97}, {14.70, 0.43},
-    {15.33, 0.40}, {15.99, 0.37}, {16.69, 0.39}, {17.42, 0.61},
-    {18.18, 0.70}, {18.99, 0.55}, {19.84, 0.46}, {20.73, 0.45},
-    {21.66, 0.42}, {22.64, 0.50}, {23.66, 0.90}, {24.74, 0.77},
-    {25.86, 0.81}, {27.04, 0.72}, {28.28, 0.37}, {29.57, 0.24},
-    {30.93, 0.18}, {32.36, 0.19}, {33.85, 0.22}, {35.42, 0.58},
-    {37.07, 0.66}, {38.80, 0.45}, {40.62, 0.36}, {42.54, 0.65},
-    {44.55, 0.46}, {46.66, 0.50}, {48.88, 0.35}, {51.22, 0.16},
-    {53.69, 0.21}, {56.30, 0.50}, {59.05, 0.32}, {61.96, 0.35},
-    {65.04, 0.22}, {68.29, 0.37}, {71.75, 0.44}, {75.41, 0.29},
-    {79.30, 0.10}, {83.43, 0.09}, {87.82, 0.18}, {92.51, 0.10},
-    {97.50, 0.08}, {102.82, 0.14}, {108.49, 0.22}, {114.51, 0.33},
-    {120.89, 0.42}, {127.66, 0.37}, {134.86, 0.38}, {142.51, 0.28},
-    {150.66, 0.14}, {159.32, 0.18}, {168.56, 0.20}, {178.41, 0.20},
-    {188.92, 0.14}, {200.15, 0.12}, {212.16, 0.14}, {225.08, 0.06},
-    {239.01, 0.05}, {254.05, 0.08}, {270.33, 0.09}, {300.00, 0.13}
+  {0.214, 45.5},  {0.234, 38.0},  {0.255, 34.0},  {0.278, 32.4},  {0.303, 30.9},  {0.329, 28.9},  {0.358, 26.3},
+  {0.388, 21.5},  {0.421, 18.8},  {0.456, 16.7},  {0.493, 14.7},  {0.533, 13.5},  {0.576, 11.8},  {0.620, 10.4},
+  {0.668, 9.84},  {0.718, 8.78},  {0.770, 7.80},  {0.826, 6.74},  {0.885, 6.36},  {0.947, 7.32},  {1.01, 8.68},
+  {1.08, 9.29},  {1.16, 8.68},  {1.24, 7.55},  {1.32, 6.39},  {1.41, 5.12},  {1.50, 4.03},  {1.60, 3.17},  {1.70, 2.92},
+  {1.81, 2.20},  {1.93, 1.84},  {2.06, 1.93},  {2.19, 1.87},  {2.33, 1.75},  {2.49, 1.35},  {2.65, 1.07},  {2.82, 0.844},
+  {3.00, 0.738},  {3.20, 0.780},  {3.40, 0.915},  {3.62, 1.02},  {3.85, 0.925},  {4.09, 0.764},  {4.35, 0.715},
+  {4.63, 0.561},  {4.91, 0.445},  {5.22, 0.263}
   };
 
   vector<FermiLineLimitPoint> limits;
@@ -244,6 +258,38 @@ vector<FermiLineLimitPoint> fermi_lat_r16_line_limits() {
     FermiLineLimitPoint point = {values[i][0], values[i][1] * unit};
     limits.push_back(point);
   }
+  return limits;
+}
+
+vector<FermiLineLimitPoint> fermi_lat_r16_line_limits_2() {
+  const double unit = 1.0e-10;
+  const double values[][2] = {
+  {5.54, 21.6},  {5.87, 20.6},  {6.23, 17.0},  {6.60, 22.5},
+  {6.99, 26.0},  {7.40, 33.4},  {7.83, 25.3},  {8.28, 18.6},  {8.76, 22.1},  {9.26, 12.7},  {9.79, 7.59},
+  {10.4, 8.14},  {10.9, 12.4},  {11.6, 16.0},  {12.2, 7.72},  {12.9, 7.83},  {13.6, 8.42},  {14.4, 5.91},
+  {15.2, 6.52},  {16.1, 6.66},  {17.0, 8.18},  {17.9, 10.2},  {18.9, 5.79},  {20.0, 3.65},  {21.1, 6.56},
+  {22.3, 3.66},  {23.6, 3.74},  {24.9, 2.97},  {26.4, 3.78},  {27.9, 4.56},  {29.5, 7.05},  {31.2, 4.37},
+  {33.0, 3.28},  {34.9, 4.17},  {36.9, 4.71},  {39.0, 3.18},  {41.3, 3.07},  {43.8, 4.71},  {46.4, 5.66},
+  {49.1, 6.40},  {52.1, 4.56},  {55.2, 3.96},  {58.6, 4.85},  {62.2, 3.32},  {66.0, 1.82},  {70.1, 1.90},
+  {74.5, 3.63},  {79.2, 1.48},  {84.2, 0.951},  {89.6, 0.947},  {95.4, 0.891},  {102, 2.29},  {108, 4.89},
+  {115, 4.92},  {123, 3.84},  {131, 3.11},  {140, 1.48},  {150, 0.765},  {160, 0.764},  {171, 1.11},  {183, 1.70},
+  {196, 2.22},  {210, 2.85},  {225, 1.59},  {241, 1.93},  {259, 0.867},  {276, 0.843},  {294, 1.32},  {321, 1.45},
+  {345, 1.17},  {367, 0.646},  {396, 0.613},  {427, 0.560},  {462, 0.487}
+  };
+
+  vector<FermiLineLimitPoint> limits;
+  const int nValues = sizeof(values) / sizeof(values[0]);
+  for (int i = 0; i < nValues; ++i) {
+    FermiLineLimitPoint point = {values[i][0], values[i][1] * unit};
+    limits.push_back(point);
+  }
+  return limits;
+}
+
+vector<FermiLineLimitPoint> fermi_lat_r16_line_limits() {
+  vector<FermiLineLimitPoint> limits = fermi_lat_r16_line_limits_1();
+  const vector<FermiLineLimitPoint> additional = fermi_lat_r16_line_limits_2();
+  limits.insert(limits.end(), additional.begin(), additional.end());
   return limits;
 }
 
@@ -340,7 +386,7 @@ void write_indirect_limit_plot(const string& outputDir) {
   const vector<FermiLineLimitPoint> limits = fermi_lat_r16_line_limits();
   ofstream data(dataPath.c_str());
   data << "# Fermi-LAT 95% CL observed gamma-gamma line flux upper limits, R16 ROI\n";
-  data << "# Source: arXiv:1305.5597, Tables VII-X. Flux column Phi_gammagamma.\n";
+  data << "# Source: arXiv:1506.00013, Flux column Phi_gammagamma.\n";
   data << "# E_gamma_GeV\tPhi_limit_cm-2_s-1" << endl;
   for (vector<FermiLineLimitPoint>::const_iterator it = limits.begin();
        it != limits.end(); ++it) {
@@ -355,7 +401,7 @@ void write_indirect_limit_plot(const string& outputDir) {
   script << "set grid\n";
   script << "set xlabel 'line photon energy E_{gamma} [GeV]'\n";
   script << "set ylabel '95% CL line flux upper limit [cm^{-2} s^{-1}]'\n";
-  script << "set title 'Fermi-LAT gamma-ray line limit, R16 ROI (arXiv:1305.5597)'\n";
+  script << "set title 'Fermi-LAT gamma-ray line limit, R16 ROI (arXiv:1506.00013)'\n";
   script << "plot " << shell_quote(dataPath)
          << " using 1:2 with linespoints linewidth 2 pointtype 7 pointsize 0.45"
          << " title 'Observed Phi_{gamma gamma} limit'\n";
@@ -482,36 +528,43 @@ int main(int argc, char* argv[]){
                << "\t" << indirect.limitCm2S << "\t" << indirect.maxRatio;
 
   ofstream DM(output_path(outputDir + "/DM_data", "DM_data").c_str());
-  DM << dmLine.str() << endl;
+  DM << indirectLine.str() << endl;
   DM.close();
 
   if (Omega <= relicUpperLimit) {
-    append_line(output_path(outputDir, "relic_pass.dat"), dmLine.str());
+    append_line(output_path(outputDir, "relic_pass.dat"), indirectLine.str());
   }
 
   if (fabs(Omega - relicStrictCentral) <= relicStrictWidth) {
-    append_line(output_path(outputDir, "relic_strict.dat"), dmLine.str());
+    append_line(output_path(outputDir, "relic_strict.dat"), indirectLine.str());
   }
 
   if (Omega > relicUpperLimit) {
     DMisok = false;
     OMGok = false;
     ostringstream omLine;
-    omLine << baseLine.str() << "\t" << Omega;
-    append_line(output_path(outputDir, "omexcl.dat"), omLine.str());
+    omLine << indirectLine.str() << "\t" << Omega;
+    append_line(output_path(outputDir, "omexcl.dat"), indirectLine.str());
   }
 
   if (DirDet > dirDetLimit) {
     DMisok = false;
     DIRok = false;
-    ostringstream luxLine;
-    luxLine << baseLine.str() << "\t" << Omega << "\t" << DirDet << "\t"
-            << dirDetLimit << "\t" << LUX;
-    append_line(output_path(outputDir, "luxexcl.dat"), luxLine.str());
+    // ostringstream luxLine;
+    // luxLine << baseLine.str() << "\t" << Omega << "\t" << DirDet << "\t"
+    //         << dirDetLimit << "\t" << LUX;
+    append_line(output_path(outputDir, "luxexcl.dat"), indirectLine.str());
+  }
+  else {
+    append_line(output_path(outputDir, "luxpass.dat"), indirectLine.str());
   }
 
   if (OMGok && DIRok) {
-    append_line(output_path(outputDir, "all_dirpass.dat"), dmLine.str());
+    append_line(output_path(outputDir, "all_dirpass.dat"), indirectLine.str());
+  }
+
+  if (OMGok && !DIRok) {
+    append_line(output_path(outputDir, "omgpass_dirfail.dat"), indirectLine.str());
   }
 
   if (indirect.excluded) {
@@ -522,9 +575,21 @@ int main(int argc, char* argv[]){
     append_line(output_path(outputDir, "indirpass.dat"), indirectLine.str());
   }
 
+  if (OMGok && DIRok && !INDok) {
+    append_line(output_path(outputDir, "indir_caughtit.dat"), indirectLine.str());
+  }
+
+  if (OMGok && !DIRok && INDok) {
+    append_line(output_path(outputDir, "dir_caughtit.dat"), indirectLine.str());
+  }
+
+  if (OMGok && !DIRok && !INDok) {
+    append_line(output_path(outputDir, "dir_indir_caughtit.dat"), indirectLine.str());
+  }
+
   if (!DMisok) {
     cout<<"excluded from dm "<<OMGok<<DIRok<<INDok<<endl;
-    append_line(output_path(outputDir, "dmexcl.dat"), dmLine.str());
+    append_line(output_path(outputDir, "dmexcl.dat"), indirectLine.str());
 
     // ofstream excl(output_path(outputDir + "/DM_EXCLUDED", "DM_EXCLUDED").c_str());
     // excl.close();
@@ -548,7 +613,7 @@ int main(int argc, char* argv[]){
     }
   } else {
     cout<<"Point agrees with DM data"<<endl;
-    append_line(output_path(outputDir, "allall.dat"), dmLine.str());
+    append_line(output_path(outputDir, "allall.dat"), indirectLine.str());
   }
 
   return 0;

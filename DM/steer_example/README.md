@@ -20,7 +20,7 @@ Example scan generation:
 cd DM/example_steer
 python3 generate_oks.py --lhx-start 0.01 --lhx-end 1 --lhx-step 0.01 --lsx-start 0.01 --lsx-end 1 --lsx-step 0.01
 It can also generate logarithmically spaced points:
-python3 generate_oks.py --lhx-log --lhx-start 0.01 --lhx-end 1 --lhx-num-points 100 --mx-start 0.01 --mx-end 1 --mx-step 0.01
+python3 generate_oks.py --lhx-log --lhx-start 0.01 --lhx-end 1 --lhx-num-points 100 --mx-start 10 --mx-end 1000 --mx-step 10
 To set a default value for a parameter x and not vary it, use --x-start and do not provide --x-end.
 
 Constrained scan generation:
@@ -76,7 +76,7 @@ Always generated. One line per processed point:
 
 `output/DM_data/DM_data_<index>`
 Always generated per processed point. Summary from `source/mO_excluder`:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit`
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
 
 `output/allall.dat`
 Generated only if at least one point passes the relic-density upper limit,
@@ -100,19 +100,23 @@ Generated only if at least one point satisfies the strict relic-density band
 `output/omexcl.dat`
 Generated only if at least one point is excluded by relic density.
 Columns:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega`
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
 
 `output/luxexcl.dat`
 Generated only if at least one point is excluded by direct detection.
 Columns:
-`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit`
+`index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
+and `output/luxexcl.dat` is generated otherwise.
+
+points that pass Relic Density limit but fail direct detection are in `omgpass_dirfail.dat`
+
 
 `output/indirexcl.dat`
 Generated only if at least one point is excluded by indirect detection.
 The indirect check reads `FermiLAT_line_channel` lines from the current
 micrOMEGAs output, compares each channel's `Phi_R16` integrated line flux
 against the interpolated Fermi-LAT R16 gamma-line flux limit from
-arXiv:1305.5597, and excludes the point if any channel has
+arXiv:1506.00013, and excludes the point if any channel has
 `IndirRatio = IndirFlux / IndirLimit > 1`.
 Columns:
 `index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
@@ -123,6 +127,11 @@ so `output/indirpass.dat` + `output/indirexcl.dat` = all points.
 This means that some (most) of the points in `output/indirpass.dat` are excluded by other limits.
 Columns:
 `index LX LHX LSX MX vevs SinT Mh2 MDM Omega DirDet DirDetLimit DirDetBaseLimit IndirAvailable IndirEnergy IndirFlux IndirLimit IndirRatio`
+
+If a point passes relic density limit and direct detection but does not pass indirect detection,
+it is detected by indirect detection so it is saved in `indir_caughtit.dat`.
+In the same manner, there is `dir_caughtit.dat` and `dir_indir_caughtit.dat` when a point passes
+relic density limit but is detected both directly and indirectly.
 
 `output/dmexcl.dat`
 Generated only if at least one point fails any DM check.
