@@ -24,6 +24,12 @@ CARD_FIELDS = [
 
 NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from test_trsm_DM import assess_indirect_limit, parse_indirect_line_channels
+
 
 @dataclass(frozen=True)
 class PointInput:
@@ -42,6 +48,7 @@ class MicromegasResult:
     mdm: float
     omega: float
     dir_det: float
+    indirect_line_channels: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -50,12 +57,17 @@ class PointSummary:
     result: MicromegasResult
     dir_det_limit: float
     lux_base_limit: float
+    indirect_limit: object
     relic_excluded: bool
     direct_detection_excluded: bool
 
     @property
     def dm_excluded(self):
-        return self.relic_excluded or self.direct_detection_excluded
+        return (
+            self.relic_excluded
+            or self.direct_detection_excluded
+            or self.indirect_limit.excluded
+        )
 
 
 def default_micromegas_main():
@@ -238,6 +250,7 @@ def parse_micromegas_output(text):
         mdm=mdm,
         omega=omega,
         dir_det=float(neutron_match.group(1)),
+        indirect_line_channels=parse_indirect_line_channels(text),
     )
 
 
@@ -324,11 +337,14 @@ def build_summary(
     else:
         dir_det_limit = lux_base_limit
 
+    indirect_limit = assess_indirect_limit(result.indirect_line_channels)
+
     return PointSummary(
         point=point,
         result=result,
         dir_det_limit=dir_det_limit,
         lux_base_limit=lux_base_limit,
+        indirect_limit=indirect_limit,
         relic_excluded=result.omega > relic_upper_limit,
         direct_detection_excluded=result.dir_det > dir_det_limit,
     )
@@ -373,6 +389,11 @@ def summary_line(summary):
         result.dir_det,
         summary.dir_det_limit,
         summary.lux_base_limit,
+        1 if summary.indirect_limit.available else 0,
+        summary.indirect_limit.energy_gev,
+        summary.indirect_limit.flux_cm2_s,
+        summary.indirect_limit.limit_cm2_s,
+        summary.indirect_limit.max_ratio,
     ]
     return "\t".join(format_value(value) if isinstance(value, float) else str(value) for value in values)
 
@@ -416,6 +437,7 @@ def write_outputs(output_dir, raw_output, summary):
         output_dir / f"DM_EXCLUDED_{index}",
         output_dir / f"RelDens_EXCLUDED_{index}",
         output_dir / f"DirDet_EXCLUDED_{index}",
+        output_dir / f"IndirDet_EXCLUDED_{index}",
     ]
     for marker in markers:
         marker.unlink(missing_ok=True)
@@ -426,6 +448,8 @@ def write_outputs(output_dir, raw_output, summary):
         write_marker(output_dir / f"RelDens_EXCLUDED_{index}")
     if summary.direct_detection_excluded:
         write_marker(output_dir / f"DirDet_EXCLUDED_{index}")
+    if summary.indirect_limit.excluded:
+        write_marker(output_dir / f"IndirDet_EXCLUDED_{index}")
 
     return raw_path, dm_data_path, scan_result_path
 
@@ -438,6 +462,11 @@ def print_summary(summary, paths):
     print(f"  DirDet: {format_value(summary.result.dir_det)}")
     print(f"  DirDetLimit: {format_value(summary.dir_det_limit)}")
     print(f"  LUXBaseLimit: {format_value(summary.lux_base_limit)}")
+    print(f"  IndirAvailable: {summary.indirect_limit.available}")
+    print(f"  IndirEnergy: {format_value(summary.indirect_limit.energy_gev)}")
+    print(f"  IndirFlux: {format_value(summary.indirect_limit.flux_cm2_s)}")
+    print(f"  IndirLimit: {format_value(summary.indirect_limit.limit_cm2_s)}")
+    print(f"  IndirRatio: {format_value(summary.indirect_limit.max_ratio)}")
     print(f"  Raw output: {raw_path}")
     print(f"  DM summary: {dm_data_path}")
     print(f"  Scan-style summary: {scan_result_path}")

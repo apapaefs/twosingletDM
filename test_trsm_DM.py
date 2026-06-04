@@ -15,6 +15,131 @@ DEFAULT_LIMIT_MODEL = "legacy-output"
 NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
 
+FERMI_LAT_R16_LINE_LIMITS = (
+    (0.214, 45.5e-8),
+    (0.234, 38.0e-8),
+    (0.255, 34.0e-8),
+    (0.278, 32.4e-8),
+    (0.303, 30.9e-8),
+    (0.329, 28.9e-8),
+    (0.358, 26.3e-8),
+    (0.388, 21.5e-8),
+    (0.421, 18.8e-8),
+    (0.456, 16.7e-8),
+    (0.493, 14.7e-8),
+    (0.533, 13.5e-8),
+    (0.576, 11.8e-8),
+    (0.620, 10.4e-8),
+    (0.668, 9.84e-8),
+    (0.718, 8.78e-8),
+    (0.770, 7.80e-8),
+    (0.826, 6.74e-8),
+    (0.885, 6.36e-8),
+    (0.947, 7.32e-8),
+    (1.01, 8.68e-8),
+    (1.08, 9.29e-8),
+    (1.16, 8.68e-8),
+    (1.24, 7.55e-8),
+    (1.32, 6.39e-8),
+    (1.41, 5.12e-8),
+    (1.50, 4.03e-8),
+    (1.60, 3.17e-8),
+    (1.70, 2.92e-8),
+    (1.81, 2.20e-8),
+    (1.93, 1.84e-8),
+    (2.06, 1.93e-8),
+    (2.19, 1.87e-8),
+    (2.33, 1.75e-8),
+    (2.49, 1.35e-8),
+    (2.65, 1.07e-8),
+    (2.82, 0.844e-8),
+    (3.00, 0.738e-8),
+    (3.20, 0.780e-8),
+    (3.40, 0.915e-8),
+    (3.62, 1.02e-8),
+    (3.85, 0.925e-8),
+    (4.09, 0.764e-8),
+    (4.35, 0.715e-8),
+    (4.63, 0.561e-8),
+    (4.91, 0.445e-8),
+    (5.22, 0.263e-8),
+    (5.54, 21.6e-10),
+    (5.87, 20.6e-10),
+    (6.23, 17.0e-10),
+    (6.60, 22.5e-10),
+    (6.99, 26.0e-10),
+    (7.40, 33.4e-10),
+    (7.83, 25.3e-10),
+    (8.28, 18.6e-10),
+    (8.76, 22.1e-10),
+    (9.26, 12.7e-10),
+    (9.79, 7.59e-10),
+    (10.4, 8.14e-10),
+    (10.9, 12.4e-10),
+    (11.6, 16.0e-10),
+    (12.2, 7.72e-10),
+    (12.9, 7.83e-10),
+    (13.6, 8.42e-10),
+    (14.4, 5.91e-10),
+    (15.2, 6.52e-10),
+    (16.1, 6.66e-10),
+    (17.0, 8.18e-10),
+    (17.9, 10.2e-10),
+    (18.9, 5.79e-10),
+    (20.0, 3.65e-10),
+    (21.1, 6.56e-10),
+    (22.3, 3.66e-10),
+    (23.6, 3.74e-10),
+    (24.9, 2.97e-10),
+    (26.4, 3.78e-10),
+    (27.9, 4.56e-10),
+    (29.5, 7.05e-10),
+    (31.2, 4.37e-10),
+    (33.0, 3.28e-10),
+    (34.9, 4.17e-10),
+    (36.9, 4.71e-10),
+    (39.0, 3.18e-10),
+    (41.3, 3.07e-10),
+    (43.8, 4.71e-10),
+    (46.4, 5.66e-10),
+    (49.1, 6.40e-10),
+    (52.1, 4.56e-10),
+    (55.2, 3.96e-10),
+    (58.6, 4.85e-10),
+    (62.2, 3.32e-10),
+    (66.0, 1.82e-10),
+    (70.1, 1.90e-10),
+    (74.5, 3.63e-10),
+    (79.2, 1.48e-10),
+    (84.2, 0.951e-10),
+    (89.6, 0.947e-10),
+    (95.4, 0.891e-10),
+    (102.0, 2.29e-10),
+    (108.0, 4.89e-10),
+    (115.0, 4.92e-10),
+    (123.0, 3.84e-10),
+    (131.0, 3.11e-10),
+    (140.0, 1.48e-10),
+    (150.0, 0.765e-10),
+    (160.0, 0.764e-10),
+    (171.0, 1.11e-10),
+    (183.0, 1.70e-10),
+    (196.0, 2.22e-10),
+    (210.0, 2.85e-10),
+    (225.0, 1.59e-10),
+    (241.0, 1.93e-10),
+    (259.0, 0.867e-10),
+    (276.0, 0.843e-10),
+    (294.0, 1.32e-10),
+    (321.0, 1.45e-10),
+    (345.0, 1.17e-10),
+    (367.0, 0.646e-10),
+    (396.0, 0.613e-10),
+    (427.0, 0.560e-10),
+    (462.0, 0.487e-10),
+)
+
+
 @dataclass(frozen=True)
 class DMPoint:
     lX: float
@@ -31,10 +156,29 @@ class DMPoint:
 
 
 @dataclass(frozen=True)
+class IndirectLineChannel:
+    energy_gev: float
+    flux_cm2_s: float
+
+
+@dataclass(frozen=True)
 class MicromegasResult:
     mdm: float
     omega: float
     dir_det: float
+    indirect_line_channels: tuple[IndirectLineChannel, ...] = ()
+
+
+@dataclass(frozen=True)
+class IndirectLimitResult:
+    available: bool
+    excluded: bool
+    channels_seen: int
+    channels_used: int
+    max_ratio: float
+    energy_gev: float
+    flux_cm2_s: float
+    limit_cm2_s: float
 
 
 @dataclass(frozen=True)
@@ -43,12 +187,17 @@ class DMSummary:
     result: MicromegasResult
     dir_det_limit: float
     lux_base_limit: float
+    indirect_limit: IndirectLimitResult
     relic_excluded: bool
     direct_detection_excluded: bool
 
     @property
     def passed(self):
-        return not (self.relic_excluded or self.direct_detection_excluded)
+        return not (
+            self.relic_excluded
+            or self.direct_detection_excluded
+            or self.indirect_limit.excluded
+        )
 
 
 def default_micromegas_main():
@@ -83,6 +232,108 @@ def find_number(pattern, text, label):
     return float(match.group(1))
 
 
+def parse_indirect_line_channels(text):
+    channels = []
+    for line in text.splitlines():
+        if "FermiLAT_line_channel" not in line:
+            continue
+        energy_match = re.search(rf"E_gamma=({NUMBER_PATTERN})", line)
+        flux_match = re.search(rf"Phi_R16=({NUMBER_PATTERN})", line)
+        if energy_match is None or flux_match is None:
+            continue
+        channels.append(
+            IndirectLineChannel(
+                energy_gev=float(energy_match.group(1)),
+                flux_cm2_s=float(flux_match.group(1)),
+            )
+        )
+    return tuple(channels)
+
+
+def fermi_lat_r16_line_limit(energy_gev):
+    limits = FERMI_LAT_R16_LINE_LIMITS
+    if (
+        not limits
+        or energy_gev < limits[0][0]
+        or energy_gev > limits[-1][0]
+    ):
+        return math.inf
+
+    for (low_energy, low_limit), (high_energy, high_limit) in zip(limits, limits[1:]):
+        if energy_gev == low_energy:
+            return low_limit
+        if energy_gev <= high_energy:
+            log_energy = (
+                (math.log(energy_gev) - math.log(low_energy))
+                / (math.log(high_energy) - math.log(low_energy))
+            )
+            return math.exp(
+                math.log(low_limit)
+                + log_energy * (math.log(high_limit) - math.log(low_limit))
+            )
+    return limits[-1][1]
+
+
+def assess_indirect_limit(channels):
+    best = IndirectLimitResult(
+        available=False,
+        excluded=False,
+        channels_seen=0,
+        channels_used=0,
+        max_ratio=0.0,
+        energy_gev=math.nan,
+        flux_cm2_s=math.nan,
+        limit_cm2_s=math.nan,
+    )
+    channels_used = 0
+
+    for channel in channels:
+        limit = fermi_lat_r16_line_limit(channel.energy_gev)
+        if (
+            not math.isfinite(limit)
+            or limit <= 0.0
+            or not math.isfinite(channel.flux_cm2_s)
+            or channel.flux_cm2_s < 0.0
+        ):
+            continue
+
+        channels_used += 1
+        ratio = channel.flux_cm2_s / limit
+        if not best.available or ratio > best.max_ratio:
+            best = IndirectLimitResult(
+                available=True,
+                excluded=ratio > 1.0,
+                channels_seen=len(channels),
+                channels_used=channels_used,
+                max_ratio=ratio,
+                energy_gev=channel.energy_gev,
+                flux_cm2_s=channel.flux_cm2_s,
+                limit_cm2_s=limit,
+            )
+
+    if best.available:
+        return IndirectLimitResult(
+            available=True,
+            excluded=best.max_ratio > 1.0,
+            channels_seen=len(channels),
+            channels_used=channels_used,
+            max_ratio=best.max_ratio,
+            energy_gev=best.energy_gev,
+            flux_cm2_s=best.flux_cm2_s,
+            limit_cm2_s=best.limit_cm2_s,
+        )
+    return IndirectLimitResult(
+        available=False,
+        excluded=False,
+        channels_seen=len(channels),
+        channels_used=0,
+        max_ratio=0.0,
+        energy_gev=math.nan,
+        flux_cm2_s=math.nan,
+        limit_cm2_s=math.nan,
+    )
+
+
 def parse_micromegas_output(text):
     """Extract the same three quantities that MOrun.sh parsed with awk."""
     mdm = find_number(
@@ -104,6 +355,7 @@ def parse_micromegas_output(text):
         mdm=mdm,
         omega=omega,
         dir_det=float(neutron_match.group(1)),
+        indirect_line_channels=parse_indirect_line_channels(text),
     )
 
 
@@ -188,11 +440,13 @@ def summarize_dm_result(
     else:
         dir_det_limit = lux_base_limit
 
+    indirect_limit = assess_indirect_limit(result.indirect_line_channels)
     return DMSummary(
         point=point,
         result=result,
         dir_det_limit=dir_det_limit,
         lux_base_limit=lux_base_limit,
+        indirect_limit=indirect_limit,
         relic_excluded=result.omega > relic_upper_limit,
         direct_detection_excluded=result.dir_det > dir_det_limit,
     )
@@ -215,6 +469,8 @@ def dm_info_string(summary):
         reasons.append("Omega above relic-density upper limit")
     if summary.direct_detection_excluded:
         reasons.append("DirDet above rescaled direct-detection limit")
+    if summary.indirect_limit.excluded:
+        reasons.append("Fermi-LAT gamma-line flux above limit")
     if not reasons:
         reasons.append("all DM checks passed")
 
@@ -232,6 +488,11 @@ def dm_info_string(summary):
         f"DirDet={format_value(summary.result.dir_det)} "
         f"DirDetLimit={format_value(summary.dir_det_limit)} "
         f"LUXBaseLimit={format_value(summary.lux_base_limit)}\n"
+        f"  IndirAvailable={summary.indirect_limit.available} "
+        f"IndirEnergy={format_value(summary.indirect_limit.energy_gev)} "
+        f"IndirFlux={format_value(summary.indirect_limit.flux_cm2_s)} "
+        f"IndirLimit={format_value(summary.indirect_limit.limit_cm2_s)} "
+        f"IndirRatio={format_value(summary.indirect_limit.max_ratio)}\n"
         f"  Reason: {', '.join(reasons)}"
     )
 
@@ -246,6 +507,12 @@ def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
         "dm_lux_base_limit": summary.lux_base_limit,
         "dm_relic_excluded": summary.relic_excluded,
         "dm_direct_detection_excluded": summary.direct_detection_excluded,
+        "dm_indirect_available": summary.indirect_limit.available,
+        "dm_indirect_energy": summary.indirect_limit.energy_gev,
+        "dm_indirect_flux": summary.indirect_limit.flux_cm2_s,
+        "dm_indirect_limit": summary.indirect_limit.limit_cm2_s,
+        "dm_indirect_ratio": summary.indirect_limit.max_ratio,
+        "dm_indirect_detection_excluded": summary.indirect_limit.excluded,
         "dm_limit_model": limit_model,
         "dm_rescale": rescale,
     }
@@ -261,6 +528,12 @@ def empty_dm_exclusion_info():
         "dm_lux_base_limit": None,
         "dm_relic_excluded": None,
         "dm_direct_detection_excluded": None,
+        "dm_indirect_available": None,
+        "dm_indirect_energy": None,
+        "dm_indirect_flux": None,
+        "dm_indirect_limit": None,
+        "dm_indirect_ratio": None,
+        "dm_indirect_detection_excluded": None,
         "dm_limit_model": None,
         "dm_rescale": None,
     }
@@ -303,9 +576,9 @@ def test_dm(
     """Run one vx=0 TRSM dark-matter point through micrOMEGAs.
 
     Returns `(passed, info, exclusion_info)`, where `passed` is true only if the
-    relic-density and direct-detection checks pass. `info` is suitable for
-    printing in debug mode, and `exclusion_info` contains the numerical values
-    used in the DM exclusion.
+    relic-density, direct-detection, and indirect-detection checks pass. `info`
+    is suitable for printing in debug mode, and `exclusion_info` contains the
+    numerical values used in the DM exclusion.
     """
     point = DMPoint(
         lX=float(lX),

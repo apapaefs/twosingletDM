@@ -46,6 +46,12 @@ DM_EXCLUSION_COLUMNS = [
     "dm_lux_base_limit",
     "dm_relic_excluded",
     "dm_direct_detection_excluded",
+    "dm_indirect_available",
+    "dm_indirect_energy",
+    "dm_indirect_flux",
+    "dm_indirect_limit",
+    "dm_indirect_ratio",
+    "dm_indirect_detection_excluded",
     "dm_limit_model",
     "dm_rescale",
 ]

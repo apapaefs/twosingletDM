@@ -88,6 +88,23 @@ output/trsm_points_<run-tag>_dm_failed.dat
 The usual `trsm_points_<run-tag>.dat` file remains reserved for points that pass
 the full viability selection.
 
+The dark-matter check combines the relic-density upper bound, the rescaled
+direct-detection limit, and the Fermi-LAT R16 gamma-line indirect limit parsed
+from `FermiLAT_line_channel` lines in the micrOMEGAs output. Scan files include
+the corresponding diagnostics:
+
+```text
+dm_indirect_available
+dm_indirect_energy
+dm_indirect_flux
+dm_indirect_limit
+dm_indirect_ratio
+dm_indirect_detection_excluded
+```
+
+`dm_indirect_ratio` is `dm_indirect_flux / dm_indirect_limit`; values above 1
+fail the dark-matter check.
+
 `--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
 that fail only the dark-matter check. It runs BSMPT for those points and writes
 them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` when BSMPT

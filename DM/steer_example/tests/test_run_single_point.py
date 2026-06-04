@@ -30,6 +30,15 @@ Xf=2.61e+01 Omega=4.90e-02
 """
 
 
+MICROMEGAS_OUTPUT_WITH_INDIRECT = (
+    MICROMEGAS_OUTPUT
+    + """
+Fermi-LAT gamma-line flux estimate using R16 ROI approximation
+FermiLAT_line_channel A A: E_gamma=5.000000E+01[GeV], sigmaV=2.098270E-18[cm^3 s^-1], N_gamma*sigmaV=4.196541E-18[cm^3 s^-1], Phi_R16=5.148348E+00[cm^-2 s^-1]
+"""
+)
+
+
 class RunSinglePointTests(unittest.TestCase):
     def test_parses_micromegas_output_values(self):
         single = load_module()
@@ -39,6 +48,17 @@ class RunSinglePointTests(unittest.TestCase):
         self.assertTrue(math.isclose(result.mdm, 1000.0))
         self.assertTrue(math.isclose(result.omega, 0.049))
         self.assertTrue(math.isclose(result.dir_det, 1.218e-9))
+        self.assertEqual(result.indirect_line_channels, ())
+
+    def test_parses_indirect_detection_channels(self):
+        single = load_module()
+
+        result = single.parse_micromegas_output(MICROMEGAS_OUTPUT_WITH_INDIRECT)
+
+        self.assertEqual(len(result.indirect_line_channels), 1)
+        channel = result.indirect_line_channels[0]
+        self.assertTrue(math.isclose(channel.energy_gev, 50.0))
+        self.assertTrue(math.isclose(channel.flux_cm2_s, 5.148348))
 
     def test_reads_single_card(self):
         single = load_module()
@@ -90,6 +110,29 @@ class RunSinglePointTests(unittest.TestCase):
         self.assertFalse(summary.relic_excluded)
         self.assertFalse(summary.direct_detection_excluded)
         self.assertFalse(summary.dm_excluded)
+
+    def test_summary_includes_indirect_detection_exclusion(self):
+        single = load_module()
+        point = single.PointInput(
+            index=100,
+            lx=0.2,
+            lhx=0.1,
+            lsx=0.5,
+            mx=1000.0,
+            vevs=500.0,
+            sint=0.3,
+            mh2=500.0,
+        )
+        result = single.parse_micromegas_output(MICROMEGAS_OUTPUT_WITH_INDIRECT)
+
+        summary = single.build_summary(point, result)
+
+        self.assertFalse(summary.relic_excluded)
+        self.assertFalse(summary.direct_detection_excluded)
+        self.assertTrue(summary.indirect_limit.excluded)
+        self.assertTrue(summary.dm_excluded)
+        self.assertTrue(summary.indirect_limit.max_ratio > 1.0)
+        self.assertIn("5.14835", single.summary_line(summary))
 
     def test_nonpositive_dark_matter_mass_is_rejected(self):
         single = load_module()
