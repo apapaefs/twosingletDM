@@ -104,6 +104,7 @@ for observable, xlabel in EQ418_PLOT_OBSERVABLES:
     )
 
 PLOT_GROUPS = {
+    "all": sorted(PLOT_PRESETS),
     "eq418_all": [f"ewpt_vs_{observable}" for observable, _label in EQ418_PLOT_OBSERVABLES],
     "eq418_all_log": [
         f"ewpt_vs_{observable}_log"
@@ -298,6 +299,11 @@ def parse_args(argv=None):
     parser.add_argument("--x", help="Override x-axis observable.")
     parser.add_argument("--y", help="Override y-axis observable.")
     parser.add_argument("--color-by", help="Observable used for marker colors.")
+    parser.add_argument(
+        "--color-x-broken",
+        action="store_true",
+        help="Color markers by ewpt_has_x_broken, showing whether X_BROKEN appears in the phase path.",
+    )
     parser.add_argument("--size-by", help="Observable used for marker sizes.")
     parser.add_argument("--marker-by", help="Observable used for marker shapes.")
     parser.add_argument("--xlabel", help="Override x-axis label.")
@@ -358,9 +364,17 @@ def rows_with_finite_columns(rows, columns):
     ]
 
 
+def column_has_numeric_values(rows, column):
+    if column is None:
+        return False
+    return any(finite_float(row.get(column)) is not None for row in rows)
+
+
 def rows_for_plot(rows, spec):
-    required_columns = [spec.x, spec.y, spec.color_by, spec.size_by]
+    required_columns = [spec.x, spec.y, spec.size_by]
     rows = rows_with_finite_columns(rows, required_columns)
+    if column_has_numeric_values(rows, spec.color_by):
+        rows = rows_with_finite_columns(rows, [spec.color_by])
     if spec.x_log and not spec.x_symlog:
         rows = [row for row in rows if finite_float(row.get(spec.x)) > 0.0]
     if spec.y_log and not spec.y_symlog:
@@ -391,6 +405,11 @@ def resolve_one_plot_spec(plot_name, args):
         value = getattr(args, attr)
         if value is not None:
             overrides[attr] = value
+    if args.color_x_broken:
+        overrides["color_by"] = "ewpt_has_x_broken"
+        if args.output_stem is None:
+            output_stem = spec.output_stem or f"{spec.y}_vs_{spec.x}"
+            overrides["output_stem"] = f"{output_stem}_colored_by_x_broken"
     if args.x_log:
         overrides["x_log"] = True
         overrides["x_symlog"] = False
@@ -474,9 +493,22 @@ def color_values(rows, spec):
     values = [finite_float(row.get(spec.color_by)) for row in rows]
     if all(value is not None for value in values):
         return values, "numeric"
-    labels = sorted({row.get(spec.color_by, "missing") for row in rows})
+    labels = sorted({row.get(spec.color_by, "missing") or "missing" for row in rows})
     color_for_label = {label: f"C{index % 10}" for index, label in enumerate(labels)}
-    return [color_for_label[row.get(spec.color_by, "missing")] for row in rows], "categorical"
+    return [
+        color_for_label[row.get(spec.color_by, "missing") or "missing"]
+        for row in rows
+    ], "categorical"
+
+
+def categorical_color_handles(rows, spec):
+    if spec.color_by is None or column_has_numeric_values(rows, spec.color_by):
+        return []
+    labels = sorted({row.get(spec.color_by, "missing") or "missing" for row in rows})
+    return [
+        (label, f"C{index % 10}")
+        for index, label in enumerate(labels)
+    ]
 
 
 def plot_scatter(rows, spec, output_dir, plot_format):
@@ -485,6 +517,7 @@ def plot_scatter(rows, spec, output_dir, plot_format):
 
         matplotlib.use("Agg", force=True)
         import matplotlib.pyplot as plt
+        from matplotlib.lines import Line2D
     except ImportError as exc:
         raise RuntimeError("matplotlib is required to make plots") from exc
 
@@ -539,7 +572,27 @@ def plot_scatter(rows, spec, output_dir, plot_format):
         ax.set_yscale("log")
     ax.grid(True, alpha=0.25)
     if spec.marker_by is not None:
-        ax.legend(title=spec.marker_by, frameon=False)
+        marker_legend = ax.legend(title=spec.marker_by, frameon=False)
+        ax.add_artist(marker_legend)
+    color_handles = categorical_color_handles(rows, spec)
+    if color_handles:
+        ax.legend(
+            handles=[
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="none",
+                    markerfacecolor=color,
+                    markeredgecolor="black",
+                    label=label,
+                    linestyle="None",
+                )
+                for label, color in color_handles
+            ],
+            title=spec.color_by,
+            frameon=False,
+        )
     if last_numeric_scatter is not None:
         fig.colorbar(last_numeric_scatter, ax=ax, label=spec.color_by)
     fig.tight_layout()

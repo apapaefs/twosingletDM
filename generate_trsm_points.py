@@ -39,6 +39,17 @@ def parse_args(argv=None):
     parser.add_argument("--lx", type=float)
     parser.add_argument("--lphix", type=float)
     parser.add_argument("--lsx", type=float)
+    resonant_group = parser.add_mutually_exclusive_group()
+    resonant_group.add_argument(
+        "--resonantDM1",
+        action="store_true",
+        help="Set m3 = 2*m1 for every evaluated point.",
+    )
+    resonant_group.add_argument(
+        "--resonantDM2",
+        action="store_true",
+        help="Set m3 = 2*m2 for every evaluated point.",
+    )
     parser.add_argument(
         "--nrandom",
         type=int,
@@ -74,6 +85,27 @@ def parse_args(argv=None):
             "non-DM checks but fail the dark-matter check. These points are "
             "written to the _dm_failed sidecar."
         ),
+    )
+    parser.add_argument(
+        "--higgstools-details",
+        action="store_true",
+        help=(
+            "Print the most constraining HiggsBounds limits and largest "
+            "HiggsSignals chi-squared contributors for each evaluated point."
+        ),
+    )
+    parser.add_argument(
+        "--higgstools-top",
+        type=int,
+        default=5,
+        help="Number of HiggsTools analyses/contributors to print with --higgstools-details.",
+    )
+    parser.add_argument(
+        "--no-save-higgstools-details",
+        dest="save_higgstools_details",
+        action="store_false",
+        default=True,
+        help="Do not save compact HiggsBounds/HiggsSignals limiting-analysis summaries to the scan output.",
     )
     parser.add_argument(
         "--ewpt-executable",
@@ -129,11 +161,21 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
 
     provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
-    if provided and len(provided) != len(TRSM_POINT_ARGS):
-        missing = ", ".join(f"--{name}" for name in TRSM_POINT_ARGS if name not in provided)
+    resonance_enabled = args.resonantDM1 or args.resonantDM2
+    required_point_args = [
+        name
+        for name in TRSM_POINT_ARGS
+        if name != "m3" or not resonance_enabled
+    ]
+    if provided and any(getattr(args, name) is None for name in required_point_args):
+        missing = ", ".join(
+            f"--{name}" for name in required_point_args if getattr(args, name) is None
+        )
         parser.error(f"explicit point mode requires all point parameters; missing {missing}")
     if provided and not math.isclose(args.m1, 125.09, rel_tol=0.0, abs_tol=1e-9):
         parser.error("--m1 is accepted for CLI compatibility, but this generator currently fixes M1=125.09")
+    if args.higgstools_top < 1:
+        parser.error("--higgstools-top must be at least 1")
     return args
 
 
@@ -404,6 +446,55 @@ def format_ewpt_candidate(row):
     )
 
 
+def higgstools_analysis_kwargs():
+    if not (
+        getattr(cli_args, "higgstools_details", False)
+        or getattr(cli_args, "save_higgstools_details", True)
+    ):
+        return {}
+    return {
+        "print_details": getattr(cli_args, "higgstools_details", False),
+        "details_top": getattr(cli_args, "higgstools_top", 5),
+        "return_details": getattr(cli_args, "save_higgstools_details", True),
+    }
+
+
+def compact_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def unpack_higgstools_result(result):
+    if len(result) >= 3:
+        return result[0], result[1], result[2]
+    return result[0], result[1], None
+
+
+def add_higgstools_info(point_info, details):
+    if not details:
+        return
+    higgsbounds = details.get("higgsbounds", {})
+    higgssignals = details.get("higgssignals", {})
+    point_info["higgstools_hb_selected_limits"] = compact_json(
+        higgsbounds.get("selected_limits", {})
+    )
+    point_info["higgstools_hb_top_obs"] = compact_json(
+        higgsbounds.get("top_observed_ratios", [])
+    )
+    point_info["higgstools_hs_chi2"] = higgssignals.get("chi2")
+    point_info["higgstools_hs_delta_chi2"] = higgssignals.get("delta_chi2")
+    point_info["higgstools_hs_top_chi2"] = compact_json(
+        higgssignals.get("top_chi2_contributors", [])
+    )
+
+
+def effective_m3(args, m2):
+    if getattr(args, "resonantDM1", False):
+        return 2.0 * float(getattr(args, "m1", 125.09))
+    if getattr(args, "resonantDM2", False):
+        return 2.0 * float(m2)
+    return getattr(args, "m3", None)
+
+
 def finite_number(value):
     try:
         number = float(value)
@@ -412,6 +503,32 @@ def finite_number(value):
     if math.isfinite(number):
         return number
     return None
+
+
+def one_line_error(error, max_length=1000):
+    message = " ".join(str(error).split())
+    if len(message) > max_length:
+        message = message[:max_length] + "... [truncated]"
+    return message
+
+
+def ewpt_error_details(error):
+    sections = [one_line_error(error, max_length=4000)]
+    for attribute in ("stdout", "stderr"):
+        value = getattr(error, attribute, None)
+        if value:
+            sections.append(f"\n{attribute}:\n{value}")
+    return "\n".join(sections)
+
+
+def record_ewpt_failure(point_info, workdir, error):
+    point_info["ewpt_status"] = "failed"
+    point_info["ewpt_error"] = one_line_error(error)
+    workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "ewpt_error.txt").write_text(
+        ewpt_error_details(error) + "\n",
+        encoding="utf-8",
+    )
 
 
 def select_primary_ewpt_strength(payload):
@@ -453,6 +570,8 @@ def add_ewpt_phase_history_info(point_info, payload):
 
 
 def add_ewpt_info(point_info, payload):
+    point_info["ewpt_status"] = "success"
+    point_info["ewpt_error"] = ""
     add_ewpt_strength_info(point_info, payload)
     add_ewpt_phase_history_info(point_info, payload)
 
@@ -530,12 +649,19 @@ def run_ewpt_if_requested(
         print("Point passes non-DM constraints but fails DM; running EWPT analysis in", workdir)
     else:
         print("Point is viable; running EWPT analysis in", workdir)
-    result = ewpt_module.run_trsm_ewpt(
-        point,
-        config=config,
-        workdir=workdir,
-        keep_files=True,
-    )
+    try:
+        result = ewpt_module.run_trsm_ewpt(
+            point,
+            config=config,
+            workdir=workdir,
+            keep_files=True,
+        )
+    except Exception as error:
+        record_ewpt_failure(point_info, workdir, error)
+        print("EWPT analysis failed; continuing scan:", point_info["ewpt_error"])
+        print("EWPT error written to", workdir / "ewpt_error.txt")
+        return None
+
     summary = ewpt_module.summarize_result(result)
     payload = ewpt_module.result_to_json(result)
     add_ewpt_info(point_info, payload)
@@ -571,7 +697,22 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     
         
     # check HiggsTools:
-    hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
+    hb, hs, higgstools_details = unpack_higgstools_result(analyze_parampoint(
+        pred,
+        H1,
+        H2,
+        H3,
+        125.09,
+        M2,
+        M3,
+        k1,
+        k2,
+        k3,
+        h1_BRs,
+        h2_BRs,
+        h3_BRs,
+        **higgstools_analysis_kwargs(),
+    ))
     if debug is False:
         if hb is False or hs is False:
             return 0
@@ -602,6 +743,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
             MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
             print('MG5 cross sections [pb] =', MG5xsecs)
         point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, None, None, None, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass)
+        add_higgstools_info(point_info, higgstools_details)
         write_valid_point(RunTag, point_info, MG5xsecs)
         return 1
     return 0
@@ -633,7 +775,22 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     wmass = check_wmass_tania(M2, sinth)
     
     # check HiggsTools:
-    hb, hs = analyze_parampoint(pred, H1, H2, H3, 125.09, M2, M3, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs)
+    hb, hs, higgstools_details = unpack_higgstools_result(analyze_parampoint(
+        pred,
+        H1,
+        H2,
+        H3,
+        125.09,
+        M2,
+        M3,
+        k1,
+        k2,
+        k3,
+        h1_BRs,
+        h2_BRs,
+        h3_BRs,
+        **higgstools_analysis_kwargs(),
+    ))
     if debug is False and report is False and write_all_points is False:
         if hb is False or hs is False:
             return 0
@@ -652,6 +809,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         print_dm_info(dm[1])
     pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
     point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
+    add_higgstools_info(point_info, higgstools_details)
     dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
     if dm_failed_but_otherwise_allowed:
         ewpt_error = None
@@ -724,14 +882,14 @@ def randsign():
 ############################################################
 
 # ranges of masses m2 and m3 to scan over
-m2_min=5
-m2_max=450
+m2_min=4
+m2_max=20
 
-m3_min=350
-m3_max=750
+m3_min=500
+m3_max=700
 
 # ranges of vevs
-vs_min=0
+vs_min=400
 vs_max=1000
 
 # no range for vx (DM candidate)!
@@ -747,15 +905,14 @@ num_m2 = 2
 num_m3 = 2
 
 # ranges of couplings if vx=0
-# NOTE: REQUIRE POSITIVE TO SATISFY EQUATION 4.18
 lX_min = 0.0
 lX_max= 0.5
 
 lPhiX_min = 0.0
-lPhiX_max = 0.5
+lPhiX_max = 0.002
 
 lSX_min = 0.0
-lSX_max = 0.5
+lSX_max = 0.002
 
 
 ############################################################
@@ -763,14 +920,19 @@ lSX_max = 0.5
 ############################################################
 
 def has_explicit_point(args):
-    return all(getattr(args, name) is not None for name in TRSM_POINT_ARGS)
+    if args.resonantDM1 or args.resonantDM2:
+        point_args = [name for name in TRSM_POINT_ARGS if name != "m3"]
+    else:
+        point_args = TRSM_POINT_ARGS
+    return all(getattr(args, name) is not None for name in point_args)
 
 
 def run_single_vxzero_point(args):
+    m3 = effective_m3(args, args.m2)
     print('Evaluating one explicit vx=0 TRSM point')
     print(
         'm2 =', args.m2,
-        'm3 =', args.m3,
+        'm3 =', m3,
         'vs =', args.vs,
         'a12 =', args.a12,
         'lx =', args.lx,
@@ -780,7 +942,7 @@ def run_single_vxzero_point(args):
     evalpoint = evaluate_trsm_point_vxzero(
         ini_seed,
         args.m2,
-        args.m3,
+        m3,
         args.vs,
         args.a12,
         args.lx,
@@ -811,7 +973,10 @@ def run_random_vxzero_scan():
         # scan over free parameters
         k1=random.uniform(k1_min,k1_max)
         m2=random.uniform(m2_min, m2_max)
-        m3=random.uniform(m2+mhiggs, m3_max)
+        if cli_args.resonantDM1 or cli_args.resonantDM2:
+            m3=effective_m3(cli_args, m2)
+        else:
+            m3=random.uniform(m2+mhiggs, m3_max)
         vs=random.uniform(vs_min, vs_max)
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)
@@ -827,6 +992,8 @@ def run_random_vxzero_scan():
 
         # round to 4 significant figures:
         m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
+        if cli_args.resonantDM1 or cli_args.resonantDM2:
+            m3=round_sig(effective_m3(cli_args, m2), 4)
 
         # evaluate: evalpoint is 1 if point passes, 0 if not
         if vx != 0:

@@ -109,6 +109,13 @@ def ewpt_args(**overrides):
         "run_ewpt_on_dm_failed": False,
         "write_dm_failed": False,
         "write_all_points": False,
+        "higgstools_details": False,
+        "higgstools_top": 5,
+        "save_higgstools_details": True,
+        "resonantDM1": False,
+        "resonantDM2": False,
+        "m1": 125.09,
+        "m3": None,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -183,10 +190,30 @@ class FakeEWPTModule:
         )
 
 
+class FailingEWPTModule(FakeEWPTModule):
+    def run_trsm_ewpt(self, point, config, workdir, keep_files):
+        self.calls.append(
+            {
+                "point": point,
+                "config": config,
+                "workdir": Path(workdir),
+                "keep_files": keep_files,
+            }
+        )
+        raise RuntimeError("BSMPT exploded")
+
+
 class TestGenerateTRSMPointsEWPT(unittest.TestCase):
     def test_scan_output_includes_ewpt_columns(self):
         import scan_output
 
+        self.assertIn("higgstools_hb_selected_limits", scan_output.output_columns({}))
+        self.assertIn("higgstools_hb_top_obs", scan_output.output_columns({}))
+        self.assertIn("higgstools_hs_chi2", scan_output.output_columns({}))
+        self.assertIn("higgstools_hs_delta_chi2", scan_output.output_columns({}))
+        self.assertIn("higgstools_hs_top_chi2", scan_output.output_columns({}))
+        self.assertIn("ewpt_status", scan_output.output_columns({}))
+        self.assertIn("ewpt_error", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_true_over_T", scan_output.output_columns({}))
         self.assertIn("ewpt_global_phase_path", scan_output.output_columns({}))
         self.assertIn("ewpt_has_x_broken", scan_output.output_columns({}))
@@ -199,6 +226,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertFalse(args.run_ewpt)
         self.assertFalse(args.write_all_points)
+        self.assertTrue(args.save_higgstools_details)
 
     def test_parse_args_accepts_ewpt_options(self):
         generator = load_generator_module()
@@ -223,6 +251,67 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertTrue(args.ewpt_plot_phases)
         self.assertEqual(args.ewpt_plot_format, "png")
         self.assertTrue(args.ewpt_require_eq418)
+
+    def test_parse_args_accepts_higgstools_detail_options(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(
+            ["--higgstools-details", "--higgstools-top", "7", "--no-save-higgstools-details"]
+        )
+
+        self.assertTrue(args.higgstools_details)
+        self.assertEqual(args.higgstools_top, 7)
+        self.assertFalse(args.save_higgstools_details)
+
+    def test_parse_args_accepts_resonant_dm_options(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--resonantDM1"])
+
+        self.assertTrue(args.resonantDM1)
+        self.assertFalse(args.resonantDM2)
+
+    def test_parse_args_rejects_both_resonant_dm_options(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--resonantDM1", "--resonantDM2"])
+
+    def test_explicit_point_can_omit_m3_when_resonant_dm_is_enabled(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(
+            [
+                "--m2",
+                "7.526",
+                "--vs",
+                "768.5",
+                "--a12",
+                "0.3078",
+                "--lx",
+                "0.4426",
+                "--lphix",
+                "8.696e-05",
+                "--lsx",
+                "0.0002258",
+                "--resonantDM1",
+            ]
+        )
+
+        self.assertTrue(generator.has_explicit_point(args))
+        self.assertAlmostEqual(generator.effective_m3(args, 7.526), 250.18)
+
+    def test_effective_m3_uses_resonant_dm_modes(self):
+        generator = load_generator_module()
+
+        base = ewpt_args(resonantDM1=False, resonantDM2=False, m1=125.09, m3=600.0)
+        self.assertEqual(generator.effective_m3(base, 200.0), 600.0)
+
+        dm1 = ewpt_args(resonantDM1=True, resonantDM2=False, m1=125.09, m3=None)
+        self.assertAlmostEqual(generator.effective_m3(dm1, 200.0), 250.18)
+
+        dm2 = ewpt_args(resonantDM1=False, resonantDM2=True, m1=125.09, m3=None)
+        self.assertEqual(generator.effective_m3(dm2, 200.0), 400.0)
 
     def test_parse_args_accepts_write_all_points(self):
         generator = load_generator_module()
@@ -467,12 +556,40 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             )
 
         self.assertEqual(point_info["ewpt_ew_true_over_T"], 0.9)
+        self.assertEqual(point_info["ewpt_status"], "success")
         self.assertEqual(
             point_info["ewpt_global_phase_path"],
             "SINGLET_S -> X_BROKEN -> EW_X_BROKEN -> EW",
         )
         self.assertTrue(point_info["ewpt_has_x_broken"])
         self.assertEqual(point_info["ewpt_ew_step_index"], 2)
+
+    def test_ewpt_hook_records_failure_instead_of_aborting_scan(self):
+        generator = load_generator_module()
+        fake_ewpt = FailingEWPTModule()
+        point_info = viable_point_info()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = generator.run_ewpt_if_requested(
+                    point_info=point_info,
+                    passed=True,
+                    args=ewpt_args(ewpt_workdir=Path(tmpdir)),
+                    point_index=5,
+                    ewpt_module=fake_ewpt,
+                )
+
+            workdir = Path(tmpdir) / "point_000005"
+            error_path = workdir / "ewpt_error.txt"
+
+            self.assertIsNone(result)
+            self.assertEqual(len(fake_ewpt.calls), 1)
+            self.assertEqual(point_info["ewpt_status"], "failed")
+            self.assertIn("BSMPT exploded", point_info["ewpt_error"])
+            self.assertTrue(error_path.exists())
+            self.assertIn("BSMPT exploded", error_path.read_text(encoding="utf-8"))
+            self.assertIn("EWPT analysis failed", stdout.getvalue())
 
     def test_viable_point_writes_record_after_ewpt_strength_hook(self):
         generator = load_generator_module()
@@ -571,6 +688,208 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(rows[0]["ewpt_global_phase_path"], "SINGLET_S -> EW")
         self.assertFalse(rows[0]["ewpt_has_x_broken"])
         self.assertEqual(rows[0]["ewpt_ew_step_index"], 1)
+
+    def test_higgstools_details_are_forwarded_to_analyze_parampoint(self):
+        generator = load_generator_module()
+        calls = []
+
+        generator.write_valid_point_file = lambda *args, **kwargs: None
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = ewpt_args(
+            run_ewpt=False,
+            higgstools_details=True,
+            higgstools_top=7,
+        )
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            True,
+            {},
+            {"dm_mdm": 750.0, "dm_relic_excluded": False},
+        )
+
+        def fake_analyze(*args, **kwargs):
+            calls.append(kwargs)
+            return True, True
+
+        generator.analyze_parampoint = fake_analyze
+
+        result = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            point_index=9,
+        )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(
+            calls,
+            [{"print_details": True, "details_top": 7, "return_details": True}],
+        )
+
+    def test_higgstools_details_are_saved_to_point_record_by_default(self):
+        generator = load_generator_module()
+        rows = []
+
+        def fake_write(path, point_info, mg5xsecs=None):
+            rows.append(dict(point_info))
+
+        generator.write_valid_point_file = fake_write
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = ewpt_args(run_ewpt=False)
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            True,
+            {},
+            {"dm_mdm": 750.0, "dm_relic_excluded": False},
+        )
+
+        details = {
+            "higgsbounds": {
+                "selected_limits": {"H2": {"obsRatio": 1.1, "reference": "OPAL"}},
+                "top_observed_ratios": [{"obsRatio": 1.1, "reference": "OPAL"}],
+            },
+            "higgssignals": {
+                "chi2": 158.0,
+                "delta_chi2": 5.5,
+                "top_chi2_contributors": [{"chisq": 10.0, "reference": "CMS"}],
+            },
+        }
+
+        def fake_analyze(*args, **kwargs):
+            self.assertTrue(kwargs["return_details"])
+            return True, True, details
+
+        generator.analyze_parampoint = fake_analyze
+
+        result = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            point_index=9,
+        )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(rows[0]["higgstools_hs_chi2"], 158.0)
+        self.assertEqual(rows[0]["higgstools_hs_delta_chi2"], 5.5)
+        self.assertIn('"H2"', rows[0]["higgstools_hb_selected_limits"])
+        self.assertIn('"OPAL"', rows[0]["higgstools_hb_top_obs"])
+        self.assertIn('"CMS"', rows[0]["higgstools_hs_top_chi2"])
 
     def test_dm_failed_point_runs_ewpt_and_writes_strength_sidecar_when_enabled(self):
         generator = load_generator_module()

@@ -51,11 +51,22 @@ DM_EXCLUSION_COLUMNS = [
 ]
 
 
+HIGGSTOOLS_COLUMNS = [
+    "higgstools_hb_selected_limits",
+    "higgstools_hb_top_obs",
+    "higgstools_hs_chi2",
+    "higgstools_hs_delta_chi2",
+    "higgstools_hs_top_chi2",
+]
+
+
 EWPT_COLUMNS = [
     "ewpt_ew_true_over_T",
     "ewpt_global_phase_path",
     "ewpt_has_x_broken",
     "ewpt_ew_step_index",
+    "ewpt_status",
+    "ewpt_error",
 ]
 
 
@@ -72,14 +83,14 @@ def format_output_value(value):
 def output_columns(mg5xsecs):
     if mg5xsecs is None:
         mg5xsecs = {}
-    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + mg5_columns(mg5xsecs)
+    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs)
 
 
 def output_row(point_info, mg5xsecs=None):
     if mg5xsecs is None:
         mg5xsecs = {}
 
-    values = [point_info.get(column) for column in POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS]
+    values = [point_info.get(column) for column in POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS]
     values.extend(mg5xsecs[process] for process in mg5xsecs.keys())
     return "\t".join(format_output_value(value) for value in values)
 

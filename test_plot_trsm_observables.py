@@ -19,10 +19,10 @@ def write_sample_points(path):
     path.write_text(
         "\n".join(
             [
-                "M2\tM3\tvs\ta12\tlX\tlPhiX\tlSX\tewpt_ew_true_over_T\tdm_omega\tdm_dir_det\tdm_relic_excluded",
-                "100\t400\t50\t-0.10\t0.8\t0.3\t0.2\t0.4\t0.02\t1.0e-11\tFalse",
-                "200\t500\t60\t0.20\t0.9\t0.2\t0.1\t0.8\t0.10\t2.0e-11\tTrue",
-                "300\t600\t70\t-0.30\t1.0\t0.1\t0.05\tnan\t0.30\t3.0e-11\tTrue",
+                "M2\tM3\tvs\ta12\tlX\tlPhiX\tlSX\tewpt_ew_true_over_T\tdm_omega\tdm_dir_det\tdm_relic_excluded\tewpt_has_x_broken",
+                "100\t400\t50\t-0.10\t0.8\t0.3\t0.2\t0.4\t0.02\t1.0e-11\tFalse\tFalse",
+                "200\t500\t60\t0.20\t0.9\t0.2\t0.1\t0.8\t0.10\t2.0e-11\tTrue\tTrue",
+                "300\t600\t70\t-0.30\t1.0\t0.1\t0.05\tnan\t0.30\t3.0e-11\tTrue\tTrue",
             ]
         )
         + "\n",
@@ -180,6 +180,19 @@ class TestPlotTRSMObservables(unittest.TestCase):
         )
         self.assertEqual(specs[-1].x, "eq418_D")
 
+    def test_all_plot_group_resolves_every_preset(self):
+        plotter = load_module()
+
+        specs = plotter.resolve_plot_specs(
+            plotter.parse_args(["points.tsv", "--plot", "all"])
+        )
+
+        self.assertEqual(len(specs), len(plotter.PLOT_PRESETS))
+        self.assertEqual(
+            [spec.name for spec in specs],
+            sorted(plotter.PLOT_PRESETS),
+        )
+
     def test_log_plot_rows_drop_nonpositive_log_axis_values(self):
         plotter = load_module()
 
@@ -278,6 +291,33 @@ class TestPlotTRSMObservables(unittest.TestCase):
         self.assertEqual(spec.marker, "s")
         self.assertEqual(spec.size, 42.0)
         self.assertEqual(spec.output_stem, "custom")
+
+    def test_color_x_broken_cli_uses_phase_flag_and_distinct_output_name(self):
+        plotter = load_module()
+
+        spec = plotter.resolve_plot_spec(
+            plotter.parse_args(["points.tsv", "--color-x-broken"])
+        )
+
+        self.assertEqual(spec.color_by, "ewpt_has_x_broken")
+        self.assertEqual(
+            spec.output_stem,
+            "ewpt_ew_true_over_T_vs_M2_colored_by_x_broken",
+        )
+
+    def test_rows_for_plot_keep_categorical_color_values(self):
+        plotter = load_module()
+
+        rows = [
+            {"x": "1.0", "y": "0.1", "flag": "False"},
+            {"x": "2.0", "y": "0.2", "flag": "True"},
+            {"x": "3.0", "y": "nan", "flag": "True"},
+        ]
+        spec = plotter.PlotSpec(name="test", x="x", y="y", color_by="flag")
+
+        filtered = plotter.rows_for_plot(rows, spec)
+
+        self.assertEqual(filtered, rows[:2])
 
     def test_plot_writes_png_when_matplotlib_is_available(self):
         if importlib.util.find_spec("matplotlib") is None:
