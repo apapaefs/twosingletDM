@@ -3,8 +3,8 @@ Directory layout:
 Generates `example_steer/oks.dat`.
 
 `example_steer/source/`
-Contains the C++ sources and compiled executables:
-`write_mo.cpp`, `write_mo`, `mO_excluder.cpp`, `mO_excluder`
+Contains the Python scripts:
+`write_mo.py`, `mO_excluder.py`
 
 `example_steer/run/`
 Contains the runtime files:
@@ -40,17 +40,14 @@ python3 generate_oks.py --equal-couplings --resonant-mx --lhx-start 0.01 --lhx-e
 Copy `oks.dat` into the run directory:
 cp oks.dat run/oks.dat
 
-Compile the C++ tools in `source/`:
+Run the Python scripts (Python 3.6+ required):
+To generate micrOMEGAs cards:
 cd source
-g++ -O2 -std=c++11 -o write_mo write_mo.cpp
-g++ -O2 -std=c++11 -o mO_excluder mO_excluder.cpp
+python3 write_mo.py
 
-Generate micrOMEGAs cards in `run/cards/`:
-./write_mo
-
-To see the detection limits used, plot them using
-./mO_excluder --plot-dirdet-limits
-./mO_excluder --plot-indirect-limits
+To see the detection limits used, plot them using:
+python3 mO_excluder.py --plot-dirdet-limits
+python3 mO_excluder.py --plot-indirect-limits
 
 Run the full micrOMEGAs + exclusion chain:
 cd ../run

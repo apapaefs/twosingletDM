@@ -5,7 +5,7 @@ shopt -s nullglob
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 MICROMEGAS_MAIN=${MICROMEGAS_MAIN:-$SCRIPT_DIR/../../micromegas_6.1.15/TRSM/main}
-EXCLUDER=${EXCLUDER:-"$SCRIPT_DIR/../source/mO_excluder"}
+EXCLUDER=${EXCLUDER:-"python3 $SCRIPT_DIR/../source/mO_excluder.py"}
 CARD_DIR=${CARD_DIR:-"$SCRIPT_DIR/cards"}
 OUTPUT_DIR=${OUTPUT_DIR:-"$SCRIPT_DIR/../output"}
 OKS_FILE=${OKS_FILE:-"$SCRIPT_DIR/oks.dat"}
@@ -118,13 +118,13 @@ for input_file in "${input_files[@]}"; do
   echo "$MDM $omega $dirdet"
   echo "$index $lx $lhx $lsx $mx $vevs $sint $mh2 $MDM $omega $dirdet" >> "$OUTPUT_DIR/scan_results.dat"
 
-  if [ -x "$EXCLUDER" ] && [ -f "$OKS_FILE" ]; then
+  if [ -f "$OKS_FILE" ]; then
     (
       cd "$SCRIPT_DIR/../source" || exit 1
-      MO_EXCLUDER_OUTPUT_DIR="$OUTPUT_DIR" MO_EXCLUDER_OKS_FILE="$OKS_FILE" "$EXCLUDER" "$index" "$MDM" "$omega" "$dirdet" "${fermi_lat_line_args[@]}"
+      MO_EXCLUDER_OUTPUT_DIR="$OUTPUT_DIR" MO_EXCLUDER_OKS_FILE="$OKS_FILE" $EXCLUDER "$index" "$MDM" "$omega" "$dirdet" "${fermi_lat_line_args[@]}"
     )
   else
-    echo "Skipping mO_excluder for $input_file: $EXCLUDER or $OKS_FILE missing"
+    echo "Skipping mO_excluder for $input_file: $OKS_FILE missing"
   fi
   
   safe_move MO_out "$OUTPUT_DIR/OUT_mO/OUT_mO_${index}"
