@@ -10,8 +10,8 @@ from pathlib import Path
 
 __test__ = False
 
-RELIC_UPPER_LIMIT = 0.1224
-DEFAULT_LIMIT_MODEL = "legacy-output"
+RELIC_UPPER_LIMIT = 0.121
+DEFAULT_LIMIT_MODEL = "lz2025-source"
 NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
 
@@ -274,7 +274,12 @@ def fermi_lat_r16_line_limit(energy_gev):
     return limits[-1][1]
 
 
-def assess_indirect_limit(channels):
+def assess_indirect_limit(
+    channels,
+    omega=None,
+    relic_upper_limit=RELIC_UPPER_LIMIT,
+    rescale=True,
+):
     best = IndirectLimitResult(
         available=False,
         excluded=False,
@@ -289,6 +294,11 @@ def assess_indirect_limit(channels):
 
     for channel in channels:
         limit = fermi_lat_r16_line_limit(channel.energy_gev)
+        if rescale and omega is not None:
+            if omega > 0.0:
+                limit *= relic_upper_limit / omega
+            else:
+                limit = math.inf
         if (
             not math.isfinite(limit)
             or limit <= 0.0
@@ -404,7 +414,7 @@ def legacy_output_direct_detection_base_limit(mdm):
 
 
 def lz2025_source_direct_detection_base_limit(mdm):
-    # Active DirDetexcl branch in DM/steer_example/source/mO_excluder.cpp.
+    # Active DirDetexcl branch in DM/steer_example/source/mO_excluder.py.
     if mdm < 10.0:
         result = math.exp(-23.2949 + 2.2493 * (-3.60228 + math.log(mdm)) ** 2)
         return result * (1.0 - 0.465188 + 1.64349 * (-2.3605 + math.log(mdm)) ** 2)
@@ -440,7 +450,12 @@ def summarize_dm_result(
     else:
         dir_det_limit = lux_base_limit
 
-    indirect_limit = assess_indirect_limit(result.indirect_line_channels)
+    indirect_limit = assess_indirect_limit(
+        result.indirect_line_channels,
+        result.omega,
+        relic_upper_limit,
+        rescale=rescale,
+    )
     return DMSummary(
         point=point,
         result=result,

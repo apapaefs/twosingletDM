@@ -38,6 +38,20 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
+To print the full point table, constraint summary, and dark-matter summary for
+each fully evaluated vx=0 scan point, add `--print-info`:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --write-dm-failed \
+  --print-info
+```
+
+This is useful together with `--write-dm-failed`: points that pass the non-DM
+checks but fail the dark-matter check are still written to the `_dm_failed`
+sidecar, and their printed diagnostics include the DM failure reason.
+
 - To evaluate one explicit vx=0 point, provide the same point parameters used by
 the EWPT helper:
 ```bash
@@ -48,6 +62,29 @@ python3 generate_trsm_points.py 123 \
 The random scan remains the default; explicit point mode is used only when all
 of `--m2`, `--m3`, `--vs`, `--a12`, `--lx`, `--lphix`, and `--lsx` are given.
 The current vx=0 random scan samples both positive and negative `a12`.
+
+For resonant dark-matter scans, `--resonantDM1` and `--resonantDM2` set `m3`
+from a mass relation instead of sampling or requiring it:
+
+```text
+--resonantDM1: m3 = 2*m1 = 2*125.09 GeV
+--resonantDM2: m3 = 2*m2
+```
+
+The flags are mutually exclusive. In explicit point mode, either resonant flag
+means `--m3` can be omitted because it is computed from the chosen relation:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --m2 380 --vs 200 --a12 -0.15 \
+  --lx 0.10 --lphix 0.050 --lsx 0.15 \
+  --resonantDM2 \
+  --print-info
+```
+
+In a random scan, `--resonantDM1` fixes `m3` to the Higgs-resonant value for all
+points, while `--resonantDM2` updates `m3` point-by-point after each random
+`m2` draw.
 
 - To run BSMPT EWPT checks only after a generated point passes the existing
 viability checks, add `--run-ewpt`:

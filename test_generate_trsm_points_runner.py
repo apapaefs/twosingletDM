@@ -109,6 +109,7 @@ def ewpt_args(**overrides):
         "run_ewpt_on_dm_failed": False,
         "write_dm_failed": False,
         "write_all_points": False,
+        "print_info": False,
         "higgstools_details": False,
         "higgstools_top": 5,
         "save_higgstools_details": True,
@@ -229,6 +230,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertFalse(args.run_ewpt)
         self.assertFalse(args.write_all_points)
+        self.assertFalse(args.print_info)
         self.assertTrue(args.save_higgstools_details)
 
     def test_parse_args_accepts_ewpt_options(self):
@@ -330,6 +332,13 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.write_dm_failed)
 
+    def test_parse_args_accepts_print_info_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--print-info"])
+
+        self.assertTrue(args.print_info)
+
     def test_parse_args_accepts_ewpt_on_dm_failed_option(self):
         generator = load_generator_module()
 
@@ -429,6 +438,100 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(records[0][0], Path("output/trsm_points_unit_dm_failed.dat"))
         self.assertEqual(records[0][1]["dm"], False)
         self.assertEqual(records[0][1]["dm_mdm"], 750.0)
+
+    def test_print_info_flag_prints_dm_failed_point_details(self):
+        generator = load_generator_module()
+
+        generator.write_valid_point_file = lambda *args, **kwargs: None
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = SimpleNamespace(
+            run_ewpt=False,
+            write_dm_failed=True,
+            run_ewpt_on_dm_failed=False,
+            print_info=True,
+        )
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.analyze_parampoint = lambda *args, **kwargs: (True, True)
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            False,
+            "DM check: Fail\n  Reason: test failure",
+            {"dm_mdm": 750.0, "dm_relic_excluded": True},
+        )
+        generator.print_dm_info = lambda info: print(info)
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = generator.evaluate_trsm_point_vxzero(
+                123,
+                380.0,
+                500.0,
+                200.0,
+                -0.15,
+                0.10,
+                0.05,
+                0.15,
+                point_index=9,
+            )
+
+        output = stdout.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("['M2', 380.0]", output)
+        self.assertIn("['dm', 'Fail']", output)
+        self.assertIn("DM check: Fail", output)
+        self.assertIn("Reason: test failure", output)
 
     def test_ewpt_hook_skips_when_flag_disabled_or_point_not_viable(self):
         generator = load_generator_module()

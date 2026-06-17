@@ -73,6 +73,15 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--print-info",
+        action="store_true",
+        help=(
+            "Print the full vx=0 point table, constraint summary, and dark-matter "
+            "summary for each fully evaluated scan point. This does not change "
+            "which points are written."
+        ),
+    )
+    parser.add_argument(
         "--run-ewpt",
         action="store_true",
         help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
@@ -752,6 +761,13 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
 def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1):
     write_all_points = write_all or getattr(cli_args, "write_all_points", False)
     force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
+    print_info_enabled = getattr(cli_args, "print_info", False)
+    short_circuit_failures = (
+        debug is False
+        and report is False
+        and write_all_points is False
+        and print_info_enabled is False
+    )
     # fix a23, a13, vx to zero:
     vx_val = 0
     a13 = 0
@@ -759,7 +775,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     # get the point information (widths, scalar couplings)
     vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO, lX=lX, lPhiX=lPhiX, lSX=lSX)
     Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
-    if debug is True or report is True:
+    if debug is True or report is True or print_info_enabled is True:
         print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
 
     # check EWPO
@@ -791,20 +807,20 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         h3_BRs,
         **higgstools_analysis_kwargs(),
     ))
-    if debug is False and report is False and write_all_points is False:
+    if short_circuit_failures:
         if hb is False or hs is False:
             return 0
     thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
-    if debug is False and report is False and write_all_points is False:
+    if short_circuit_failures:
         if thc is False:
             return 0
     # test the cosmological constraints
     evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
-    if debug is False and report is False and write_all_points is False:
+    if short_circuit_failures:
         if evo is False:
             return 0
     dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
-    if debug is True or report is True:
+    if debug is True or report is True or print_info_enabled is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
     pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
@@ -829,14 +845,14 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
         if ewpt_error is not None:
             raise ewpt_error
-    if debug is False and report is False and write_all_points is False:
+    if short_circuit_failures:
         if dm[0] is False:
             return 0
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
     passed = pre_dm_passed and dm[0] is True
     if passed or write_all_points is True:
-        if debug is False and report is False:
+        if debug is False and report is False and print_info_enabled is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
             print_dm_info(dm[1])
