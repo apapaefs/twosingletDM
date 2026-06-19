@@ -33,6 +33,7 @@ class TestScanOutput(unittest.TestCase):
             "K1112": 7.0,
             "K1113": 8.0,
             "K133": 9.0,
+            "K233": 10.0,
             "evo": True,
             "thc": True,
             "hb": True,
@@ -66,6 +67,7 @@ class TestScanOutput(unittest.TestCase):
         self.assertIn("dm_dir_det_limit", header)
         self.assertEqual(row[header.index("M2")], "300.0")
         self.assertEqual(row[header.index("hs")], "False")
+        self.assertEqual(row[header.index("K233")], "10.0")
         self.assertEqual(row[header.index("dm_omega")], "0.049")
         self.assertEqual(row[header.index("dm_dir_det_limit")], "2.05907e-09")
         self.assertEqual(row[header.index("mg5_xsec_hh_pb")], "1.25")

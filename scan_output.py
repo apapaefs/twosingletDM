@@ -27,6 +27,7 @@ POINT_COLUMNS = [
     "K1112",
     "K1113",
     "K133",
+    "K233",
     "evo",
     "thc",
     "hb",

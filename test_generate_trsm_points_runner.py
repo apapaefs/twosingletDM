@@ -318,6 +318,74 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         dm2 = ewpt_args(resonantDM1=False, resonantDM2=True, m1=125.09, m3=None)
         self.assertEqual(generator.effective_m3(dm2, 200.0), 400.0)
 
+    def test_k133_k233_inverse_map_round_trips_lambdas(self):
+        generator = load_generator_module()
+        vs = 500.0
+        a12 = 0.2
+        k133 = 3.0
+        k233 = -4.0
+
+        lphix, lsx = generator.k133_k233_to_lambdas(k133, k233, vs, a12)
+        actual_k133, actual_k233 = generator.lambdas_to_k133_k233(
+            lphix,
+            lsx,
+            vs,
+            a12,
+        )
+
+        self.assertAlmostEqual(actual_k133, k133)
+        self.assertAlmostEqual(actual_k233, k233)
+
+    def test_valid_point_info_records_derived_k233(self):
+        generator = load_generator_module()
+        vs = 500.0
+        a12 = 0.2
+        lphix = 0.1
+        lsx = -0.2
+
+        _k133, expected_k233 = generator.lambdas_to_k133_k233(
+            lphix,
+            lsx,
+            vs,
+            a12,
+        )
+        point_info = generator.valid_point_info(
+            300.0,
+            600.0,
+            vs,
+            0.0,
+            a12,
+            0.0,
+            0.0,
+            0.3,
+            lphix,
+            lsx,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            0.1,
+            0.0,
+            True,
+            True,
+            True,
+            True,
+            True,
+            True,
+            True,
+        )
+
+        self.assertAlmostEqual(point_info["K233"], expected_k233)
+
     def test_parse_args_accepts_write_all_points(self):
         generator = load_generator_module()
 
@@ -339,12 +407,82 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.print_info)
 
+    def test_parse_args_accepts_k133_k233_scan_mode(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--scan-k133-k233"])
+
+        self.assertTrue(args.scan_k133_k233)
+
     def test_parse_args_accepts_ewpt_on_dm_failed_option(self):
         generator = load_generator_module()
 
         args = generator.parse_args(["--run-ewpt-on-dm-failed"])
 
         self.assertTrue(args.run_ewpt_on_dm_failed)
+
+    def test_k133_k233_scan_mode_derives_lambdas_for_random_points(self):
+        generator = load_generator_module(["--scan-k133-k233", "--nrandom", "1"])
+        captured = []
+        samples = iter(
+            [
+                0.9800665778412416,  # k1 = cos(0.2)
+                10.0,  # m2
+                600.0,  # m3
+                500.0,  # vs
+                0.3,  # lX
+                3.0,  # K133
+                -4.0,  # K233
+            ]
+        )
+
+        generator.nrandom = 1
+        generator.cli_args = ewpt_args(
+            scan_k133_k233=True,
+            resonantDM1=False,
+            resonantDM2=False,
+        )
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda *args, **kwargs: next(samples)
+        generator.randsign = lambda: 1
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable: iterable
+
+        def fake_evaluate(myseed, m2, m3, vs, a12, lx, lphix, lsx, **kwargs):
+            captured.append(
+                {
+                    "m2": m2,
+                    "m3": m3,
+                    "vs": vs,
+                    "a12": a12,
+                    "lx": lx,
+                    "lphix": lphix,
+                    "lsx": lsx,
+                    **kwargs,
+                }
+            )
+            return 1
+
+        generator.evaluate_trsm_point_vxzero = fake_evaluate
+
+        result = generator.run_random_vxzero_scan()
+
+        expected_lphix, expected_lsx = generator.k133_k233_to_lambdas(
+            3.0,
+            -4.0,
+            500.0,
+            0.2,
+        )
+        self.assertEqual(result, 1)
+        self.assertEqual(len(captured), 1)
+        self.assertAlmostEqual(captured[0]["a12"], 0.2)
+        self.assertEqual(captured[0]["lx"], 0.3)
+        self.assertAlmostEqual(captured[0]["lphix"], expected_lphix)
+        self.assertAlmostEqual(captured[0]["lsx"], expected_lsx)
 
     def test_dm_failed_option_writes_sidecar_for_otherwise_allowed_point(self):
         generator = load_generator_module()

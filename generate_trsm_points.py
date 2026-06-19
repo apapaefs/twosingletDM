@@ -57,6 +57,15 @@ def parse_args(argv=None):
         help="Number of points for the default random scan.",
     )
     parser.add_argument(
+        "--scan-k133-k233",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, sample K133 and K233 instead of "
+            "lambda_phiX and lambda_SX, then derive lphix/lsx with the "
+            "current coupling convention."
+        ),
+    )
+    parser.add_argument(
         "--write-dm-failed",
         action="store_true",
         help=(
@@ -244,9 +253,26 @@ ResetOutput = True
 # Print additional TRSM point info?
 PRINTINFO = False
 
+SM_VEV_FOR_K_SCAN = 246.
+
 ###########################################################
 # some functions
 ###########################################################
+
+def lambdas_to_k133_k233(lPhiX, lSX, vs, a12, v=SM_VEV_FOR_K_SCAN):
+    c = math.cos(a12)
+    s = math.sin(a12)
+    k133 = 0.5 * (lPhiX * v * c - lSX * vs * s)
+    k233 = 0.5 * (lPhiX * v * s + lSX * vs * c)
+    return k133, k233
+
+
+def k133_k233_to_lambdas(K133, K233, vs, a12, v=SM_VEV_FOR_K_SCAN):
+    c = math.cos(a12)
+    s = math.sin(a12)
+    lPhiX = 2.0 * (c * K133 + s * K233) / v
+    lSX = 2.0 * (-s * K133 + c * K233) / vs
+    return lPhiX, lSX
 
 # print the parameter point info info:
 def print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3):
@@ -399,6 +425,8 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         "wmass": wmass,
         "dm": dm,
     }
+    if lPhiX is not None and lSX is not None and vs is not None and a12 is not None:
+        point_info["K233"] = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)[1]
     if dm_exclusion_info is not None:
         point_info.update(dm_exclusion_info)
     return point_info
@@ -930,6 +958,13 @@ lPhiX_max = 0.002
 lSX_min = 0.0
 lSX_max = 0.002
 
+# ranges of physical dimensionful couplings if --scan-k133-k233 is used [GeV]
+K133_min = -1.0
+K133_max = 1.0
+
+K233_min = -1.0
+K233_max = 1.0
+
 
 ############################################################
 # Scan begins here
@@ -996,8 +1031,14 @@ def run_random_vxzero_scan():
         vs=random.uniform(vs_min, vs_max)
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)
-        lPhiX=random.uniform(lPhiX_min, lPhiX_max)
-        lSX=random.uniform(lSX_min, lSX_max)
+        if getattr(cli_args, "scan_k133_k233", False):
+            K133=random.uniform(K133_min, K133_max)
+            K233=random.uniform(K233_min, K233_max)
+            lPhiX=0
+            lSX=0
+        else:
+            lPhiX=random.uniform(lPhiX_min, lPhiX_max)
+            lSX=random.uniform(lSX_min, lSX_max)
 
         # dependent parameters
         a12 = randsign() * np.arccos(k1)
@@ -1008,6 +1049,10 @@ def run_random_vxzero_scan():
 
         # round to 4 significant figures:
         m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
+        if getattr(cli_args, "scan_k133_k233", False):
+            K133=round_sig(K133, 4)
+            K233=round_sig(K233, 4)
+            lPhiX, lSX = k133_k233_to_lambdas(K133, K233, vs, a12)
         if cli_args.resonantDM1 or cli_args.resonantDM2:
             m3=round_sig(effective_m3(cli_args, m2), 4)
 

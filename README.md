@@ -38,6 +38,37 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
+By default, the vx=0 random scan samples `lphix` and `lsx` directly. To scan
+instead over the physical dimensionful couplings `K133` and `K233`, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --scan-k133-k233
+```
+
+The `K133` and `K233` scan ranges are set in the `define ranges here` block of
+`generate_trsm_points.py`:
+
+```python
+K133_min = -1.0
+K133_max = 1.0
+
+K233_min = -1.0
+K233_max = 1.0
+```
+
+In this mode, each sampled `K133` and `K233` point is converted to the
+potential-basis inputs expected by the existing BSMPT and micrOMEGAs pipeline:
+
+```text
+lphix = 2 * (cos(a12) * K133 + sin(a12) * K233) / 246
+lsx   = 2 * (-sin(a12) * K133 + cos(a12) * K233) / vs
+```
+
+The scan output includes both the existing `K133` column and a derived `K233`
+column so the sampled physical couplings can be inspected directly.
+
 To print the full point table, constraint summary, and dark-matter summary for
 each fully evaluated vx=0 scan point, add `--print-info`:
 
