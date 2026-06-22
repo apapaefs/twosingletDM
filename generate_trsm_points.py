@@ -927,21 +927,21 @@ def randsign():
 
 # ranges of masses m2 and m3 to scan over
 m2_min=4
-m2_max=20
+m2_max=1000
 
-m3_min=500
-m3_max=700
+m3_min=8
+m3_max=1000
 
 # ranges of vevs
-vs_min=400
-vs_max=1000
+vs_min=50
+vs_max=500
 
 # no range for vx (DM candidate)!
 vx_min=0
 vx_max=0
 
 # ranges of k1, k2, k3 (can be positive or negative)
-k1_min = 0.95
+k1_min = 0.90
 k1_max = 1.0
 
 # for the grid scan:
