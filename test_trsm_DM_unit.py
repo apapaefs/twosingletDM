@@ -106,6 +106,8 @@ class TestTrsmDM(unittest.TestCase):
         self.assertTrue(dm_exclusion_info["dm_direct_detection_excluded"])
         self.assertFalse(dm_exclusion_info["dm_indirect_detection_excluded"])
         self.assertEqual(dm_exclusion_info["dm_limit_model"], "lz2025-source")
+        self.assertEqual(dm_exclusion_info["dm_indirect_channels_seen"], 0)
+        self.assertEqual(dm_exclusion_info["dm_indirect_channels_used"], 0)
 
     def test_indirect_detection_limit_is_relic_rescaled(self):
         passed, info, dm_exclusion_info = test_dm(
@@ -151,6 +153,8 @@ class TestTrsmDM(unittest.TestCase):
         self.assertTrue(dm_exclusion_info["dm_indirect_detection_excluded"])
         self.assertTrue(dm_exclusion_info["dm_indirect_ratio"] > 1.0)
         self.assertTrue(math.isclose(dm_exclusion_info["dm_indirect_energy"], 50.0))
+        self.assertEqual(dm_exclusion_info["dm_indirect_channels_seen"], 1)
+        self.assertEqual(dm_exclusion_info["dm_indirect_channels_used"], 1)
 
     def test_print_dm_info_formats_debug_info(self):
         buffer = StringIO()

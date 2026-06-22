@@ -74,6 +74,14 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--write-dm-failed-to-main",
+        action="store_true",
+        help=(
+            "Also write points that pass all non-DM vx=0 checks but fail the "
+            "dark-matter check to the main trsm_points_<tag>.dat output."
+        ),
+    )
+    parser.add_argument(
         "--write-all-points",
         action="store_true",
         help=(
@@ -788,6 +796,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
 # MAIN FUNCTION for vx=0:
 def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1):
     write_all_points = write_all or getattr(cli_args, "write_all_points", False)
+    write_dm_failed_to_main = getattr(cli_args, "write_dm_failed_to_main", False)
     force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
     print_info_enabled = getattr(cli_args, "print_info", False)
     short_circuit_failures = (
@@ -871,6 +880,9 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
             write_dm_failed_point(RunTag, point_info)
             print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
+        if write_dm_failed_to_main and write_all_points is False:
+            write_valid_point(RunTag, point_info)
+            print('Point passes non-DM constraints but fails DM; written to', output_path(RunTag))
         if ewpt_error is not None:
             raise ewpt_error
     if short_circuit_failures:
@@ -959,11 +971,11 @@ lSX_min = 0.0
 lSX_max = 0.002
 
 # ranges of physical dimensionful couplings if --scan-k133-k233 is used [GeV]
-K133_min = -1.0
-K133_max = 1.0
+K133_min = 1E-4
+K133_max = 8.0
 
-K233_min = -1.0
-K233_max = 1.0
+K233_min = 1E-4
+K233_max = 8.0
 
 
 ############################################################
@@ -1032,13 +1044,13 @@ def run_random_vxzero_scan():
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)
         if getattr(cli_args, "scan_k133_k233", False):
-            K133=random.uniform(K133_min, K133_max)
-            K233=random.uniform(K233_min, K233_max)
+            K133=random.uniform(K133_min, K133_max) * random.uniform(-1, 1)
+            K233=random.uniform(K233_min, K233_max) * random.uniform(-1, 1)
             lPhiX=0
             lSX=0
         else:
-            lPhiX=random.uniform(lPhiX_min, lPhiX_max)
-            lSX=random.uniform(lSX_min, lSX_max)
+            lPhiX=random.uniform(lPhiX_min, lPhiX_max) * random.uniform(-1, 1)
+            lSX=random.uniform(lSX_min, lSX_max) * random.uniform(-1, 1)
 
         # dependent parameters
         a12 = randsign() * np.arccos(k1)

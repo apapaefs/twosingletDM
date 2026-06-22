@@ -108,6 +108,7 @@ def ewpt_args(**overrides):
         "ewpt_ws_threshold": 1.0,
         "run_ewpt_on_dm_failed": False,
         "write_dm_failed": False,
+        "write_dm_failed_to_main": False,
         "write_all_points": False,
         "print_info": False,
         "higgstools_details": False,
@@ -216,8 +217,12 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertIn("ewpt_status", scan_output.output_columns({}))
         self.assertIn("ewpt_error", scan_output.output_columns({}))
         self.assertIn("dm_indirect_available", scan_output.output_columns({}))
+        self.assertIn("dm_indirect_channels_seen", scan_output.output_columns({}))
+        self.assertIn("dm_indirect_channels_used", scan_output.output_columns({}))
         self.assertIn("dm_indirect_ratio", scan_output.output_columns({}))
         self.assertIn("dm_indirect_detection_excluded", scan_output.output_columns({}))
+        self.assertIn("dm_limit_model", scan_output.output_columns({}))
+        self.assertIn("dm_rescale", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_true_over_T", scan_output.output_columns({}))
         self.assertIn("ewpt_global_phase_path", scan_output.output_columns({}))
         self.assertIn("ewpt_has_x_broken", scan_output.output_columns({}))
@@ -400,6 +405,13 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.write_dm_failed)
 
+    def test_parse_args_accepts_dm_failed_main_output_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--write-dm-failed-to-main"])
+
+        self.assertTrue(args.write_dm_failed_to_main)
+
     def test_parse_args_accepts_print_info_option(self):
         generator = load_generator_module()
 
@@ -432,7 +444,9 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 500.0,  # vs
                 0.3,  # lX
                 3.0,  # K133
-                -4.0,  # K233
+                1.0,  # K133 sign factor
+                4.0,  # K233
+                -1.0,  # K233 sign factor
             ]
         )
 
@@ -576,6 +590,105 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(records[0][0], Path("output/trsm_points_unit_dm_failed.dat"))
         self.assertEqual(records[0][1]["dm"], False)
         self.assertEqual(records[0][1]["dm_mdm"], 750.0)
+
+    def test_dm_failed_main_option_writes_otherwise_allowed_point_to_main_output(self):
+        generator = load_generator_module()
+        records = []
+
+        def fake_write(path, point_info, mg5xsecs=None):
+            records.append((Path(path), dict(point_info)))
+
+        generator.write_valid_point_file = fake_write
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = ewpt_args(
+            run_ewpt=False,
+            write_dm_failed_to_main=True,
+        )
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.analyze_parampoint = lambda *args, **kwargs: (True, True)
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            False,
+            {},
+            {
+                "dm_mdm": 750.0,
+                "dm_relic_excluded": True,
+                "dm_limit_model": "lz2025-source",
+                "dm_rescale": True,
+            },
+        )
+
+        result = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            point_index=9,
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0][0], Path("output/trsm_points_unit.dat"))
+        self.assertEqual(records[0][1]["dm"], False)
+        self.assertEqual(records[0][1]["dm_mdm"], 750.0)
+        self.assertEqual(records[0][1]["dm_limit_model"], "lz2025-source")
+        self.assertTrue(records[0][1]["dm_rescale"])
 
     def test_print_info_flag_prints_dm_failed_point_details(self):
         generator = load_generator_module()

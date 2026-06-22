@@ -48,6 +48,8 @@ DM_EXCLUSION_COLUMNS = [
     "dm_relic_excluded",
     "dm_direct_detection_excluded",
     "dm_indirect_available",
+    "dm_indirect_channels_seen",
+    "dm_indirect_channels_used",
     "dm_indirect_energy",
     "dm_indirect_flux",
     "dm_indirect_limit",
