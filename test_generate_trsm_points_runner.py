@@ -778,8 +778,10 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             )
 
         output = stdout.getvalue()
+        expected_k233 = generator.lambdas_to_k133_k233(0.05, 0.15, 200.0, -0.15)[1]
         self.assertEqual(result, 0)
         self.assertIn("['M2', 380.0]", output)
+        self.assertIn(f"['K233', {expected_k233}]", output)
         self.assertIn("['dm', 'Fail']", output)
         self.assertIn("DM check: Fail", output)
         self.assertIn("Reason: test failure", output)

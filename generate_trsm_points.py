@@ -350,6 +350,7 @@ def print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3,
     tbl.add_row(['K1112', K1112])
     tbl.add_row(['K1113', K1113])
     tbl.add_row(['K133', K133])
+    tbl.add_row(['K233', lambdas_to_k133_k233(lPhiX, lSX, vs, a12)[1]])
     print(tbl)
     #print('\n')
 
