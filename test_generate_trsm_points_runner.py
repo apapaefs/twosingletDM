@@ -110,6 +110,7 @@ def ewpt_args(**overrides):
         "write_dm_failed": False,
         "write_dm_failed_to_main": False,
         "write_all_points": False,
+        "write_evo_thc_points": False,
         "print_info": False,
         "higgstools_details": False,
         "higgstools_top": 5,
@@ -238,6 +239,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertFalse(args.run_ewpt)
         self.assertFalse(args.write_all_points)
+        self.assertFalse(args.write_evo_thc_points)
         self.assertFalse(args.print_info)
         self.assertTrue(args.save_higgstools_details)
 
@@ -457,6 +459,19 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         args = generator.parse_args(["--write-all-points"])
 
         self.assertTrue(args.write_all_points)
+
+    def test_parse_args_accepts_write_evo_thc_points(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--write-evo-thc-points"])
+
+        self.assertTrue(args.write_evo_thc_points)
+
+    def test_parse_args_rejects_write_all_and_write_evo_thc_together(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--write-all-points", "--write-evo-thc-points"])
 
     def test_parse_args_accepts_count_evo_thc_option(self):
         generator = load_generator_module()
@@ -1664,6 +1679,96 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(rows[0][1]["ewpt_global_phase_path"], "SINGLET_S -> X_BROKEN -> EW")
         self.assertTrue(rows[0][1]["ewpt_has_x_broken"])
         self.assertEqual(rows[0][1]["ewpt_ew_step_index"], 2)
+
+    def test_write_evo_thc_points_records_evo_thc_point_with_later_failure(self):
+        generator = load_generator_module()
+        rows = []
+
+        def fake_write(path, point_info, mg5xsecs=None):
+            rows.append((Path(path), dict(point_info)))
+
+        generator.write_valid_point_file = fake_write
+        generator.RunTag = "unit"
+        generator.OutputDir = "output/"
+        generator.cli_args = ewpt_args(run_ewpt=False, write_evo_thc_points=True)
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.analyze_parampoint = lambda *args, **kwargs: (False, True)
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+        generator.test_dm = lambda *args, **kwargs: (
+            True,
+            {},
+            {"dm_mdm": 750.0, "dm_relic_excluded": False},
+        )
+
+        result = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            point_index=9,
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], Path("output/trsm_points_unit.dat"))
+        self.assertTrue(rows[0][1]["evo"])
+        self.assertTrue(rows[0][1]["thc"])
+        self.assertFalse(rows[0][1]["hb"])
 
     def test_write_all_points_records_failed_constraint_point_and_runs_ewpt(self):
         generator = load_generator_module()

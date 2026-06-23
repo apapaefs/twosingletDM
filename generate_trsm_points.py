@@ -127,6 +127,14 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--write-evo-thc-points",
+        action="store_true",
+        help=(
+            "Write vx=0 points that pass the evolution and theory-constraint "
+            "checks to the main output file, even if later constraints fail."
+        ),
+    )
+    parser.add_argument(
         "--print-info",
         action="store_true",
         help=(
@@ -232,6 +240,8 @@ def parse_args(argv=None):
         parser.error("--delta-res requires --approximate-resonantDM")
     if args.delta_res is not None and args.delta_res < 0.0:
         parser.error("--delta-res must be non-negative")
+    if args.write_all_points and args.write_evo_thc_points:
+        parser.error("--write-all-points and --write-evo-thc-points are mutually exclusive")
     resonance_enabled = args.resonantDM1 or args.resonantDM2
     required_point_args = [
         name
@@ -885,6 +895,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
 # MAIN FUNCTION for vx=0:
 def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1, return_status=False):
     write_all_points = write_all or getattr(cli_args, "write_all_points", False)
+    write_evo_thc_points = getattr(cli_args, "write_evo_thc_points", False)
     write_dm_failed_to_main = getattr(cli_args, "write_dm_failed_to_main", False)
     force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
     print_info_enabled = getattr(cli_args, "print_info", False)
@@ -892,6 +903,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         debug is False
         and report is False
         and write_all_points is False
+        and write_evo_thc_points is False
         and print_info_enabled is False
     )
     # fix a23, a13, vx to zero:
@@ -945,6 +957,15 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     if short_circuit_failures:
         if evo is False or hb is False or hs is False:
             return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
+    evo_thc_passed = evo is True and thc is True
+    if (
+        write_evo_thc_points
+        and evo_thc_passed is False
+        and debug is False
+        and report is False
+        and print_info_enabled is False
+    ):
+        return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
     dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
     if debug is True or report is True or print_info_enabled is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
@@ -969,7 +990,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
             write_dm_failed_point(RunTag, point_info)
             print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
-        if write_dm_failed_to_main and write_all_points is False:
+        if write_dm_failed_to_main and write_all_points is False and write_evo_thc_points is False:
             write_valid_point(RunTag, point_info)
             print('Point passes non-DM constraints but fails DM; written to', output_path(RunTag))
         if ewpt_error is not None:
@@ -980,7 +1001,8 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
     passed = pre_dm_passed and dm[0] is True
-    if passed or write_all_points is True:
+    write_main_point = passed or write_all_points is True or (write_evo_thc_points and evo_thc_passed)
+    if write_main_point:
         if debug is False and report is False and print_info_enabled is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])

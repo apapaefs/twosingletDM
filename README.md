@@ -52,6 +52,22 @@ This option only changes the stopping condition. Later constraints such as
 HiggsTools, EWPO, W mass, dark matter, and EWPT still determine whether a point
 is written or counted as fully viable.
 
+To write those `evo`/`thc`-passing points even when later constraints fail, use
+`--write-evo-thc-points`:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --approximate-resonantDM \
+  --delta-res 10 \
+  --nrandom-count-evo-thc \
+  --write-evo-thc-points
+```
+
+This writes points with `evo=True` and `thc=True` to the main output file. It is
+different from `--write-all-points`, which writes every evaluated point,
+including points that fail `evo` or `thc`.
+
 By default, the vx=0 random scan samples `lphix` and `lsx` directly. To scan
 instead over the physical dimensionful couplings `K133` and `K233`, use:
 
