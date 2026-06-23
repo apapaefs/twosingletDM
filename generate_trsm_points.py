@@ -56,7 +56,8 @@ def parse_args(argv=None):
         default=100,
         help="Number of points for the default random scan.",
     )
-    parser.add_argument(
+    k_scan_group = parser.add_mutually_exclusive_group()
+    k_scan_group.add_argument(
         "--scan-k133-k233",
         action="store_true",
         help=(
@@ -65,7 +66,7 @@ def parse_args(argv=None):
             "current coupling convention."
         ),
     )
-    parser.add_argument(
+    k_scan_group.add_argument(
         "--scan-k133-k233-log",
         action="store_true",
         help=(
@@ -988,11 +989,11 @@ K233_min = 1E-4
 K233_max = 8.0
 
 # ranges of physical dimensionful couplings' POWERS if --scan-k133-k233-log is used [GeV]
-K133_min = -3
-K133_max = 3
+K133_pow_min = -3
+K133_pow_max = 3
 
-K233_min = -3
-K233_max = 3
+K233_pow_min = -3
+K233_pow_max = 3
 
 
 ############################################################
@@ -1060,16 +1061,18 @@ def run_random_vxzero_scan():
         vs=random.uniform(vs_min, vs_max)
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)
-        if getattr(cli_args, "scan_k133_k233", False):
+        scan_k133_k233 = getattr(cli_args, "scan_k133_k233", False)
+        scan_k133_k233_log = getattr(cli_args, "scan_k133_k233_log", False)
+        if scan_k133_k233:
             K133=random.uniform(K133_min, K133_max) * random.uniform(-1, 1)
             K233=random.uniform(K233_min, K233_max) * random.uniform(-1, 1)
             lPhiX=0
             lSX=0
-        elif getattr(cli_args, "scan_k133_k233-log", False):
+        elif scan_k133_k233_log:
             K133_pow=random.uniform(K133_pow_min, K133_pow_max) 
             K233_pow=random.uniform(K233_pow_min, K233_pow_max)
-            K133 = 10**(K133_pow) * random.uniform(-1, 1)
-            K223 = 10**(K233_pow) * random.uniform(-1, 1)
+            K133 = 10**(K133_pow) * randsign()
+            K233 = 10**(K233_pow) * randsign()
             lPhiX=0
             lSX=0
         else:
@@ -1085,7 +1088,7 @@ def run_random_vxzero_scan():
 
         # round to 4 significant figures:
         m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
-        if getattr(cli_args, "scan_k133_k233", False):
+        if scan_k133_k233 or scan_k133_k233_log:
             K133=round_sig(K133, 4)
             K233=round_sig(K233, 4)
             lPhiX, lSX = k133_k233_to_lambdas(K133, K233, vs, a12)

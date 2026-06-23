@@ -426,6 +426,25 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.scan_k133_k233)
 
+    def test_parse_args_accepts_k133_k233_log_scan_mode(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--scan-k133-k233-log"])
+
+        self.assertTrue(args.scan_k133_k233_log)
+
+    def test_k133_k233_linear_and_log_ranges_are_separate(self):
+        generator = load_generator_module()
+
+        self.assertEqual(generator.K133_min, 1e-4)
+        self.assertEqual(generator.K133_max, 8.0)
+        self.assertEqual(generator.K233_min, 1e-4)
+        self.assertEqual(generator.K233_max, 8.0)
+        self.assertEqual(generator.K133_pow_min, -3)
+        self.assertEqual(generator.K133_pow_max, 3)
+        self.assertEqual(generator.K233_pow_min, -3)
+        self.assertEqual(generator.K233_pow_max, 3)
+
     def test_parse_args_accepts_ewpt_on_dm_failed_option(self):
         generator = load_generator_module()
 
@@ -488,6 +507,70 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         expected_lphix, expected_lsx = generator.k133_k233_to_lambdas(
             3.0,
             -4.0,
+            500.0,
+            0.2,
+        )
+        self.assertEqual(result, 1)
+        self.assertEqual(len(captured), 1)
+        self.assertAlmostEqual(captured[0]["a12"], 0.2)
+        self.assertEqual(captured[0]["lx"], 0.3)
+        self.assertAlmostEqual(captured[0]["lphix"], expected_lphix)
+        self.assertAlmostEqual(captured[0]["lsx"], expected_lsx)
+
+    def test_k133_k233_log_scan_mode_derives_lambdas_for_random_points(self):
+        generator = load_generator_module(["--scan-k133-k233-log", "--nrandom", "1"])
+        captured = []
+        samples = iter(
+            [
+                0.9800665778412416,  # k1 = cos(0.2)
+                10.0,  # m2
+                600.0,  # m3
+                500.0,  # vs
+                0.3,  # lX
+                1.0,  # K133 power -> 10 GeV
+                -2.0,  # K233 power -> 0.01 GeV
+            ]
+        )
+        signs = iter([1, -1, 1, 1])
+
+        generator.nrandom = 1
+        generator.cli_args = ewpt_args(
+            scan_k133_k233_log=True,
+            resonantDM1=False,
+            resonantDM2=False,
+        )
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda *args, **kwargs: next(samples)
+        generator.randsign = lambda: next(signs)
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable: iterable
+
+        def fake_evaluate(myseed, m2, m3, vs, a12, lx, lphix, lsx, **kwargs):
+            captured.append(
+                {
+                    "m2": m2,
+                    "m3": m3,
+                    "vs": vs,
+                    "a12": a12,
+                    "lx": lx,
+                    "lphix": lphix,
+                    "lsx": lsx,
+                    **kwargs,
+                }
+            )
+            return 1
+
+        generator.evaluate_trsm_point_vxzero = fake_evaluate
+
+        result = generator.run_random_vxzero_scan()
+
+        expected_lphix, expected_lsx = generator.k133_k233_to_lambdas(
+            10.0,
+            -0.01,
             500.0,
             0.2,
         )

@@ -51,14 +51,32 @@ The `K133` and `K233` scan ranges are set in the `define ranges here` block of
 `generate_trsm_points.py`:
 
 ```python
-K133_min = -1.0
-K133_max = 1.0
+K133_min = 1E-4
+K133_max = 8.0
 
-K233_min = -1.0
-K233_max = 1.0
+K233_min = 1E-4
+K233_max = 8.0
 ```
 
-In this mode, each sampled `K133` and `K233` point is converted to the
+To scan signed `K133` and `K233` magnitudes logarithmically, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --scan-k133-k233-log
+```
+
+The logarithmic scan samples powers set by:
+
+```python
+K133_pow_min = -3
+K133_pow_max = 3
+
+K233_pow_min = -3
+K233_pow_max = 3
+```
+
+In either K-scan mode, each sampled `K133` and `K233` point is converted to the
 potential-basis inputs expected by the existing BSMPT and micrOMEGAs pipeline:
 
 ```text
