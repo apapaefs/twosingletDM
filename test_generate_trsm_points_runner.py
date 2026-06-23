@@ -749,6 +749,41 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual([call["point_index"] for call in captured], [1, 2, 3])
         self.assertTrue(all(call["return_status"] for call in captured))
 
+    def test_print_info_count_evo_thc_scan_reports_progress_counters(self):
+        generator = load_generator_module(["--nrandom-count-evo-thc", "--print-info", "--nrandom", "2"])
+        statuses = iter(
+            [
+                {"viable": 0, "evo_thc": False},
+                {"viable": 0, "evo_thc": True},
+                {"viable": 1, "evo_thc": True},
+            ]
+        )
+
+        generator.nrandom = 2
+        generator.cli_args = ewpt_args(nrandom_count_evo_thc=True, print_info=True)
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda low, high: (
+            0.9800665778412416 if low == generator.k1_min and high == generator.k1_max else low
+        )
+        generator.randsign = lambda: 1
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable, **kwargs: iterable
+        generator.evaluate_trsm_point_vxzero = lambda *args, **kwargs: next(statuses)
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = generator.run_random_vxzero_scan()
+
+        output = stdout.getvalue()
+        self.assertEqual(result, 1)
+        self.assertIn("Progress: draws=1 evo/thc=0/2 viable=0", output)
+        self.assertIn("Progress: draws=2 evo/thc=1/2 viable=0", output)
+        self.assertIn("Progress: draws=3 evo/thc=2/2 viable=1", output)
+
     def test_evaluate_vxzero_status_reports_evo_thc_before_later_failures(self):
         generator = load_generator_module()
 

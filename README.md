@@ -130,6 +130,10 @@ python3 generate_trsm_points.py 123 \
 This is useful together with `--write-dm-failed`: points that pass the non-DM
 checks but fail the dark-matter check are still written to the `_dm_failed`
 sidecar, and their printed diagnostics include the DM failure reason.
+During random scans, `--print-info` also prints a progress counter after each
+evaluated point. In `--nrandom-count-evo-thc` mode this includes the number of
+random draws, the number of `evo`/`thc`-passing points collected toward the
+target, and the number of fully viable points.
 
 - To evaluate one explicit vx=0 point, provide the same point parameters used by
 the EWPT helper:

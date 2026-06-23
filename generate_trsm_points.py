@@ -818,7 +818,18 @@ def evaluation_result(passed, evo=False, thc=False, return_status=False):
         }
     return viable
 
-    
+
+def print_scan_progress(drawcounter, passcounter, count_evo_thc=False, evo_thc_counter=0):
+    if count_evo_thc:
+        print(
+            f"Progress: draws={drawcounter} "
+            f"evo/thc={evo_thc_counter}/{nrandom} "
+            f"viable={passcounter}"
+        )
+    else:
+        print(f"Progress: draws={drawcounter}/{nrandom} viable={passcounter}")
+
+
 # MAIN FUNCTION:
 def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, runmg5=False):
     # get the point information (widths, scalar couplings)
@@ -1227,6 +1238,13 @@ def run_random_vxzero_scan():
                 evo_thc_counter = evo_thc_counter + 1
         else:
             passcounter = passcounter + evalpoint
+        if getattr(cli_args, "print_info", False):
+            print_scan_progress(
+                drawcounter,
+                passcounter,
+                count_evo_thc=count_evo_thc,
+                evo_thc_counter=evo_thc_counter,
+            )
 
     if count_evo_thc:
         print('Generated', evo_thc_counter, 'evo/thc-passing points after', drawcounter, 'random draws, out of which', passcounter, 'are viable')
