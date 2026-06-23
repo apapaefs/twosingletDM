@@ -66,6 +66,15 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--scan-k133-k233-log",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, sample K133 and K233 in power of 10 instead of "
+            "lambda_phiX and lambda_SX, then derive lphix/lsx with the "
+            "current coupling convention."
+        ),
+    )
+    parser.add_argument(
         "--write-dm-failed",
         action="store_true",
         help=(
@@ -978,6 +987,13 @@ K133_max = 8.0
 K233_min = 1E-4
 K233_max = 8.0
 
+# ranges of physical dimensionful couplings' POWERS if --scan-k133-k233-log is used [GeV]
+K133_min = -3
+K133_max = 3
+
+K233_min = -3
+K233_max = 3
+
 
 ############################################################
 # Scan begins here
@@ -1047,6 +1063,13 @@ def run_random_vxzero_scan():
         if getattr(cli_args, "scan_k133_k233", False):
             K133=random.uniform(K133_min, K133_max) * random.uniform(-1, 1)
             K233=random.uniform(K233_min, K233_max) * random.uniform(-1, 1)
+            lPhiX=0
+            lSX=0
+        elif getattr(cli_args, "scan_k133_k233-log", False):
+            K133_pow=random.uniform(K133_pow_min, K133_pow_max) 
+            K233_pow=random.uniform(K233_pow_min, K233_pow_max)
+            K133 = 10**(K133_pow) * random.uniform(-1, 1)
+            K223 = 10**(K233_pow) * random.uniform(-1, 1)
             lPhiX=0
             lSX=0
         else:
