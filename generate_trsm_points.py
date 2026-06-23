@@ -56,6 +56,15 @@ def parse_args(argv=None):
         default=100,
         help="Number of points for the default random scan.",
     )
+    parser.add_argument(
+        "--nrandom-count-evo-thc",
+        action="store_true",
+        help=(
+            "Interpret --nrandom as the target number of generated random "
+            "vx=0 points that pass the evolution and theory-constraint checks. "
+            "The scan keeps drawing points until this target is reached."
+        ),
+    )
     k_scan_group = parser.add_mutually_exclusive_group()
     k_scan_group.add_argument(
         "--scan-k133-k233",
@@ -730,6 +739,16 @@ def run_ewpt_if_requested(
     print("EWPT summary written to", workdir / "ewpt_summary.txt")
     return result
 
+
+def evaluation_result(passed, evo=False, thc=False, return_status=False):
+    viable = 1 if passed else 0
+    if return_status:
+        return {
+            "viable": viable,
+            "evo_thc": evo is True and thc is True,
+        }
+    return viable
+
     
 # MAIN FUNCTION:
 def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, runmg5=False):
@@ -801,11 +820,11 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, None, None, None, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass)
         add_higgstools_info(point_info, higgstools_details)
         write_valid_point(RunTag, point_info, MG5xsecs)
-        return 1
-    return 0
+        return evaluation_result(True)
+    return evaluation_result(False)
 
 # MAIN FUNCTION for vx=0:
-def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1):
+def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1, return_status=False):
     write_all_points = write_all or getattr(cli_args, "write_all_points", False)
     write_dm_failed_to_main = getattr(cli_args, "write_dm_failed_to_main", False)
     force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
@@ -856,17 +875,17 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         **higgstools_analysis_kwargs(),
     ))
     if short_circuit_failures:
-        if hb is False or hs is False:
-            return 0
+        if not return_status and (hb is False or hs is False):
+            return evaluation_result(False, return_status=return_status)
     thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
     if short_circuit_failures:
         if thc is False:
-            return 0
+            return evaluation_result(False, thc=thc, return_status=return_status)
     # test the cosmological constraints
     evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
     if short_circuit_failures:
-        if evo is False:
-            return 0
+        if evo is False or hb is False or hs is False:
+            return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
     dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
     if debug is True or report is True or print_info_enabled is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
@@ -898,7 +917,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             raise ewpt_error
     if short_circuit_failures:
         if dm[0] is False:
-            return 0
+            return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
     passed = pre_dm_passed and dm[0] is True
@@ -932,7 +951,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             print('Point record written to', output_path(RunTag))
         if ewpt_error is not None:
             raise ewpt_error
-    return 1 if passed else 0
+    return evaluation_result(passed, evo=evo, thc=thc, return_status=return_status)
 
 # round to sgf significant figures
 def round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, sgf):
@@ -1041,6 +1060,9 @@ def run_single_vxzero_point(args):
 def run_random_vxzero_scan():
     # SCAN:
     passcounter = 0 # count number of passing points
+    evo_thc_counter = 0
+    drawcounter = 0
+    count_evo_thc = getattr(cli_args, "nrandom_count_evo_thc", False)
     print('Generating points randomly within ranges')
     random.seed(ini_seed)
 
@@ -1050,7 +1072,20 @@ def run_random_vxzero_scan():
     a13 = 0
     a23 = 0
 
-    for i in tqdm(range(0,nrandom)):
+    def draw_indices_until_evo_thc_target():
+        i = 0
+        while evo_thc_counter < nrandom:
+            yield i
+            i += 1
+
+    draw_indices = (
+        draw_indices_until_evo_thc_target()
+        if count_evo_thc
+        else tqdm(range(0,nrandom))
+    )
+
+    for i in draw_indices:
+        drawcounter += 1
         # scan over free parameters
         k1=random.uniform(k1_min,k1_max)
         m2=random.uniform(m2_min, m2_max)
@@ -1100,11 +1135,19 @@ def run_random_vxzero_scan():
                 evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
         else:
                 # if point passes, file will be written with order: m2, m3, vs, a12, lX, lPhiX, lSX + any additional info to be determined
-                evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5, point_index=i + 1)
+                evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5, point_index=i + 1, return_status=count_evo_thc)
         # count the passing points:
-        passcounter = passcounter + evalpoint
+        if count_evo_thc:
+            passcounter = passcounter + evalpoint["viable"]
+            if evalpoint["evo_thc"]:
+                evo_thc_counter = evo_thc_counter + 1
+        else:
+            passcounter = passcounter + evalpoint
 
-    print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
+    if count_evo_thc:
+        print('Generated', evo_thc_counter, 'evo/thc-passing points after', drawcounter, 'random draws, out of which', passcounter, 'are viable')
+    else:
+        print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
     return passcounter
 
 

@@ -116,6 +116,7 @@ def ewpt_args(**overrides):
         "save_higgstools_details": True,
         "resonantDM1": False,
         "resonantDM2": False,
+        "nrandom_count_evo_thc": False,
         "m1": 125.09,
         "m3": None,
     }
@@ -398,6 +399,13 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.write_all_points)
 
+    def test_parse_args_accepts_count_evo_thc_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--nrandom-count-evo-thc"])
+
+        self.assertTrue(args.nrandom_count_evo_thc)
+
     def test_parse_args_accepts_dm_failed_output_option(self):
         generator = load_generator_module()
 
@@ -580,6 +588,122 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(captured[0]["lx"], 0.3)
         self.assertAlmostEqual(captured[0]["lphix"], expected_lphix)
         self.assertAlmostEqual(captured[0]["lsx"], expected_lsx)
+
+    def test_random_scan_count_evo_thc_runs_until_target_count(self):
+        generator = load_generator_module(["--nrandom-count-evo-thc", "--nrandom", "2"])
+        captured = []
+        statuses = iter(
+            [
+                {"viable": 0, "evo_thc": False},
+                {"viable": 0, "evo_thc": True},
+                {"viable": 1, "evo_thc": True},
+            ]
+        )
+
+        generator.nrandom = 2
+        generator.cli_args = ewpt_args(nrandom_count_evo_thc=True)
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda low, high: (
+            0.9800665778412416 if low == generator.k1_min and high == generator.k1_max else low
+        )
+        generator.randsign = lambda: 1
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable, **kwargs: iterable
+
+        def fake_evaluate(myseed, m2, m3, vs, a12, lx, lphix, lsx, **kwargs):
+            captured.append(dict(kwargs))
+            return next(statuses)
+
+        generator.evaluate_trsm_point_vxzero = fake_evaluate
+
+        result = generator.run_random_vxzero_scan()
+
+        self.assertEqual(result, 1)
+        self.assertEqual(len(captured), 3)
+        self.assertEqual([call["point_index"] for call in captured], [1, 2, 3])
+        self.assertTrue(all(call["return_status"] for call in captured))
+
+    def test_evaluate_vxzero_status_reports_evo_thc_before_later_failures(self):
+        generator = load_generator_module()
+
+        generator.cli_args = ewpt_args(nrandom_count_evo_thc=True, run_ewpt=False)
+        generator.np = SimpleNamespace(sin=lambda value: value)
+        for name in [
+            "Mz",
+            "Mw",
+            "Delta_S_central_wU",
+            "Delta_T_central_wU",
+            "Delta_U_central_wU",
+            "errS_wU",
+            "errT_wU",
+            "errU_wU",
+            "covST_wU",
+            "covSU_wU",
+            "covTU_wU",
+            "pred",
+            "H1",
+            "H2",
+            "H3",
+        ]:
+            setattr(generator, name, 0)
+        generator.generate_lams = lambda *args, **kwargs: (
+            200.0,
+            0.0,
+            380.0,
+            500.0,
+            -0.15,
+            0.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            11.0,
+            12.0,
+            13.0,
+            123.0,
+            122.0,
+            1111.0,
+            1112.0,
+            1113.0,
+            133.0,
+            0.99,
+            -0.1,
+            0.0,
+            {},
+            {},
+            {},
+            0.0,
+            0.0,
+            0.0,
+        )
+        generator.check_EWPO_wU = lambda *args, **kwargs: True
+        generator.check_wmass_tania = lambda *args, **kwargs: True
+        generator.analyze_parampoint = lambda *args, **kwargs: (False, True)
+        generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+        generator.test_evo_vxzero = lambda *args, **kwargs: True
+
+        def fail_if_dm_runs(*args, **kwargs):
+            raise AssertionError("DM should not run after a later non-DM failure")
+
+        generator.test_dm = fail_if_dm_runs
+
+        status = generator.evaluate_trsm_point_vxzero(
+            123,
+            380.0,
+            500.0,
+            200.0,
+            -0.15,
+            0.10,
+            0.05,
+            0.15,
+            return_status=True,
+        )
+
+        self.assertEqual(status, {"viable": 0, "evo_thc": True})
 
     def test_dm_failed_option_writes_sidecar_for_otherwise_allowed_point(self):
         generator = load_generator_module()

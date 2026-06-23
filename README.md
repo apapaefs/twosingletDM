@@ -38,6 +38,20 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
+By default, `--nrandom` is the number of random draws attempted. To instead
+keep drawing until `--nrandom` points have passed the RGE evolution (`evo`) and
+theory-constraint (`thc`) checks, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --nrandom-count-evo-thc
+```
+
+This option only changes the stopping condition. Later constraints such as
+HiggsTools, EWPO, W mass, dark matter, and EWPT still determine whether a point
+is written or counted as fully viable.
+
 By default, the vx=0 random scan samples `lphix` and `lsx` directly. To scan
 instead over the physical dimensionful couplings `K133` and `K233`, use:
 
