@@ -116,6 +116,8 @@ def ewpt_args(**overrides):
         "save_higgstools_details": True,
         "resonantDM1": False,
         "resonantDM2": False,
+        "approximate_resonantDM": False,
+        "delta_res": None,
         "nrandom_count_evo_thc": False,
         "m1": 125.09,
         "m3": None,
@@ -288,6 +290,34 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         with self.assertRaises(SystemExit):
             generator.parse_args(["--resonantDM1", "--resonantDM2"])
 
+    def test_parse_args_accepts_approximate_resonant_dm_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--approximate-resonantDM", "--delta-res", "15"])
+
+        self.assertTrue(args.approximate_resonantDM)
+        self.assertEqual(args.delta_res, 15.0)
+
+    def test_parse_args_rejects_approximate_resonant_dm_without_delta(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--approximate-resonantDM"])
+
+    def test_parse_args_rejects_approximate_resonant_dm_with_exact_mode(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(
+                ["--approximate-resonantDM", "--delta-res", "15", "--resonantDM2"]
+            )
+
+    def test_parse_args_rejects_negative_delta_res(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--approximate-resonantDM", "--delta-res", "-1"])
+
     def test_explicit_point_can_omit_m3_when_resonant_dm_is_enabled(self):
         generator = load_generator_module()
 
@@ -323,6 +353,35 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         dm2 = ewpt_args(resonantDM1=False, resonantDM2=True, m1=125.09, m3=None)
         self.assertEqual(generator.effective_m3(dm2, 200.0), 400.0)
+
+    def test_approximate_resonant_mass_sampler_samples_both_branches(self):
+        generator = load_generator_module()
+
+        uniform_calls = []
+        samples = iter([300.0, 604.0])
+        generator.random.random = lambda: 0.25
+
+        def fake_uniform(low, high):
+            uniform_calls.append((low, high))
+            return next(samples)
+
+        generator.random.uniform = fake_uniform
+
+        m2, m3 = generator.sample_approximate_resonant_masses(10.0)
+
+        self.assertEqual((m2, m3), (604.0, 300.0))
+        self.assertLessEqual(abs(m2 - 2.0 * m3), 10.0)
+        self.assertEqual(uniform_calls, [(8, 505.0), (590.0, 610.0)])
+
+        uniform_calls.clear()
+        samples = iter([300.0, 604.0])
+        generator.random.random = lambda: 0.75
+
+        m2, m3 = generator.sample_approximate_resonant_masses(10.0)
+
+        self.assertEqual((m2, m3), (300.0, 604.0))
+        self.assertLessEqual(abs(m3 - 2.0 * m2), 10.0)
+        self.assertEqual(uniform_calls, [(4, 505.0), (590.0, 610.0)])
 
     def test_k133_k233_inverse_map_round_trips_lambdas(self):
         generator = load_generator_module()
@@ -588,6 +647,54 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(captured[0]["lx"], 0.3)
         self.assertAlmostEqual(captured[0]["lphix"], expected_lphix)
         self.assertAlmostEqual(captured[0]["lsx"], expected_lsx)
+
+    def test_approximate_resonant_scan_uses_sampled_mass_pair(self):
+        generator = load_generator_module(
+            ["--approximate-resonantDM", "--delta-res", "10", "--nrandom", "1"]
+        )
+        captured = []
+
+        generator.nrandom = 1
+        generator.cli_args = ewpt_args(
+            approximate_resonantDM=True,
+            delta_res=10.0,
+        )
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda low, high: (
+            0.9800665778412416 if low == generator.k1_min and high == generator.k1_max else low
+        )
+        generator.sample_approximate_resonant_masses = lambda delta: (604.0, 300.0)
+        generator.randsign = lambda: 1
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable: iterable
+
+        def fake_evaluate(myseed, m2, m3, vs, a12, lx, lphix, lsx, **kwargs):
+            captured.append(
+                {
+                    "m2": m2,
+                    "m3": m3,
+                    "vs": vs,
+                    "a12": a12,
+                    "lx": lx,
+                    "lphix": lphix,
+                    "lsx": lsx,
+                    **kwargs,
+                }
+            )
+            return 1
+
+        generator.evaluate_trsm_point_vxzero = fake_evaluate
+
+        result = generator.run_random_vxzero_scan()
+
+        self.assertEqual(result, 1)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]["m2"], 604.0)
+        self.assertEqual(captured[0]["m3"], 300.0)
 
     def test_random_scan_count_evo_thc_runs_until_target_count(self):
         generator = load_generator_module(["--nrandom-count-evo-thc", "--nrandom", "2"])

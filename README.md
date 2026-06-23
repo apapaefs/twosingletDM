@@ -149,6 +149,27 @@ In a random scan, `--resonantDM1` fixes `m3` to the Higgs-resonant value for all
 points, while `--resonantDM2` updates `m3` point-by-point after each random
 `m2` draw.
 
+To scan uniformly near either resonant mass relation instead of exactly on it,
+use `--approximate-resonantDM` with a mass-window half-width:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --approximate-resonantDM \
+  --delta-res 10
+```
+
+For each random point, this mode chooses one of the two approximate branches and
+samples uniformly inside the available scan range:
+
+```text
+M2 = 2*M3 +/- delta_res
+M3 = 2*M2 +/- delta_res
+```
+
+The approximate mode is mutually exclusive with `--resonantDM1` and
+`--resonantDM2`. The `--delta-res` value is in GeV.
+
 - To run BSMPT EWPT checks only after a generated point passes the existing
 viability checks, add `--run-ewpt`:
 ```bash

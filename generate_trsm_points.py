@@ -50,6 +50,24 @@ def parse_args(argv=None):
         action="store_true",
         help="Set m3 = 2*m2 for every evaluated point.",
     )
+    resonant_group.add_argument(
+        "--approximate-resonantDM",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, sample near either M2 = 2*M3 "
+            "or M3 = 2*M2 within the --delta-res mass window."
+        ),
+    )
+    parser.add_argument(
+        "--delta-res",
+        "--DeltaRes",
+        dest="delta_res",
+        type=float,
+        help=(
+            "Half-width in GeV for --approximate-resonantDM mass sampling. "
+            "Each point is sampled uniformly inside center +/- delta_res."
+        ),
+    )
     parser.add_argument(
         "--nrandom",
         type=int,
@@ -206,6 +224,14 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
 
     provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
+    if args.approximate_resonantDM and provided:
+        parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
+    if args.approximate_resonantDM and args.delta_res is None:
+        parser.error("--approximate-resonantDM requires --delta-res")
+    if not args.approximate_resonantDM and args.delta_res is not None:
+        parser.error("--delta-res requires --approximate-resonantDM")
+    if args.delta_res is not None and args.delta_res < 0.0:
+        parser.error("--delta-res must be non-negative")
     resonance_enabled = args.resonantDM1 or args.resonantDM2
     required_point_args = [
         name
@@ -558,6 +584,39 @@ def effective_m3(args, m2):
     if getattr(args, "resonantDM2", False):
         return 2.0 * float(m2)
     return getattr(args, "m3", None)
+
+
+def checked_uniform(low, high, label):
+    if low > high:
+        raise ValueError(f"No valid {label} sampling window: [{low}, {high}]")
+    return random.uniform(low, high)
+
+
+def sample_approximate_resonant_masses(delta_res):
+    delta_res = float(delta_res)
+    if delta_res < 0.0:
+        raise ValueError("delta_res must be non-negative")
+
+    if random.random() < 0.5:
+        m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
+        m3_high = min(m3_max, (m2_max + delta_res) / 2.0)
+        m3 = checked_uniform(m3_low, m3_high, "M3 anchor")
+        m2 = checked_uniform(
+            max(m2_min, 2.0 * m3 - delta_res),
+            min(m2_max, 2.0 * m3 + delta_res),
+            "M2 approximate resonance",
+        )
+        return m2, m3
+
+    m2_low = max(m2_min, (m3_min - delta_res) / 2.0)
+    m2_high = min(m2_max, (m3_max + delta_res) / 2.0)
+    m2 = checked_uniform(m2_low, m2_high, "M2 anchor")
+    m3 = checked_uniform(
+        max(m3_min, 2.0 * m2 - delta_res),
+        min(m3_max, 2.0 * m2 + delta_res),
+        "M3 approximate resonance",
+    )
+    return m2, m3
 
 
 def finite_number(value):
@@ -1088,11 +1147,14 @@ def run_random_vxzero_scan():
         drawcounter += 1
         # scan over free parameters
         k1=random.uniform(k1_min,k1_max)
-        m2=random.uniform(m2_min, m2_max)
-        if cli_args.resonantDM1 or cli_args.resonantDM2:
-            m3=effective_m3(cli_args, m2)
+        if getattr(cli_args, "approximate_resonantDM", False):
+            m2, m3 = sample_approximate_resonant_masses(cli_args.delta_res)
         else:
-            m3=random.uniform(m2+mhiggs, m3_max)
+            m2=random.uniform(m2_min, m2_max)
+            if cli_args.resonantDM1 or cli_args.resonantDM2:
+                m3=effective_m3(cli_args, m2)
+            else:
+                m3=random.uniform(m2+mhiggs, m3_max)
         vs=random.uniform(vs_min, vs_max)
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)
