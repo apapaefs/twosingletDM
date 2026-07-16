@@ -310,6 +310,51 @@ python3 plot_trsm_observables.py output/trsm_points_13.6-20260529-1234-False_vxz
   --output-stem ewpt_vs_M2_over_M3
 ```
 
+### Plot the full TRSM constraint suite
+
+For a scan-level overview of the dark-matter and experimental constraints, run
+the constraint suite from the repository root:
+
+```bash
+/opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
+  output/trsm_points_NEW.dat
+```
+
+The command above uses the Python installation tested on `manto`. With the
+defaults, the suite writes PNG and PDF versions of up to 22 standalone figures
+and three combined dashboards, together with `constraint_summary.tsv`, under
+`plots/trsm_points_NEW_constraints/`. The output location, format, and raster
+resolution can be changed explicitly:
+
+```bash
+/opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
+  output/trsm_points_NEW.dat \
+  --output-dir plots/my_new_scan_constraints \
+  --format both \
+  --dpi 200
+```
+
+The input must be a tab-separated scan file with the standard column names
+written by `generate_trsm_points.py`; boolean flags are parsed strictly as
+`True` or `False`. The suite uses the stored constraint flags rather than
+reconstructing the selections. It defines the experimental selection as
+`hb & hs & ewpo & wmass`, the theory selection as `evo & thc`, and full
+viability as theory, experimental, and dark-matter (`dm`) selections passing
+together. An unavailable indirect-detection result is shown as unavailable,
+not as passing.
+
+For informative pass/fail comparisons, generate the input scan with
+`--write-evo-thc-points` to retain all points passing `evo` and `thc`, or use
+`--write-all-points` to retain every evaluated point. The generator's default
+output contains only fully viable points, so it provides little or no
+separation between the constraint categories.
+
+The suite tests can be run independently with:
+
+```bash
+/opt/homebrew/bin/python3.11 -m unittest test_plot_trsm_constraint_suite.py
+```
+
 ## Run TRSM EWPT checks with BSMPT
 
 The helper script `test_trsm_ewpt.py` writes a one-point `TRSM_Input.tsv`, runs
