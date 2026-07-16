@@ -365,6 +365,19 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertEqual(by_metric["indirect_allowed"].count, 4)
             self.assertEqual(by_metric["indirect_excluded"].count, 1)
             self.assertEqual(by_metric["m3_above_nominal_max"].count, 1)
+            self.assertIn("m2_in_reversed_sampling_domain", by_metric)
+            expected_invisible_open = np.count_nonzero(
+                (2.0 * data.f("M3") < self.plotter.SM_LIKE_HIGGS_MASS_GEV)
+                | (2.0 * data.f("M3") < data.f("M2"))
+            )
+            self.assertEqual(
+                by_metric["higgs_invisible_decay_open"].count,
+                expected_invisible_open,
+            )
+            self.assertEqual(
+                by_metric["higgs_invisible_decay_open_but_unmodelled"].count,
+                expected_invisible_open,
+            )
             self.assertEqual(by_metric["ewpt_finite"].count, 0)
             self.assertIn("omitted_plot_evo", by_metric)
             self.assertIn("omitted_plot_thc", by_metric)
@@ -375,6 +388,31 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             text = summary_path.read_text(encoding="ascii")
             self.assertTrue(text.startswith("metric\tcount\tdenominator\tpercent\tnote\n"))
             self.assertIn("full_viability\t2\t8\t25", text)
+
+    def test_invisible_width_summary_uses_optional_provenance(self):
+        header = HEADER + ["higgs_invisible_widths_included"]
+        closed = list(ROWS[0]) + [True]
+        open_modelled = list(ROWS[1]) + [True]
+        open_modelled[HEADER.index("M3")] = 40.0
+        open_unmodelled = list(ROWS[2]) + [False]
+        open_unmodelled[HEADER.index("M3")] = 50.0
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "provenance.tsv"
+            write_fixture(
+                path,
+                header=header,
+                rows=[closed, open_modelled, open_unmodelled],
+            )
+            data = self.plotter.load_scan(path)
+            rows = self.plotter.build_summary(data)
+
+        by_metric = {row.metric: row for row in rows}
+        self.assertEqual(by_metric["higgs_invisible_decay_open"].count, 2)
+        self.assertEqual(
+            by_metric["higgs_invisible_decay_open_but_unmodelled"].count,
+            1,
+        )
 
     def test_cli_defaults_and_overrides(self):
         args = self.plotter.parse_args(["points.tsv"])

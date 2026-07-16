@@ -58,6 +58,15 @@ def parse_args(argv=None):
             "or M3 = 2*M2 within the --delta-res mass window."
         ),
     )
+    resonant_group.add_argument(
+        "--independent-m3",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, sample M3 independently and uniformly "
+            "between m3_min and m3_max instead of using M2 + mhiggs as the "
+            "default conditional M3 endpoint."
+        ),
+    )
     parser.add_argument(
         "--delta-res",
         "--DeltaRes",
@@ -234,6 +243,8 @@ def parse_args(argv=None):
     provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
     if args.approximate_resonantDM and provided:
         parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
+    if args.independent_m3 and provided:
+        parser.error("--independent-m3 is a random-scan mode and cannot be combined with explicit point parameters")
     if args.approximate_resonantDM and args.delta_res is None:
         parser.error("--approximate-resonantDM requires --delta-res")
     if not args.approximate_resonantDM and args.delta_res is not None:
@@ -264,6 +275,12 @@ cli_args = parse_args()
 ini_seed = cli_args.seed
 
 from generate_trsm_info import * # TRSM info generator (branching ratios, mixing matrices, etc.)
+from generate_trsm_info import (
+    PORTAL_CONVENTION_ID,
+    scalar_to_identical_scalar_width,
+    vxzero_invisible_decay_info,
+    vxzero_portal_couplings,
+)
 from test_trsm_evolution import * # RGE evolution
 #from twosinglet_sigmahhh_read_pickle_nn import * # Triple Higgs Cross Section
 from test_trsm_higgstools import * # HiggsTools setup 
@@ -323,11 +340,7 @@ SM_VEV_FOR_K_SCAN = 246.
 ###########################################################
 
 def lambdas_to_k133_k233(lPhiX, lSX, vs, a12, v=SM_VEV_FOR_K_SCAN):
-    c = math.cos(a12)
-    s = math.sin(a12)
-    k133 = 0.5 * (lPhiX * v * c - lSX * vs * s)
-    k233 = 0.5 * (lPhiX * v * s + lSX * vs * c)
-    return k133, k233
+    return vxzero_portal_couplings(lPhiX, lSX, vs, a12, v=v)
 
 
 def k133_k233_to_lambdas(K133, K233, vs, a12, v=SM_VEV_FOR_K_SCAN):
@@ -454,7 +467,7 @@ def write_valid_point_xsec(runtag, m2, m3, vs, vx, a12, a13, a23, xsec, resfrac)
     filestream.write(str(m2) + '\t' + str(m3) + '\t' + str(vs) + '\t' + str(vx) + '\t' + str(a12) + '\t' + str(a13) + '\t' + str(a23) + '\t' + str(xsec) + '\t' + str(resfrac) + '\n')
     filestream.close()
 
-def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, ewpo, wmass, dm=None, dm_exclusion_info=None):
+def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, ewpo, wmass, dm=None, dm_exclusion_info=None, invisible_decay_info=None):
     point_info = {
         "M2": M2,
         "M3": M3,
@@ -488,12 +501,54 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         "ewpo": ewpo,
         "wmass": wmass,
         "dm": dm,
+        "h1_h3h3_width": 0.0,
+        "h1_h3h3_br": 0.0,
+        "h2_h3h3_width": 0.0,
+        "h2_h3h3_br": 0.0,
+        "higgs_invisible_widths_included": False,
+        "portal_convention": None,
+        "micromegas_model_convention": None,
     }
     if lPhiX is not None and lSX is not None and vs is not None and a12 is not None:
         point_info["K233"] = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)[1]
+    if vx == 0 and point_info.get("K233") is not None:
+        if invisible_decay_info is None:
+            gamma1 = scalar_to_identical_scalar_width(M3, 125.09, K133)
+            gamma2 = scalar_to_identical_scalar_width(M3, M2, point_info["K233"])
+            invisible_decay_info = {
+                "h1_h3h3_width": gamma1,
+                "h1_h3h3_br": gamma1 / w1 if w1 > 0.0 else 0.0,
+                "h2_h3h3_width": gamma2,
+                "h2_h3h3_br": gamma2 / w2 if w2 > 0.0 else 0.0,
+            }
+        for column in (
+            "h1_h3h3_width",
+            "h1_h3h3_br",
+            "h2_h3h3_width",
+            "h2_h3h3_br",
+        ):
+            point_info[column] = invisible_decay_info[column]
+        point_info["higgs_invisible_widths_included"] = True
+        point_info["portal_convention"] = PORTAL_CONVENTION_ID
+        point_info["micromegas_model_convention"] = PORTAL_CONVENTION_ID
     if dm_exclusion_info is not None:
         point_info.update(dm_exclusion_info)
     return point_info
+
+
+def generated_vxzero_invisible_decay_info(M1, M2, M3, K133, K233, w1, w2, h1_BRs, h2_BRs):
+    """Build decay metadata from generated base BR arrays without changing their contents."""
+    gamma1 = scalar_to_identical_scalar_width(M3, M1, K133)
+    gamma2 = scalar_to_identical_scalar_width(M3, M2, K233)
+    try:
+        base_w1 = float(h1_BRs[-1])
+        base_w2 = float(h2_BRs[-1])
+    except (IndexError, KeyError, TypeError, ValueError):
+        # Test doubles and older callers may not retain the base arrays.  Since
+        # generate_lams now returns physical totals, reconstruct the bases.
+        base_w1 = max(0.0, float(w1) - gamma1)
+        base_w2 = max(0.0, float(w2) - gamma2)
+    return vxzero_invisible_decay_info(M1, M2, M3, K133, K233, base_w1, base_w2)
 
 
 # write the full accepted point record
@@ -627,6 +682,18 @@ def sample_approximate_resonant_masses(delta_res):
         "M3 approximate resonance",
     )
     return m2, m3
+
+
+def sample_random_masses(args):
+    if getattr(args, "approximate_resonantDM", False):
+        return sample_approximate_resonant_masses(args.delta_res)
+
+    m2 = random.uniform(m2_min, m2_max)
+    if getattr(args, "resonantDM1", False) or getattr(args, "resonantDM2", False):
+        return m2, effective_m3(args, m2)
+    if getattr(args, "independent_m3", False):
+        return m2, random.uniform(m3_min, m3_max)
+    return m2, random.uniform(m2 + mhiggs, m3_max)
 
 
 def finite_number(value):
@@ -923,6 +990,18 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     a23 = 0
     # get the point information (widths, scalar couplings)
     vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO, lX=lX, lPhiX=lPhiX, lSX=lSX)
+    _canonical_k133, K233 = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)
+    invisible_decay_info = generated_vxzero_invisible_decay_info(
+        125.09,
+        M2,
+        M3,
+        K133,
+        K233,
+        w1,
+        w2,
+        h1_BRs,
+        h2_BRs,
+    )
     Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
     if debug is True or report is True or print_info_enabled is True:
         print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
@@ -954,6 +1033,8 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         h1_BRs,
         h2_BRs,
         h3_BRs,
+        h1_direct_invisible_width=invisible_decay_info["h1_h3h3_width"],
+        h2_direct_invisible_width=invisible_decay_info["h2_h3h3_width"],
         **higgstools_analysis_kwargs(),
     ))
     if short_circuit_failures:
@@ -982,7 +1063,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
     pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
-    point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2])
+    point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2], invisible_decay_info=invisible_decay_info)
     add_higgstools_info(point_info, higgstools_details)
     dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
     if dm_failed_but_otherwise_allowed:
@@ -1156,6 +1237,12 @@ def run_random_vxzero_scan():
     drawcounter = 0
     count_evo_thc = getattr(cli_args, "nrandom_count_evo_thc", False)
     print('Generating points randomly within ranges')
+    if getattr(cli_args, "independent_m3", False):
+        print(
+            f'Sampling M3 independently in [{m3_min}, {m3_max}] GeV; '
+            'the legacy M2 + mhiggs conditional endpoint is disabled'
+        )
+        print('Including h1/h2 -> h3 h3 invisible widths in HiggsTools inputs')
     random.seed(ini_seed)
 
     # fixed parameters:
@@ -1180,14 +1267,7 @@ def run_random_vxzero_scan():
         drawcounter += 1
         # scan over free parameters
         k1=random.uniform(k1_min,k1_max)
-        if getattr(cli_args, "approximate_resonantDM", False):
-            m2, m3 = sample_approximate_resonant_masses(cli_args.delta_res)
-        else:
-            m2=random.uniform(m2_min, m2_max)
-            if cli_args.resonantDM1 or cli_args.resonantDM2:
-                m3=effective_m3(cli_args, m2)
-            else:
-                m3=random.uniform(m2+mhiggs, m3_max)
+        m2, m3 = sample_random_masses(cli_args)
         vs=random.uniform(vs_min, vs_max)
         # free parameters for vx=0:
         lX=random.uniform(lX_min, lX_max)

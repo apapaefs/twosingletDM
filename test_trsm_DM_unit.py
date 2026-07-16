@@ -53,6 +53,29 @@ FermiLAT_line_channel A A: E_gamma=5.000000E+01[GeV], sigmaV=1.000000E-27[cm^3 s
 """
 
 
+MICROMEGAS_OUTPUT_WITH_SIGNED_AMPLITUDES = """
+Dark matter candidate is '~X' with spin=0/2 mass=7.303E+02
+~X       : MX      = 730.3 ||
+Xf=2.61e+01 Omega=1.79e-04
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton SI -1.965E-09 [-1.965E-09] SD 0.000E+00 [0.000E+00]
+neutron SI -1.984E-09 [-1.984E-09] SD 0.000E+00 [0.000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 1.683E-09 [1.683E-09] SD 0.000E+00 [0.000E+00]
+ neutron SI 1.717E-09 [1.717E-09] SD 0.000E+00 [0.000E+00]
+"""
+
+
+MICROMEGAS_OUTPUT_WITH_AMPLITUDE_ONLY = """
+~X       : MX      = 730.3 ||
+Xf=2.61e+01 Omega=1.79e-04
+~X[~X]-nucleon micrOMEGAs amplitudes
+neutron SI -1.984E-09 [-1.984E-09] SD 0.000E+00 [0.000E+00]
+"""
+
+
 class TestTrsmDM(unittest.TestCase):
     def test_parse_micromegas_output(self):
         result = parse_micromegas_output(MICROMEGAS_OUTPUT)
@@ -69,6 +92,16 @@ class TestTrsmDM(unittest.TestCase):
         channel = result.indirect_line_channels[0]
         self.assertTrue(math.isclose(channel.energy_gev, 50.0))
         self.assertTrue(math.isclose(channel.flux_cm2_s, 5.148348))
+
+    def test_parse_uses_cross_section_not_earlier_signed_amplitude(self):
+        result = parse_micromegas_output(MICROMEGAS_OUTPUT_WITH_SIGNED_AMPLITUDES)
+
+        self.assertTrue(math.isclose(result.dir_det, 1.717e-9))
+        self.assertGreater(result.dir_det, 0.0)
+
+    def test_parse_rejects_amplitude_without_cross_section_block(self):
+        with self.assertRaisesRegex(ValueError, r"cross-sections\[pb\] section"):
+            parse_micromegas_output(MICROMEGAS_OUTPUT_WITH_AMPLITUDE_ONLY)
 
     def test_fermi_lat_line_limit_interpolates_known_table(self):
         self.assertTrue(

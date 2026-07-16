@@ -38,6 +38,34 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
+The legacy default first samples `M2` uniformly over `[m2_min, m2_max]` and
+then calls `random.uniform(M2 + mhiggs, m3_max)` for `M3`. To sample both
+masses independently over their full configured ranges, without using
+`M2 + mhiggs` as a conditional endpoint, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --independent-m3
+```
+
+This fills the rectangular `(M2, M3)` scan range and can therefore include
+`M3 < M2` as well as `M3 < M2 + mhiggs`. The mode is mutually exclusive with
+the exact and approximate resonant-DM mass modes. In the `vx=0` branch, the
+stable `h3` width and visible branching fractions are recorded as zero,
+including below the 20 GeV lower edge of the SM Higgs tables. Whenever
+`2*M3 < M1` or `2*M3 < M2`, the generator includes the corresponding
+`h1/h2 -> h3 h3` invisible width in the physical total width supplied to
+HiggsTools and registers it as `HP.Decay.directInv`. The visible branching
+fractions passed to HiggsTools remain the pre-invisible/base values so that
+HiggsTools rescales them exactly once.
+
+For scalar masses in the scan range below the legacy branching-ratio table,
+`4 <= M2 < 20 GeV`, the base SM branching fractions and total width come from
+the tracked HiggsTools YR4 `SMHiggs` grid and use the same linear interpolation
+as HiggsTools. The established legacy cubic interpolation remains unchanged at
+and above 20 GeV.
+
 By default, `--nrandom` is the number of random draws attempted. To instead
 keep drawing until `--nrandom` points have passed the RGE evolution (`evo`) and
 theory-constraint (`thc`) checks, use:
@@ -113,6 +141,20 @@ potential-basis inputs expected by the existing BSMPT and micrOMEGAs pipeline:
 lphix = 2 * (cos(a12) * K133 + sin(a12) * K233) / 246
 lsx   = 2 * (-sin(a12) * K133 + cos(a12) * K233) / vs
 ```
+
+The canonical `vx=0` convention is
+
+```text
+K133 = (lphix * v * cos(a12) - lsx * vs * sin(a12)) / 2
+K233 = (lphix * v * sin(a12) + lsx * vs * cos(a12)) / 2
+```
+
+where `K_i33` is the coefficient of `h_i h3 h3` in the scalar potential. The
+corresponding identical-scalar partial width is
+`Gamma(h_i -> h3 h3) = K_i33^2 * beta / (8*pi*M_i)`, and is zero at or below
+threshold. Scan files using this normalization carry the convention identifier
+`trsm_vxzero_canonical_v1` in both `portal_convention` and
+`micromegas_model_convention`.
 
 The scan output includes both the existing `K133` column and a derived `K233`
 column so the sampled physical couplings can be inspected directly.
@@ -343,6 +385,14 @@ viability as theory, experimental, and dark-matter (`dm`) selections passing
 together. An unavailable indirect-detection result is shown as unavailable,
 not as passing.
 
+For scans made with `--independent-m3`, the dashed
+`M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the
+legacy default conditional relation; it is not a selection applied to the
+data. `constraint_summary.tsv` records both how many points have a kinematically
+open invisible Higgs decay and how many of those are unmodelled. Canonical-v1
+files should have zero unmodelled points; legacy files without the new metadata
+remain supported and are classified conservatively.
+
 For informative pass/fail comparisons, generate the input scan with
 `--write-evo-thc-points` to retain all points passing `evo` and `thc`, or use
 `--write-all-points` to retain every evaluated point. The generator's default
@@ -354,6 +404,41 @@ The suite tests can be run independently with:
 ```bash
 /opt/homebrew/bin/python3.11 -m unittest test_plot_trsm_constraint_suite.py
 ```
+
+### Re-evaluate a legacy scan with canonical invisible widths and DM normalization
+
+Legacy scan files are never modified in place. To recompute the physical Higgs
+widths, HiggsBounds/HiggsSignals details, and all micrOMEGAs result fields with
+the canonical-v1 conventions, run:
+
+```bash
+trsmdm/bin/python reevaluate_trsm_dm_higgs.py \
+  output/trsm_points_OLD.dat \
+  --output output/trsm_points_OLD_canonical_v1.dat \
+  --micromegas-main ../micromegas_6.1.15/TRSM/main \
+  --checkpoint-every 25
+```
+
+The calculation is sequential because each point invokes the shared
+micrOMEGAs executable. Progress is checkpointed to an adjacent `.partial`
+file. If a run is interrupted, repeat the command with `--resume`; the script
+checks that the partial file belongs to the same input before continuing.
+Existing theory, EWPO, W-mass, EWPT, MG5, and unknown columns are preserved.
+The output path must differ from the input and an existing completed output is
+not overwritten.
+
+After completion, regenerate the constraint suite from the versioned file:
+
+```bash
+/opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
+  output/trsm_points_OLD_canonical_v1.dat
+```
+
+Historical DM columns in legacy scans use the old CalcHEP normalization and
+must not be corrected by numerical rescaling; they need a real re-evaluation.
+The separate electroweak-input difference between the generated CalcHEP value
+of `v` and the Python value `v=246 GeV` is deliberately left isolated and is
+not folded into the portal-coupling normalization.
 
 ## Run TRSM EWPT checks with BSMPT
 
@@ -564,8 +649,18 @@ python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py
 - copy the desired model files from DM/models into micromegas. I use h4GOn:
 ```cp ../models/h4GOn/* TRSM/work/models/```
 
--  in TRSM/ there is a main.c file and a Makefile. Compile with:
-```make main=main.c``` or just ```make```
+- The checked-in `h4GOn` and `h4GOff` models implement the canonical-v1
+normalization: the potential contains `LHX/2`, `LSX/2`, and `LX/4`, while the
+input card remains one-to-one (`LHX=lPhiX`, `LSX=lSX`, and `LX=lX`). Do not
+compensate by scaling card values. If replacing an older installed model, back
+up `TRSM/work/models` and the executable before copying the corrected files.
+
+- In `TRSM/` there is a `main.c` file and a Makefile. Rebuild after installing
+the model with:
+```bash
+make clean
+make main=main.c
+```
 The setup is complete and and micromegas is used by codes in DM/example.
 
 - To test manually, copy the example data point:

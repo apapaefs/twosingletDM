@@ -63,13 +63,64 @@ H3 = pred.addParticle(HP.BsmParticle("H3", "neutral", "even"))
 
 # ensure that the BR arrays sum up to unity to avoid issues with HiggsTools
 def ensure_sum_unit(brarray):
-    sumarray = brarray.sum() - brarray[-1]
-    brarray_new = np.array([None] * len(brarray))
-    for i in range(len(brarray)-1):
-        brarray_new[i] = round_sig(brarray[i]/sumarray,100)
-    brarray_new[-1] = round_sig(brarray[-1],3)
-    #print(brarray_new.sum() - brarray_new[-1])
+    brarray = np.asarray(brarray, dtype=float)
+    fractions = brarray[:-1]
+    total_width = float(brarray[-1])
+    if not math.isfinite(total_width) or total_width < 0.0:
+        raise ValueError("base total width must be finite and non-negative")
+    if not np.all(np.isfinite(fractions)):
+        raise ValueError("base branching fractions must be finite")
+
+    fraction_sum = float(np.sum(fractions))
+    brarray_new = np.zeros_like(brarray, dtype=float)
+    if fraction_sum > 0.0:
+        brarray_new[:-1] = fractions / fraction_sum
+    elif not np.all(fractions == 0.0):
+        raise ValueError("base branching fractions must have a positive sum")
+    # Keep the provider input exactly aligned with the stored physical width;
+    # only the dimensionless branching fractions are normalized.
+    brarray_new[-1] = total_width
     return brarray_new
+
+
+_SM_DECAYS = (
+    'bb',
+    'tautau',
+    'mumu',
+    'cc',
+    'ss',
+    'tt',
+    'gg',
+    'gamgam',
+    'Zgam',
+    'WW',
+    'ZZ',
+)
+
+
+def _set_base_decays(particle, brarray, include_h1h1=False):
+    """Set finite nonzero-width base decays after effectiveCouplingInput."""
+    if brarray[-1] == 0.0:
+        # effectiveCouplingInput already cleared the particle.  HiggsTools
+        # rejects setBr, including setBr(..., 0), for a zero-width particle.
+        return
+    for decay in _SM_DECAYS:
+        particle.setBr(decay, 0.0)
+    for index, decay in enumerate(_SM_DECAYS):
+        particle.setBr(decay, brarray[index])
+    if include_h1h1:
+        particle.setBr('H1', 'H1', brarray[11])
+    particle.setTotalWidth(brarray[-1])
+
+
+def _validated_direct_invisible_width(name, value):
+    try:
+        width = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{name} must be a finite non-negative number") from error
+    if not math.isfinite(width) or width < 0.0:
+        raise ValueError(f"{name} must be a finite non-negative number")
+    return width
 
 
 def _method_value(obj, name, default=""):
@@ -325,7 +376,16 @@ def analyze_parampoint(
     print_details=False,
     details_top=5,
     return_details=False,
+    h1_direct_invisible_width=0.0,
+    h2_direct_invisible_width=0.0,
 ):
+
+    h1_direct_invisible_width = _validated_direct_invisible_width(
+        "h1_direct_invisible_width", h1_direct_invisible_width
+    )
+    h2_direct_invisible_width = _validated_direct_invisible_width(
+        "h2_direct_invisible_width", h2_direct_invisible_width
+    )
 
     h1_BRs = ensure_sum_unit(h1_BRs)
     h2_BRs = ensure_sum_unit(h2_BRs)
@@ -336,60 +396,14 @@ def analyze_parampoint(
     # get the branching ratios
     HP.effectiveCouplingInput(H1, HP.scaledSMlikeEffCouplings(k1))
     HP.effectiveCouplingInput(H2, HP.scaledSMlikeEffCouplings(k2))
-    # RESET BRs BEFORE SETTING THEM TO AVOID ISSUES WITH BR>1
-    # H -> bbbar | H -> tautau | H -> mumu | H -> cc | H -> ss | H -> tt | H -> gg | H -> gammagamma | H -> Zgamma | H -> WW | H -> ZZ
-    # H1
-    H1.setBr('bb', 0.)
-    H1.setBr('tautau', 0.)
-    H1.setBr('mumu', 0.)
-    H1.setBr('cc', 0.)
-    H1.setBr('ss', 0.)
-    H1.setBr('tt', 0.)
-    H1.setBr('gg', 0.)
-    H1.setBr('gamgam', 0.)
-    H1.setBr('Zgam', 0.)
-    H1.setBr('WW', 0.)
-    H1.setBr('ZZ', 0.)
-    # SET THE BRS
-    H1.setBr('bb', h1_BRs[0])
-    H1.setBr('tautau', h1_BRs[1])
-    H1.setBr('mumu', h1_BRs[2])
-    H1.setBr('cc', h1_BRs[3])
-    H1.setBr('ss', h1_BRs[4])
-    H1.setBr('tt', h1_BRs[5])
-    H1.setBr('gg', h1_BRs[6])
-    H1.setBr('gamgam', h1_BRs[7])
-    H1.setBr('Zgam',h1_BRs[8])
-    H1.setBr('WW', h1_BRs[9])
-    H1.setBr('ZZ', h1_BRs[10])
-    H1.setTotalWidth(h1_BRs[-1])
-    # H2
-    # RESET BRs BEFORE SETTING THEM TO AVOID ISSUES WITH BR>1
-    H2.setBr('bb', 0.)
-    H2.setBr('tautau', 0.)
-    H2.setBr('mumu', 0.)
-    H2.setBr('cc', 0.)
-    H2.setBr('ss', 0.)
-    H2.setBr('tt', 0.)
-    H2.setBr('gg', 0.)
-    H2.setBr('gamgam', 0.)
-    H2.setBr('Zgam', 0.)
-    H2.setBr('WW', 0.)
-    H2.setBr('ZZ', 0.)
-    # SET THE BRS
-    H2.setBr('bb', h2_BRs[0])
-    H2.setBr('tautau', h2_BRs[1])
-    H2.setBr('mumu', h2_BRs[2])
-    H2.setBr('cc', h2_BRs[3])
-    H2.setBr('ss', h2_BRs[4])
-    H2.setBr('tt', h2_BRs[5])
-    H2.setBr('gg', h2_BRs[6])
-    H2.setBr('gamgam', h2_BRs[7])
-    H2.setBr('Zgam',h2_BRs[8])
-    H2.setBr('WW',h2_BRs[9])
-    H2.setBr('ZZ',h2_BRs[10])
-    H2.setBr('H1','H1',h2_BRs[11])
-    H2.setTotalWidth(h2_BRs[-1])
+    _set_base_decays(H1, h1_BRs)
+    _set_base_decays(H2, h2_BRs, include_h1h1=True)
+
+    # This must be the final prediction mutation: setting a partial width
+    # increases the total width and rescales all previously configured BRs.
+    # Explicit zeroes also clear directInv state between scan points.
+    H1.setDecayWidth(HP.Decay.directInv, h1_direct_invisible_width)
+    H2.setDecayWidth(HP.Decay.directInv, h2_direct_invisible_width)
 
     # get the HiggsBounds result
     resb = bounds(pred)

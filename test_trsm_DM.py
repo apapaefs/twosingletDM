@@ -353,19 +353,49 @@ def parse_micromegas_output(text):
     )
     omega = find_number(rf"Omega=({NUMBER_PATTERN})", text, "Omega")
 
-    neutron_match = re.search(
-        rf"^[ \t]*neutron[ \t]+SI[ \t]+({NUMBER_PATTERN})\b",
-        text,
-        flags=re.MULTILINE,
-    )
-    if neutron_match is None:
-        raise ValueError("Could not find neutron SI direct-detection cross section")
+    neutron_cross_section = neutron_si_cross_section(text)
 
     return MicromegasResult(
         mdm=mdm,
         omega=omega,
-        dir_det=float(neutron_match.group(1)),
+        dir_det=neutron_cross_section,
         indirect_line_channels=parse_indirect_line_channels(text),
+    )
+
+
+def neutron_si_cross_section(text):
+    """Extract the physical neutron SI cross section, never its signed amplitude."""
+    section_header = re.compile(
+        r"^[ \t]*.+-nucleon[ \t]+cross[ \t]+sections\[pb\]:[ \t]*$",
+        flags=re.IGNORECASE,
+    )
+    neutron_line = re.compile(
+        rf"^[ \t]*neutron[ \t]+SI[ \t]+({NUMBER_PATTERN})(?:[ \t]|\[|$)",
+        flags=re.IGNORECASE,
+    )
+    lines = text.splitlines()
+
+    for header_index, line in enumerate(lines):
+        if section_header.match(line) is None:
+            continue
+        for candidate in lines[header_index + 1 :]:
+            if not candidate.strip():
+                break
+            if section_header.match(candidate) or candidate.lstrip().startswith("===="):
+                break
+            match = neutron_line.match(candidate)
+            if match is None:
+                continue
+            value = float(match.group(1))
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(
+                    "Neutron SI direct-detection cross section must be finite and non-negative"
+                )
+            return value
+
+    raise ValueError(
+        "Could not find neutron SI direct-detection cross section in the "
+        "micrOMEGAs cross-sections[pb] section"
     )
 
 

@@ -23,6 +23,11 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
+PORTAL_CONVENTION_ID = "trsm_vxzero_canonical_v1"
+TRSM_SM_VEV = 246.0
+HIGGSTOOLS_YR4_LOWMASS_MIN_GEV = 4.0
+HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV = 20.0
+
 # subdirectory that contains the coupling expressions
 couplingsdir = str(SCRIPT_DIR / 'couplings') + os.sep # full
 couplingsdir_vxzero = str(SCRIPT_DIR / 'couplings_vxzero') + os.sep # couplings for vx=0
@@ -35,6 +40,15 @@ def round_sig(x, sig=2):
         print('Warning, NaN!')
         return 0.
     return round(x, sig-int(floor(log10(abs(x))))-1)
+
+
+def vxzero_portal_couplings(lPhiX, lSX, vs, a12, v=TRSM_SM_VEV):
+    """Return canonical potential coefficients K133 and K233 for vx=0."""
+    c12 = math.cos(a12)
+    s12 = math.sin(a12)
+    k133 = 0.5 * (lPhiX * v * c12 - lSX * vs * s12)
+    k233 = 0.5 * (lPhiX * v * s12 + lSX * vs * c12)
+    return k133, k233
 
 # choose the next colour -- for plotting
 ccount = 0
@@ -168,12 +182,48 @@ def lambda_ijk(i, j, k, M1, M2, M3, v, vs, vx, *R, lambdax=-999, lambdaphix=-999
         coupl = eval(line)
     return coupl
 
-# calculate the width h2 -> h1 h1, given the mass, the coupling l112 (in GeV) and the sin(mixing angle)
+def scalar_to_identical_scalar_width(daughter_mass, parent_mass, coupling):
+    """Return Gamma(parent -> daughter daughter) for V containing K parent*daughter^2.
+
+    ``coupling`` is the potential coefficient K in GeV, so the Feynman rule
+    has magnitude 2K.  The result is zero at and below threshold.
+    """
+    values = (daughter_mass, parent_mass, coupling)
+    if not all(math.isfinite(float(value)) for value in values):
+        raise ValueError("scalar masses and coupling must be finite")
+    daughter_mass = float(daughter_mass)
+    parent_mass = float(parent_mass)
+    coupling = float(coupling)
+    if daughter_mass < 0.0 or parent_mass <= 0.0:
+        raise ValueError("scalar masses must satisfy daughter_mass >= 0 and parent_mass > 0")
+    if parent_mass <= 2.0 * daughter_mass:
+        return 0.0
+    beta = math.sqrt(max(0.0, 1.0 - 4.0 * daughter_mass**2 / parent_mass**2))
+    return coupling**2 * beta / (8.0 * math.pi * parent_mass)
+
+
+# Backward-compatible alias for callers using the historic h2 -> h1 h1 name.
 def Gam_h2_to_h1h1(m1, m2, l112):
-  if m2 < 2*m1:
-    return 0.
-  width_h2h1h1 = l112**2 * math.sqrt( 1 - 4 * m1**2 / m2**2 ) / 8 / math.pi / m2
-  return width_h2h1h1
+    return scalar_to_identical_scalar_width(m1, m2, l112)
+
+
+def vxzero_invisible_decay_info(M1, M2, M3, K133, K233, base_w1, base_w2):
+    """Calculate vx=0 invisible partial widths, BRs, and physical total widths."""
+    for name, value in (("base_w1", base_w1), ("base_w2", base_w2)):
+        if not math.isfinite(float(value)) or float(value) < 0.0:
+            raise ValueError(f"{name} must be finite and non-negative")
+    gamma1 = scalar_to_identical_scalar_width(M3, M1, K133)
+    gamma2 = scalar_to_identical_scalar_width(M3, M2, K233)
+    w1 = float(base_w1) + gamma1
+    w2 = float(base_w2) + gamma2
+    return {
+        "h1_h3h3_width": gamma1,
+        "h1_h3h3_br": gamma1 / w1 if w1 > 0.0 else 0.0,
+        "h2_h3h3_width": gamma2,
+        "h2_h3h3_br": gamma2 / w2 if w2 > 0.0 else 0.0,
+        "w1": w1,
+        "w2": w2,
+    }
 
 # calculate the width h3 -> h2 h1, given the mass, the coupling l123 (in GeV) and the sin(mixing angle)
 def Gam_h3_to_h2h1(m1, m2, m3, l123):
@@ -199,10 +249,8 @@ def read_higgsBR(brfile):
     return sorted_higgsbrs
 
 # create interpolators for the various BRs and total width and return a dictionary
-def interpolate_HiggsBR(brdict):
+def interpolate_HiggsBR(brdict, interpkind='cubic'):
   # the kind of interpolation
-  interpkind = 'cubic'
-
   # define an array of interpolators
   interp_higgsbrs = []
 
@@ -228,6 +276,35 @@ def interpolate_HiggsBR(brdict):
         interp_higgsbrs.append(interpolator)
 
   return interp_higgsbrs
+
+
+def higgstools_yr4_lowmass_br_widths(mass):
+    """Return the HiggsTools ``SMHiggs`` BRs and width below 20 GeV.
+
+    HiggsTools linearly interpolates its YR4 BSM reference grid.  The tracked
+    fallback contains that exact grid over the scan range, so this helper does
+    not import HiggsTools and remains usable in the Python 3.11 scan runtime.
+    The legacy cubic YR interpolators remain authoritative from 20 GeV upward.
+    """
+    try:
+        mass = float(mass)
+    except (TypeError, ValueError) as error:
+        raise ValueError("low-mass SM Higgs mass must be finite") from error
+    if not math.isfinite(mass):
+        raise ValueError("low-mass SM Higgs mass must be finite")
+    if not HIGGSTOOLS_YR4_LOWMASS_MIN_GEV <= mass <= HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV:
+        raise ValueError(
+            "low-mass SM Higgs fallback is defined only for "
+            f"{HIGGSTOOLS_YR4_LOWMASS_MIN_GEV:g}--"
+            f"{HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV:g} GeV"
+        )
+    values = np.asarray(
+        [float(interpolator(mass)) for interpolator in BR_interpolators_SM_HIGGSTOOLS_LOWMASS],
+        dtype=float,
+    )
+    if not np.all(np.isfinite(values)) or values[-1] <= 0.0:
+        raise ValueError(f"invalid HiggsTools low-mass reference values at {mass:g} GeV")
+    return values
 
 
 # function to read in the XS into a dictionary in the format:
@@ -293,19 +370,33 @@ def interpolate_HiggsXS(xsdict):
 def calc_h2_BRs(interpolators_SM, mh1, mh2, R21, l112):
     heavyBRs = []
     # get the corresponding SM width from the interpolator (this should be the last element):
-    if mh2 < 1000.: # 
+    lowmass_reference = None
+    if mh2 < HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV:
+            lowmass_reference = higgstools_yr4_lowmass_br_widths(mh2)
+            Gamma_SM = lowmass_reference[-1]
+    elif mh2 < 1000.: #
             Gamma_SM = interpolators_SM[-1](mh2)
     else:
             Gamma_SM = interpolators_SM[-1](1000.)
+    width = width_h2(R21, mh1, mh2, l112, Gamma_SM)
+    if width == 0.0:
+        # A pure-invisible h2 can have neither SM-like nor h1h1 base decays.
+        # Avoid the otherwise undefined 0/0 branching fractions; directInv is
+        # added later by HiggsTools and supplies the complete physical width.
+        return np.zeros(len(interpolators_SM) + 1, dtype=float)
    # get the rescaling factor of the SM BRs:
     rescale_fac = RES_BR_h2_to_xx(R21, Gamma_SM, mh1, mh2, l112)
     # loop over the SM BRs and rescale with the factor:
     for hh in range(len(interpolators_SM)-1):
-        heavyBRs.append(interpolators_SM[hh](mh2) * rescale_fac)
+        sm_br = (
+            lowmass_reference[hh]
+            if lowmass_reference is not None
+            else interpolators_SM[hh](mh2)
+        )
+        heavyBRs.append(sm_br * rescale_fac)
     # add the h1h1 decay:
     BR_hh = BR_h2_to_h1h1(R21, mh1, mh2, l112, Gamma_SM)
     heavyBRs.append(BR_hh)
-    width = width_h2(R21, mh1, mh2, l112, Gamma_SM)
     heavyBRs.append(width)
     # transpose the array to get it into the right form for plotting
     heavyBRs = np.transpose(heavyBRs)
@@ -315,7 +406,11 @@ def calc_h2_BRs(interpolators_SM, mh1, mh2, R21, l112):
 def calc_h3_BRs(interpolators_SM, mh1, mh2, mh3, R31, l113, l123, l223):
     heavyBRs = []
     # get the corresponding SM width from the interpolator (this should be the last element):
-    if mh3 < 1000.: # 
+    lowmass_reference = None
+    if mh3 < HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV:
+        lowmass_reference = higgstools_yr4_lowmass_br_widths(mh3)
+        Gamma_SM = lowmass_reference[-1]
+    elif mh3 < 1000.: #
         Gamma_SM = interpolators_SM[-1](mh3)
     else:
         Gamma_SM = interpolators_SM[-1](1000.)
@@ -324,7 +419,12 @@ def calc_h3_BRs(interpolators_SM, mh1, mh2, mh3, R31, l113, l123, l223):
     rescale_fac = RES_BR_h3_to_xx(R31, Gamma_SM, mh1, mh2, mh3, l113, l123, l223)
     # loop over the SM BRs and rescale with the factor:
     for hh in range(len(interpolators_SM)-1):
-        heavyBRs.append(interpolators_SM[hh](mh3) * rescale_fac)
+        sm_br = (
+            lowmass_reference[hh]
+            if lowmass_reference is not None
+            else interpolators_SM[hh](mh3)
+        )
+        heavyBRs.append(sm_br * rescale_fac)
     # add the h1h1 decay:
     BR_h1h1 = BR_h3_to_h1h1(R31, mh1, mh2, mh3, l113, l123, l223, Gamma_SM)
     heavyBRs.append(BR_h1h1)
@@ -431,6 +531,21 @@ HiggsBRs = read_higgsBR(BR_file)
 # first get the interpolated BRs and SM width 
 BR_interpolators_SM = interpolate_HiggsBR(HiggsBRs)  # this returns the actual interpolators
 
+# Exact 4--20 GeV rows from the HiggsTools SMHiggs/YR4 BSM reference grid,
+# ``src/predictions/data/YR4Brs.cpp`` at HiggsTools v1.2-3-g71a93a8
+# (commit 71a93a82f34fb120e3095460e52cb15b7bffcea0).  SMHiggs uses a
+# piecewise-linear interpolator.  This is deliberately a fallback only below
+# 20 GeV: changing the established cubic interpolation above that boundary
+# would invalidate partially re-evaluated scan checkpoints.
+HIGGSTOOLS_YR4_LOWMASS_BR_FILE = str(
+    SCRIPT_DIR / "YR" / "higgsBR_HiggsTools_YR4_lowmass.txt"
+)
+HiggsToolsYR4LowMassBRs = read_higgsBR(HIGGSTOOLS_YR4_LOWMASS_BR_FILE)
+BR_interpolators_SM_HIGGSTOOLS_LOWMASS = interpolate_HiggsBR(
+    HiggsToolsYR4LowMassBRs,
+    interpkind='linear',
+)
+
 # the 13 TeV ggF cross sections at N^3LO
 XS13_file = str(SCRIPT_DIR / "YR" / "higgsXS_YR4_13TeV_N3LO.txt")
 #print('reading in', XS13_file)
@@ -510,6 +625,15 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=-999, lPhiX=-
                 paramsubs[lambda_text] = lambda_dict[tuple(sorted((i,j,k)))]
                 if PRINT: print(sorted((i,j,k)), '\t\t', paramsubs[lambda_text])
 
+    if vx == 0:
+        # Keep the portal convention in one executable definition rather than
+        # relying on separately generated symbolic coupling files.
+        k133, k233 = vxzero_portal_couplings(lPhiX, lSX, vs, a12, v=v)
+        lambda_dict[(1, 3, 3)] = k133
+        lambda_dict[(2, 3, 3)] = k233
+        paramsubs["K133"] = k133
+        paramsubs["K233"] = k233
+
     if PRINT:
         print('\nquartic couplings:')
         print('i j k m\t\t\t lambda(i,j,k, m)')
@@ -539,7 +663,13 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=-999, lPhiX=-
     # get the BRs for scalars:
     h1_BRs = calc_h1_BRs(BR_interpolators_SM, M1, R[0][0])
     h2_BRs = calc_h2_BRs(BR_interpolators_SM, M1, M2, R[1][0], lambda_dict[tuple((1,1,2))])
-    h3_BRs = calc_h3_BRs(BR_interpolators_SM, M1, M2, M3, R[2][0], lambda_dict[tuple((1,1,3))], lambda_dict[tuple((1,2,3))], lambda_dict[tuple((2,2,3))])
+    if vx == 0:
+        # The unbroken Z2 makes h3 stable in the vx=0 branch.  Do not run its
+        # mass through the SM-Higgs tables, which are inapplicable and return
+        # NaN below their 20 GeV lower edge.
+        h3_BRs = np.zeros(len(BR_text_array_h3), dtype=float)
+    else:
+        h3_BRs = calc_h3_BRs(BR_interpolators_SM, M1, M2, M3, R[2][0], lambda_dict[tuple((1,1,3))], lambda_dict[tuple((1,2,3))], lambda_dict[tuple((2,2,3))])
     if PRINT:
         print('\n')
         # print them
@@ -549,18 +679,44 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=-999, lPhiX=-
         print('\n')
         #print_Higgs_info(h3_BRs, BR_text_array_h3, 'h3 BRs & width')
 
-    # add total widths to sparameter substitions dictionary (the last element)
-    paramsubs['width1'] = h1_BRs[-1]
-    paramsubs['width2'] = h2_BRs[-1]
+    # h1_BRs and h2_BRs deliberately remain the pre-invisible/base arrays.
+    # HiggsTools consumes those arrays and adds the direct invisible partial
+    # widths itself, while parameter cards and scan output use physical totals.
+    if vx == 0:
+        invisible_decay_info = vxzero_invisible_decay_info(
+            M1,
+            M2,
+            M3,
+            paramsubs["K133"],
+            paramsubs["K233"],
+            h1_BRs[-1],
+            h2_BRs[-1],
+        )
+    else:
+        invisible_decay_info = {
+            "h1_h3h3_width": 0.0,
+            "h1_h3h3_br": 0.0,
+            "h2_h3h3_width": 0.0,
+            "h2_h3h3_br": 0.0,
+            "w1": float(h1_BRs[-1]),
+            "w2": float(h2_BRs[-1]),
+        }
+    paramsubs.update(invisible_decay_info)
+    paramsubs['width1'] = invisible_decay_info["w1"]
+    paramsubs['width2'] = invisible_decay_info["w2"]
     paramsubs['width3'] = h3_BRs[-1]
 
     # cross sections for single production of h1,2,3 at N3LO at 13 TeV:
     xs13_n3lo_h1 = round_sig(R[0][0]**2 * XS_interpolator_SM_13TeV_N3LO(M1),5)
     xs13_n3lo_h2 = round_sig(R[1][0]**2 * XS_interpolator_SM_13TeV_N3LO(M2),5)
-    xs13_n3lo_h3 = round_sig(R[2][0]**2 * XS_interpolator_SM_13TeV_N3LO(M3),5)
     xs136_lo_h1 = round_sig(R[0][0]**2 * XS_interpolator_SM_136TeV_LO(M1),5)
     xs136_lo_h2 = round_sig(R[1][0]**2 * XS_interpolator_SM_136TeV_LO(M2),5)
-    xs136_lo_h3 = round_sig(R[2][0]**2 * XS_interpolator_SM_136TeV_LO(M3),5)
+    if vx == 0:
+        xs13_n3lo_h3 = 0.0
+        xs136_lo_h3 = 0.0
+    else:
+        xs13_n3lo_h3 = round_sig(R[2][0]**2 * XS_interpolator_SM_13TeV_N3LO(M3),5)
+        xs136_lo_h3 = round_sig(R[2][0]**2 * XS_interpolator_SM_136TeV_LO(M3),5)
     if PRINT: 
         print('single hX xs@13.6 TeV at LO (narrow width):')
         print('sigma(h1)=', xs136_lo_h1, 'pb')

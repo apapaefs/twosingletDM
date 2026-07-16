@@ -30,6 +30,7 @@ from matplotlib.lines import Line2D
 
 NOMINAL_MASS_GAP_GEV = 125.0
 NOMINAL_M3_MAX_GEV = 1000.0
+SM_LIKE_HIGGS_MASS_GEV = 125.09
 
 BOOLEAN_COLUMNS = (
     "evo",
@@ -43,6 +44,10 @@ BOOLEAN_COLUMNS = (
     "dm_direct_detection_excluded",
     "dm_indirect_available",
     "dm_indirect_detection_excluded",
+)
+
+OPTIONAL_BOOLEAN_COLUMNS = (
+    "higgs_invisible_widths_included",
 )
 
 NUMERIC_COLUMNS = (
@@ -473,7 +478,11 @@ def load_scan(path: Path | str) -> ScanData:
             raise ValueError(f"Missing required input columns: {', '.join(missing)}")
 
         index = {column: position for position, column in enumerate(header)}
-        bool_buffers = {column: [] for column in BOOLEAN_COLUMNS}
+        bool_buffers = {
+            column: []
+            for column in BOOLEAN_COLUMNS + OPTIONAL_BOOLEAN_COLUMNS
+            if column in index
+        }
         float_buffers = {column: [] for column in NUMERIC_COLUMNS}
 
         for row_number, row in enumerate(reader, start=2):
@@ -481,7 +490,7 @@ def load_scan(path: Path | str) -> ScanData:
                 raise ValueError(
                     f"Row {row_number} has {len(row)} fields; expected {len(header)}."
                 )
-            for column in BOOLEAN_COLUMNS:
+            for column in bool_buffers:
                 bool_buffers[column].append(
                     strict_bool(row[index[column]], column, row_number)
                 )
@@ -500,6 +509,11 @@ def load_scan(path: Path | str) -> ScanData:
     }
     if len(floats["M2"]) == 0:
         raise ValueError(f"Input file has a header but no data rows: {path}")
+    for column in OPTIONAL_BOOLEAN_COLUMNS:
+        if column not in bools:
+            # Legacy scans predate explicit invisible-width provenance.  Such
+            # rows are intentionally treated as unmodelled, not as passing.
+            bools[column] = np.zeros(len(floats["M2"]), dtype=bool)
     if not np.all(finite_mask(floats["M2"], floats["M3"])):
         raise ValueError("M2 and M3 must be finite for every scan row.")
 
@@ -768,8 +782,8 @@ def draw_mass_guides(ax, data: ScanData, annotate: bool = False) -> None:
             0.985,
             0.018,
             (
-                r"Guides: $M_3=M_2+125$ GeV (dashed), "
-                r"$M_3=1000$ GeV (dotted)"
+                r"References: legacy nominal $M_3=M_2+125$ GeV (dashed), "
+                r"nominal $M_3=1000$ GeV maximum (dotted)"
                 f"\n{tail:,} points above the nominal $M_3$ maximum"
             ),
             transform=ax.transAxes,
@@ -1341,7 +1355,35 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
                 )
             ),
             n,
-            "M2 above nominal M3_max - 125 GeV",
+            "M2 > M3_max - 125 GeV, where the legacy conditional sampler reverses its endpoints",
+        )
+    )
+    invisible_width_open = (
+        (2.0 * data.f("M3") < SM_LIKE_HIGGS_MASS_GEV)
+        | (2.0 * data.f("M3") < data.f("M2"))
+    )
+    rows.append(
+        SummaryRow(
+            "higgs_invisible_decay_open",
+            int(np.count_nonzero(invisible_width_open)),
+            n,
+            "h1 or h2 -> h3 h3 is kinematically open",
+        )
+    )
+    invisible_width_unmodelled = (
+        invisible_width_open & ~data.b("higgs_invisible_widths_included")
+    )
+    provenance_note = (
+        "Open invisible decay with widths not included in stored hb/hs"
+        if "higgs_invisible_widths_included" in data.columns
+        else "Open invisible decay in legacy input without width-model provenance"
+    )
+    rows.append(
+        SummaryRow(
+            "higgs_invisible_decay_open_but_unmodelled",
+            int(np.count_nonzero(invisible_width_unmodelled)),
+            n,
+            provenance_note,
         )
     )
 

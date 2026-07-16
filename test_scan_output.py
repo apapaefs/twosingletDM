@@ -21,6 +21,13 @@ class TestScanOutput(unittest.TestCase):
             "w1": 0.004,
             "w2": 1.1,
             "w3": 2.2,
+            "h1_h3h3_width": 0.001,
+            "h1_h3h3_br": 0.2,
+            "h2_h3h3_width": 0.3,
+            "h2_h3h3_br": 0.214,
+            "higgs_invisible_widths_included": True,
+            "portal_convention": "trsm_vxzero_canonical_v1",
+            "micromegas_model_convention": "trsm_vxzero_canonical_v1",
             "k1": 0.99,
             "k2": 0.1,
             "k3": 0.0,
@@ -68,6 +75,12 @@ class TestScanOutput(unittest.TestCase):
         self.assertEqual(row[header.index("M2")], "300.0")
         self.assertEqual(row[header.index("hs")], "False")
         self.assertEqual(row[header.index("K233")], "10.0")
+        self.assertEqual(row[header.index("h1_h3h3_width")], "0.001")
+        self.assertEqual(row[header.index("higgs_invisible_widths_included")], "True")
+        self.assertEqual(
+            row[header.index("portal_convention")],
+            "trsm_vxzero_canonical_v1",
+        )
         self.assertEqual(row[header.index("dm_omega")], "0.049")
         self.assertEqual(row[header.index("dm_dir_det_limit")], "2.05907e-09")
         self.assertEqual(row[header.index("mg5_xsec_hh_pb")], "1.25")

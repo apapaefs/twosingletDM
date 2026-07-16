@@ -246,14 +246,14 @@ scalar '~X'/'~X':('X-singlet', pdg 27, mass MX = 1000, width whX=auto).
 parameter  LX      = 0.2 : 'Strength of the X singlet self-interactions',
            LHX     = 0.1 : 'Strength of the unbroken X-Higgs interaction',
            LSX     = 0.1 : 'Strength of the unbroken S-X interaction (=LHX for decoup)',
-		   muX     = (MX**2 - LHX * (2*MW/EE*SW)**2 - LSX * vevs**2)/2: 'square of the massive coupling for X'.
+		   muX     = (MX**2 - LHX * (2*MW/EE*SW)**2/2 - LSX * vevs**2/2)/2: 'square of the massive coupling for X'.
 
 
 %mass terms
-lterm (deriv^mu*'~X')*(deriv^mu*'~X')/2 - muX*('~X'**2) - LX*('~X'**4).
+lterm (deriv^mu*'~X')*(deriv^mu*'~X')/2 - muX*('~X'**2) - LX/4*('~X'**4).
 
 %interactions
-lterm - LSX * ('~X'**2) * Si**2 - LHX * ('~X'**2) * shd*shD.
+lterm - LSX/2 * ('~X'**2) * Si**2 - LHX/2 * ('~X'**2) * shd*shD.
 
 
 

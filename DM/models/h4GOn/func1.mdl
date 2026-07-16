@@ -27,7 +27,7 @@ LS     |(Mh2^2*CosT^2+Mh^2*SinT^2)/(2*vevs^2) % SI lagrangian self coupling
 LHS    |(Mh2^2-Mh^2)*SinTT/(2*(2*MW/EE*SW)*vevs) % lagrangian Si and Higgs coupling
 muH    |-(2*MW/EE*SW)^2*LH-vevs^2*LHS/2 % square of the massive coupling for Higgs
 muS    |-vevs^2*LS-(2*MW/EE*SW)^2*LHS/2 % square of the massive coupling for Si
-muX    |(MX^2-LHX*(2*MW/EE*SW)^2-LSX*vevs^2)/2 % square of the massive coupling for X
+muX    |(MX^2-LHX*(2*MW/EE*SW)^2/2-LSX*vevs^2/2)/2 % square of the massive coupling for X
 LAAh   |-cabs(lAAhiggs(Mh, "h1"))
 LGGh   |-cabs(lGGhiggs(Mh, "h1"))
 aQCDh  |alphaQCD(Mh)/acos(-1)

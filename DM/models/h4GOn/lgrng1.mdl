@@ -87,10 +87,10 @@ h1   |h1   |h2   |     |-1/EE                                             |12*Co
 h1   |h1   |x1   |     |CosT^2*EE*LGGh*Maux*RQCDh/(2*MW*SW)               |1
 h1   |h2   |h2   |     |-1/EE                                             |12*CosT*LH*MW*SW*SinT^2-6*CosT^2*EE*LS*SinT*vevs+(2-3*SinT^2)*EE*LHS*SinT*vevs+2*(1-3*SinT^2)*CosT*LHS*MW*SW
 h1   |h2   |x1   |     |EE*LGGh*Maux*RQCDh*SinTT/(4*MW*SW)                |1
-h1   |~X   |~X   |     |2/EE                                              |EE*LSX*SinT*vevs-2*CosT*LHX*MW*SW
+h1   |~X   |~X   |     |1/EE                                              |EE*LSX*SinT*vevs-2*CosT*LHX*MW*SW
 h2   |h2   |h2   |     |-3/EE                                             |4*LH*MW*SW*SinT^3+2*CosT^3*EE*LS*vevs+CosT*EE*LHS*SinT^2*vevs+2*CosT^2*LHS*MW*SW*SinT
 h2   |h2   |x1   |     |EE*LGGh*Maux*RQCDh*SinT^2/(2*MW*SW)               |1
-h2   |~X   |~X   |     |-2/EE                                             |CosT*EE*LSX*vevs+2*LHX*MW*SW*SinT
+h2   |~X   |~X   |     |-1/EE                                             |CosT*EE*LSX*vevs+2*LHX*MW*SW*SinT
 A    |A    |W+   |W-   |-EE^2                                             |2*m1.m2*m3.m4-m1.m3*m2.m4-m1.m4*m2.m3
 A    |A    |h1   |h1   |-2*CosT^2*EE*LAAh/(MW*SW)                         |p1.p2*m1.m2-m2.p1*m1.p2
 A    |A    |h1   |h2   |-EE*LAAh*SinTT/(MW*SW)                            |p1.p2*m1.m2-m2.p1*m1.p2
@@ -116,9 +116,9 @@ Z    |Z    |h2   |h2   |EE^2*SinT^2/(2*CW^2*SW^2)                         |m1.m2
 h1   |h1   |h1   |h1   |-6                                                |CosT^4*LH+LS*SinT^4+CosT^2*LHS*SinT^2
 h1   |h1   |h1   |h2   |-3*SinTT/2                                        |2*CosT^2*LH-2*LS*SinT^2-(1-2*SinT^2)*LHS
 h1   |h1   |h2   |h2   |-1                                                |6*CosT^2*LH*SinT^2+6*CosT^2*LS*SinT^2-6*CosT^2*LHS*SinT^2+LHS
-h1   |h1   |~X   |~X   |-2                                                |LSX*SinT^2+CosT^2*LHX
+h1   |h1   |~X   |~X   |-1                                                |LSX*SinT^2+CosT^2*LHX
 h1   |h2   |h2   |h2   |-3*SinTT/2                                        |2*LH*SinT^2-2*CosT^2*LS+(1-2*SinT^2)*LHS
-h1   |h2   |~X   |~X   |SinTT                                             |LSX-LHX
+h1   |h2   |~X   |~X   |SinTT/2                                           |LSX-LHX
 h2   |h2   |h2   |h2   |-6                                                |LH*SinT^4+CosT^4*LS+CosT^2*LHS*SinT^2
-h2   |h2   |~X   |~X   |-2                                                |CosT^2*LSX+LHX*SinT^2
-~X   |~X   |~X   |~X   |-24*LX                                            |1
+h2   |h2   |~X   |~X   |-1                                                |CosT^2*LSX+LHX*SinT^2
+~X   |~X   |~X   |~X   |-6*LX                                             |1

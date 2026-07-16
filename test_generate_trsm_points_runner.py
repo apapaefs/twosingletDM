@@ -2,6 +2,7 @@ import importlib.util
 import contextlib
 import io
 import json
+import math
 import sys
 import tempfile
 import types
@@ -18,6 +19,39 @@ def install_stub_modules():
 
     generate_trsm_info = types.ModuleType("generate_trsm_info")
     generate_trsm_info.__all__ = []
+    generate_trsm_info.PORTAL_CONVENTION_ID = "trsm_vxzero_canonical_v1"
+
+    def scalar_to_identical_scalar_width(daughter_mass, parent_mass, coupling):
+        if parent_mass <= 2.0 * daughter_mass:
+            return 0.0
+        beta = math.sqrt(1.0 - 4.0 * daughter_mass**2 / parent_mass**2)
+        return coupling**2 * beta / (8.0 * math.pi * parent_mass)
+
+    def vxzero_portal_couplings(lphix, lsx, vs, a12, v=246.0):
+        c12 = math.cos(a12)
+        s12 = math.sin(a12)
+        return (
+            0.5 * (lphix * v * c12 - lsx * vs * s12),
+            0.5 * (lphix * v * s12 + lsx * vs * c12),
+        )
+
+    def vxzero_invisible_decay_info(m1, m2, m3, k133, k233, base_w1, base_w2):
+        gamma1 = scalar_to_identical_scalar_width(m3, m1, k133)
+        gamma2 = scalar_to_identical_scalar_width(m3, m2, k233)
+        w1 = base_w1 + gamma1
+        w2 = base_w2 + gamma2
+        return {
+            "h1_h3h3_width": gamma1,
+            "h1_h3h3_br": gamma1 / w1 if w1 else 0.0,
+            "h2_h3h3_width": gamma2,
+            "h2_h3h3_br": gamma2 / w2 if w2 else 0.0,
+            "w1": w1,
+            "w2": w2,
+        }
+
+    generate_trsm_info.scalar_to_identical_scalar_width = scalar_to_identical_scalar_width
+    generate_trsm_info.vxzero_portal_couplings = vxzero_portal_couplings
+    generate_trsm_info.vxzero_invisible_decay_info = vxzero_invisible_decay_info
     stubs["generate_trsm_info"] = generate_trsm_info
 
     for name in [
@@ -118,6 +152,7 @@ def ewpt_args(**overrides):
         "resonantDM1": False,
         "resonantDM2": False,
         "approximate_resonantDM": False,
+        "independent_m3": False,
         "delta_res": None,
         "nrandom_count_evo_thc": False,
         "m1": 125.09,
@@ -232,6 +267,35 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertIn("ewpt_has_x_broken", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_step_index", scan_output.output_columns({}))
 
+    def test_vxzero_low_m3_is_recorded_as_stable_with_finite_outputs(self):
+        import generate_trsm_info
+
+        result = generate_trsm_info.get_point_info(
+            246.0,
+            200.0,
+            0.0,
+            125.09,
+            380.0,
+            8.5,
+            -0.15,
+            0.0,
+            0.0,
+            False,
+            lX=0.10,
+            lPhiX=0.05,
+            lSX=0.15,
+        )
+        h3_brs = result[16]
+        paramsubs = result[17]
+        xs13_h3 = result[13]
+        xs136_h3 = result[20]
+
+        self.assertTrue(all(math.isfinite(float(value)) for value in h3_brs))
+        self.assertTrue(all(float(value) == 0.0 for value in h3_brs))
+        self.assertEqual(float(paramsubs["width3"]), 0.0)
+        self.assertEqual(float(xs13_h3), 0.0)
+        self.assertEqual(float(xs136_h3), 0.0)
+
     def test_parse_args_defaults_to_not_running_ewpt(self):
         generator = load_generator_module()
 
@@ -242,6 +306,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertFalse(args.write_evo_thc_points)
         self.assertFalse(args.print_info)
         self.assertTrue(args.save_higgstools_details)
+        self.assertFalse(args.independent_m3)
 
     def test_parse_args_accepts_ewpt_options(self):
         generator = load_generator_module()
@@ -299,6 +364,43 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.approximate_resonantDM)
         self.assertEqual(args.delta_res, 15.0)
+
+    def test_parse_args_accepts_independent_m3_option(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--independent-m3"])
+
+        self.assertTrue(args.independent_m3)
+
+    def test_parse_args_rejects_independent_m3_with_other_mass_modes(self):
+        generator = load_generator_module()
+
+        conflicting_modes = [
+            ["--resonantDM1"],
+            ["--resonantDM2"],
+            ["--approximate-resonantDM", "--delta-res", "10"],
+        ]
+        for mode in conflicting_modes:
+            with self.subTest(mode=mode):
+                with self.assertRaises(SystemExit):
+                    generator.parse_args(["--independent-m3", *mode])
+
+    def test_parse_args_rejects_independent_m3_in_explicit_point_mode(self):
+        generator = load_generator_module()
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(
+                [
+                    "--independent-m3",
+                    "--m2", "380",
+                    "--m3", "100",
+                    "--vs", "200",
+                    "--a12", "-0.15",
+                    "--lx", "0.10",
+                    "--lphix", "0.05",
+                    "--lsx", "0.15",
+                ]
+            )
 
     def test_parse_args_rejects_approximate_resonant_dm_without_delta(self):
         generator = load_generator_module()
@@ -385,6 +487,91 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertLessEqual(abs(m3 - 2.0 * m2), 10.0)
         self.assertEqual(uniform_calls, [(4, 505.0), (590.0, 610.0)])
 
+    def test_independent_m3_sampler_uses_full_configured_range(self):
+        generator = load_generator_module()
+        calls = []
+        samples = iter([900.0, 100.0])
+
+        def fake_uniform(low, high):
+            calls.append((low, high))
+            return next(samples)
+
+        generator.random.uniform = fake_uniform
+        args = ewpt_args(independent_m3=True)
+
+        m2, m3 = generator.sample_random_masses(args)
+
+        self.assertEqual((m2, m3), (900.0, 100.0))
+        self.assertEqual(
+            calls,
+            [
+                (generator.m2_min, generator.m2_max),
+                (generator.m3_min, generator.m3_max),
+            ],
+        )
+        self.assertLess(m3, m2 + generator.mhiggs)
+
+    def test_default_mass_sampler_preserves_conditional_m3_endpoint(self):
+        generator = load_generator_module()
+        calls = []
+        samples = iter([900.0, 1010.0])
+
+        def fake_uniform(low, high):
+            calls.append((low, high))
+            return next(samples)
+
+        generator.random.uniform = fake_uniform
+
+        m2, m3 = generator.sample_random_masses(ewpt_args())
+
+        self.assertEqual((m2, m3), (900.0, 1010.0))
+        self.assertEqual(
+            calls,
+            [
+                (generator.m2_min, generator.m2_max),
+                (m2 + generator.mhiggs, generator.m3_max),
+            ],
+        )
+
+    def test_independent_m3_random_scan_passes_sampled_pair_to_evaluator(self):
+        generator = load_generator_module(["--independent-m3", "--nrandom", "1"])
+        captured = []
+
+        generator.nrandom = 1
+        generator.cli_args = ewpt_args(independent_m3=True)
+        generator.random.seed = lambda *args, **kwargs: None
+        generator.random.uniform = lambda low, high: (
+            generator.math.cos(0.2)
+            if low == generator.k1_min and high == generator.k1_max
+            else (low + high) / 2.0
+        )
+        generator.sample_random_masses = lambda args: (900.0, 100.0)
+        generator.randsign = lambda: 1
+        generator.np = SimpleNamespace(
+            arccos=generator.math.acos,
+            sqrt=generator.math.sqrt,
+        )
+        generator.round_sig = lambda value, _digits: value
+        generator.tqdm = lambda iterable: iterable
+
+        def fake_evaluate(myseed, m2, m3, *args, **kwargs):
+            captured.append((m2, m3))
+            return 1
+
+        generator.evaluate_trsm_point_vxzero = fake_evaluate
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = generator.run_random_vxzero_scan()
+
+        self.assertEqual(result, 1)
+        self.assertEqual(captured, [(900.0, 100.0)])
+        self.assertIn("Sampling M3 independently", stdout.getvalue())
+        self.assertIn(
+            "Including h1/h2 -> h3 h3 invisible widths in HiggsTools inputs",
+            stdout.getvalue(),
+        )
+
     def test_k133_k233_inverse_map_round_trips_lambdas(self):
         generator = load_generator_module()
         vs = 500.0
@@ -452,6 +639,14 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         self.assertAlmostEqual(point_info["K233"], expected_k233)
+        self.assertTrue(point_info["higgs_invisible_widths_included"])
+        self.assertEqual(point_info["portal_convention"], "trsm_vxzero_canonical_v1")
+        self.assertEqual(
+            point_info["micromegas_model_convention"],
+            "trsm_vxzero_canonical_v1",
+        )
+        self.assertEqual(point_info["h1_h3h3_width"], 0.0)
+        self.assertEqual(point_info["h2_h3h3_width"], 0.0)
 
     def test_parse_args_accepts_write_all_points(self):
         generator = load_generator_module()
@@ -1504,7 +1699,15 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertEqual(
             calls,
-            [{"print_details": True, "details_top": 7, "return_details": True}],
+            [
+                {
+                    "print_details": True,
+                    "details_top": 7,
+                    "return_details": True,
+                    "h1_direct_invisible_width": 0.0,
+                    "h2_direct_invisible_width": 0.0,
+                }
+            ],
         )
 
     def test_higgstools_details_are_saved_to_point_record_by_default(self):
