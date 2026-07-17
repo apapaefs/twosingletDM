@@ -662,6 +662,13 @@ python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py
 - copy the desired model files from DM/models into micromegas. I use h4GOn:
 ```cp ../models/h4GOn/* TRSM/work/models/```
 
+- Apply the tracked `calcSpectrum` finite-value guard. This makes micrOMEGAs
+return an error instead of looping in channel sorting when an earlier failed
+relic-density calculation leaves non-finite annihilation weights:
+```bash
+patch -p1 < ../patches/micromegas-6.1.15-calcspectrum-finite-guard.patch
+```
+
 - The checked-in `h4GOn` and `h4GOff` models implement the canonical-v1
 normalization: the potential contains `LHX/2`, `LSX/2`, and `LX/4`, while the
 input card remains one-to-one (`LHX=lPhiX`, `LSX=lSX`, and `LX=lX`). Do not

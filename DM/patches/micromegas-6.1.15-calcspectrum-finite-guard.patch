@@ -1,0 +1,31 @@
+diff --git a/sources/spectra.c b/sources/spectra.c
+--- a/sources/spectra.c
++++ b/sources/spectra.c
+@@ -1856,4 +1856,27 @@ double calcSpectrum(int key, double *Sg,double*Se, double*Sp, double*Sne,double*
+ //sorting
+   vSigmaCh[nAnCh].weight=0;
+   for(j=0;j<5;j++) vSigmaCh[nAnCh].prtcl[j]=NULL;
++  int nonFiniteChannel=-1;
++  for(i=0;i<nAnCh;i++)
++  {
++    if(!isfinite(vSigmaCh[i].weight))
++    {
++      nonFiniteChannel=i;
++      break;
++    }
++  }
++  if(!isfinite(vcs) || nonFiniteChannel>=0)
++  {
++    double badWeight=nonFiniteChannel>=0
++                    ? vSigmaCh[nonFiniteChannel].weight : NAN;
++    printf("calcSpectrum: non-finite annihilation data before channel sorting "
++           "(vcs=%.8E, channel=%d, weight=%.8E)\n",
++           vcs,nonFiniteChannel,badWeight);
++    if(errcode) *errcode=-2;
++    for(l=0;l<6;l++) if(Spectra[l])
++      for(j=1;j<NZ;j++) Spectra[l][j]=0;
++    vSigmaCh[0].weight=0;
++    for(j=0;j<5;j++) vSigmaCh[0].prtcl[j]=NULL;
++    return 0;
++  }
+   for(i=0;i<nAnCh-1;)
