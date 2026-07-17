@@ -43,19 +43,19 @@ def parse_args(argv=None):
     resonant_group.add_argument(
         "--resonantDM1",
         action="store_true",
-        help="Set m3 = 2*m1 for every evaluated point.",
+        help="Set m3 = m1/2 for every evaluated point (2*m3 = m1 resonance).",
     )
     resonant_group.add_argument(
         "--resonantDM2",
         action="store_true",
-        help="Set m3 = 2*m2 for every evaluated point.",
+        help="Set m3 = m2/2 for every evaluated point (2*m3 = m2 resonance).",
     )
     resonant_group.add_argument(
         "--approximate-resonantDM",
         action="store_true",
         help=(
-            "In the random vx=0 scan, sample near either M2 = 2*M3 "
-            "or M3 = 2*M2 within the --delta-res mass window."
+            "In the random vx=0 scan, sample near either M1 = 2*M3 "
+            "or M2 = 2*M3 within the --delta-res mass window."
         ),
     )
     resonant_group.add_argument(
@@ -645,9 +645,9 @@ def add_higgstools_info(point_info, details):
 
 def effective_m3(args, m2):
     if getattr(args, "resonantDM1", False):
-        return 2.0 * float(getattr(args, "m1", 125.09))
+        return 0.5 * float(getattr(args, "m1", 125.09))
     if getattr(args, "resonantDM2", False):
-        return 2.0 * float(m2)
+        return 0.5 * float(m2)
     return getattr(args, "m3", None)
 
 
@@ -657,10 +657,13 @@ def checked_uniform(low, high, label):
     return random.uniform(low, high)
 
 
-def sample_approximate_resonant_masses(delta_res):
+def sample_approximate_resonant_masses(delta_res, m1=125.09):
     delta_res = float(delta_res)
+    m1 = float(m1)
     if delta_res < 0.0:
         raise ValueError("delta_res must be non-negative")
+    if not math.isfinite(m1) or m1 <= 0.0:
+        raise ValueError("M1 must be finite and positive")
 
     if random.random() < 0.5:
         m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
@@ -673,27 +676,54 @@ def sample_approximate_resonant_masses(delta_res):
         )
         return m2, m3
 
-    m2_low = max(m2_min, (m3_min - delta_res) / 2.0)
-    m2_high = min(m2_max, (m3_max + delta_res) / 2.0)
-    m2 = checked_uniform(m2_low, m2_high, "M2 anchor")
+    m2 = checked_uniform(m2_min, m2_max, "M2 h1-resonance companion")
     m3 = checked_uniform(
-        max(m3_min, 2.0 * m2 - delta_res),
-        min(m3_max, 2.0 * m2 + delta_res),
-        "M3 approximate resonance",
+        max(m3_min, (m1 - delta_res) / 2.0),
+        min(m3_max, (m1 + delta_res) / 2.0),
+        "M3 approximate h1 resonance",
     )
     return m2, m3
 
 
 def sample_random_masses(args):
     if getattr(args, "approximate_resonantDM", False):
-        return sample_approximate_resonant_masses(args.delta_res)
+        return sample_approximate_resonant_masses(
+            args.delta_res,
+            getattr(args, "m1", 125.09),
+        )
 
-    m2 = random.uniform(m2_min, m2_max)
-    if getattr(args, "resonantDM1", False) or getattr(args, "resonantDM2", False):
+    if getattr(args, "resonantDM1", False):
+        m2 = checked_uniform(m2_min, m2_max, "M2 h1-resonance companion")
+        m3 = effective_m3(args, m2)
+        if not m3_min <= m3 <= m3_max:
+            raise ValueError(
+                f"The h1-resonant M3={m3} lies outside [{m3_min}, {m3_max}]"
+            )
+        return m2, m3
+    if getattr(args, "resonantDM2", False):
+        m2 = checked_uniform(
+            max(m2_min, 2.0 * m3_min),
+            min(m2_max, 2.0 * m3_max),
+            "M2 h2 resonance",
+        )
         return m2, effective_m3(args, m2)
     if getattr(args, "independent_m3", False):
-        return m2, random.uniform(m3_min, m3_max)
-    return m2, random.uniform(m2 + mhiggs, m3_max)
+        return (
+            checked_uniform(m2_min, m2_max, "M2 independent scan"),
+            checked_uniform(m3_min, m3_max, "M3 independent scan"),
+        )
+
+    m2 = checked_uniform(
+        m2_min,
+        min(m2_max, m3_max - mhiggs),
+        "M2 default scan",
+    )
+    m3 = checked_uniform(
+        max(m3_min, m2 + mhiggs),
+        m3_max,
+        "M3 default scan",
+    )
+    return m2, m3
 
 
 def finite_number(value):
@@ -1240,7 +1270,7 @@ def run_random_vxzero_scan():
     if getattr(cli_args, "independent_m3", False):
         print(
             f'Sampling M3 independently in [{m3_min}, {m3_max}] GeV; '
-            'the legacy M2 + mhiggs conditional endpoint is disabled'
+            'the default M2 + mhiggs conditional endpoint is disabled'
         )
         print('Including h1/h2 -> h3 h3 invisible widths in HiggsTools inputs')
     random.seed(ini_seed)

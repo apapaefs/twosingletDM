@@ -38,10 +38,12 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
-The legacy default first samples `M2` uniformly over `[m2_min, m2_max]` and
-then calls `random.uniform(M2 + mhiggs, m3_max)` for `M3`. To sample both
-masses independently over their full configured ranges, without using
-`M2 + mhiggs` as a conditional endpoint, use:
+The default samples `M2` uniformly over
+`[m2_min, min(m2_max, m3_max - mhiggs)]`, then samples `M3` over
+`[max(m3_min, M2 + mhiggs), m3_max]`. This keeps both masses inside their
+configured ranges while enforcing the conditional `M3 >= M2 + mhiggs`
+hierarchy. To sample both masses independently over their full configured
+ranges, use:
 
 ```bash
 python3 generate_trsm_points.py 123 \
@@ -199,8 +201,8 @@ For resonant dark-matter scans, `--resonantDM1` and `--resonantDM2` set `m3`
 from a mass relation instead of sampling or requiring it:
 
 ```text
---resonantDM1: m3 = 2*m1 = 2*125.09 GeV
---resonantDM2: m3 = 2*m2
+--resonantDM1: m3 = m1/2 = 62.545 GeV
+--resonantDM2: m3 = m2/2
 ```
 
 The flags are mutually exclusive. In explicit point mode, either resonant flag
@@ -214,9 +216,10 @@ python3 generate_trsm_points.py 123 \
   --print-info
 ```
 
-In a random scan, `--resonantDM1` fixes `m3` to the Higgs-resonant value for all
-points, while `--resonantDM2` updates `m3` point-by-point after each random
-`m2` draw.
+In a random scan, `--resonantDM1` fixes `m3` to the SM-like Higgs-resonant
+value for all points, while `--resonantDM2` updates `m3` point-by-point after
+each random `m2` draw. In both cases the annihilating dark-matter pair obeys
+`2*M3 = M1` or `2*M3 = M2`, respectively.
 
 To scan uniformly near either resonant mass relation instead of exactly on it,
 use `--approximate-resonantDM` with a mass-window half-width:
@@ -232,8 +235,8 @@ For each random point, this mode chooses one of the two approximate branches and
 samples uniformly inside the available scan range:
 
 ```text
+2*M3 = M1 +/- delta_res
 M2 = 2*M3 +/- delta_res
-M3 = 2*M2 +/- delta_res
 ```
 
 The approximate mode is mutually exclusive with `--resonantDM1` and
@@ -293,7 +296,10 @@ dm_indirect_detection_excluded
 ```
 
 `dm_indirect_ratio` is `dm_indirect_flux / dm_indirect_limit`; values above 1
-fail the dark-matter check.
+fail the dark-matter check. For an underabundant candidate with
+`xi = Omega / 0.121`, the direct-detection rate is rescaled by `xi` and the
+annihilation line flux by `xi^2` (implemented equivalently by dividing the
+experimental line-flux limit by `xi^2`).
 
 `--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
 that fail only the dark-matter check. It runs BSMPT for those points and writes
@@ -394,11 +400,11 @@ not as passing.
 
 For scans made with `--independent-m3`, the dashed
 `M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the
-legacy default conditional relation; it is not a selection applied to the
-data. `constraint_summary.tsv` records both how many points have a kinematically
-open invisible Higgs decay and how many of those are unmodelled. Canonical-v1
-files should have zero unmodelled points; legacy files without the new metadata
-remain supported and are classified conservatively.
+default conditional relation; it is not a selection applied to the data in
+that mode. `constraint_summary.tsv` records both how many points have a
+kinematically open invisible Higgs decay and how many of those are unmodelled.
+Canonical-v1 files should have zero unmodelled points; legacy files without the
+new metadata remain supported and are classified conservatively.
 
 For informative pass/fail comparisons, generate the input scan with
 `--write-evo-thc-points` to retain all points passing `evo` and `thc`, or use

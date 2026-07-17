@@ -1,9 +1,7 @@
 import math
 from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
 import numpy as np
 from math import *
-from scipy import interpolate
 
 def rhs(mu, v): 
     return [-7/(16.0*mu*pi*pi)*v[0]*v[0]*v[0],#gg3 
@@ -23,65 +21,43 @@ def rhs(mu, v):
 
 def solv_eq(low_esc,# low energy scale for evolution 
             high_esc,#high energy scale for evolution 
-            part, #size of partition for interpolation
+            part, #retained for backward-compatible call signatures
             ini_conditions,#initial conditions for equations
             test_esc#test scale to check divergence
             ):
-    flag=0
-    res = solve_ivp(rhs, (low_esc, high_esc), ini_conditions,#v[12]##mmS2
-                                 t_eval=np.arange(low_esc, high_esc, part))
-   
-    f0=interpolate.interp1d(res.t, res.y.T[:,0], kind='slinear')
-    f1=interpolate.interp1d(res.t, res.y.T[:,1], kind='slinear')
-    f2=interpolate.interp1d(res.t, res.y.T[:,2], kind='slinear')
-    f3=interpolate.interp1d(res.t, res.y.T[:,3], kind='slinear')
-    f4=interpolate.interp1d(res.t, res.y.T[:,4], kind='slinear')
-    f5=interpolate.interp1d(res.t, res.y.T[:,5], kind='slinear')
-    f6=interpolate.interp1d(res.t, res.y.T[:,6], kind='slinear')
-    f7=interpolate.interp1d(res.t, res.y.T[:,7], kind='slinear')
-    f8=interpolate.interp1d(res.t, res.y.T[:,8], kind='slinear')
-    f9=interpolate.interp1d(res.t, res.y.T[:,9], kind='slinear')
-    f10=interpolate.interp1d(res.t, res.y.T[:,10], kind='slinear')
-    f11=interpolate.interp1d(res.t, res.y.T[:,11], kind='slinear')
-    f12=interpolate.interp1d(res.t, res.y.T[:,12], kind='slinear')
+    _ = part
+    scales = (low_esc, high_esc, test_esc)
+    try:
+        low_esc, high_esc, test_esc = (float(scale) for scale in scales)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if not all(math.isfinite(scale) for scale in (low_esc, high_esc, test_esc)):
+        return 0
+    if low_esc == high_esc or not (
+        min(low_esc, high_esc) <= test_esc <= max(low_esc, high_esc)
+    ):
+        return 0
 
-    if(not(res.success)):
-      #print("point rejected")  
-      flag=0
-    else:  
-      if( isinf(f0(test_esc)) or
-          isinf(f1(test_esc)) or
-          isinf(f2(test_esc)) or
-          isinf(f3(test_esc)) or
-          isinf(f4(test_esc)) or
-          isinf(f5(test_esc)) or
-          isinf(f6(test_esc)) or
-          isinf(f7(test_esc)) or
-          isinf(f8(test_esc)) or
-          isinf(f9(test_esc)) or
-          isinf(f10(test_esc)) or
-          isinf(f11(test_esc)) or
-          isinf(f12(test_esc))
-         ):
-         flag=0
-         #print("point rejected")
-      else:  
-         #print("point accepted") 
-         #print(f0(test_esc),'\n', 
-         #     f1(test_esc),'\n',  
-         #     f2(test_esc),'\n',
-         #     f3(test_esc),'\n',
-         #     f4(test_esc),'\n',
-         #     f5(test_esc),'\n', 
-         #     f6(test_esc),'\n',  
-         #     f7(test_esc),'\n',
-         #     f8(test_esc),'\n',
-         #     f9(test_esc),'\n',
-         #     f10(test_esc),'\n',
-         #     f11(test_esc),'\n',
-         #     f12(test_esc),'\n')
-         flag = 1
-    return flag   
+    try:
+        res = solve_ivp(
+            rhs,
+            (low_esc, high_esc),
+            ini_conditions,
+            t_eval=[test_esc],
+        )
+    except (FloatingPointError, OverflowError, RuntimeError, ValueError):
+        return 0
+
+    if not res.success:
+        return 0
+    values = np.asarray(res.y)
+    if (
+        values.ndim != 2
+        or values.shape[0] != len(ini_conditions)
+        or values.shape[1] != 1
+    ):
+        return 0
+    return int(np.all(np.isfinite(values[:, 0])))
 
 
 
@@ -281,4 +257,3 @@ def test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, width1, width2, width3, K11
     else:
         flag = False
     return flag
-

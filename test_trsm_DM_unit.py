@@ -158,14 +158,36 @@ class TestTrsmDM(unittest.TestCase):
         self.assertIn("DM check: Pass", info)
         self.assertFalse(dm_exclusion_info["dm_direct_detection_excluded"])
         self.assertFalse(dm_exclusion_info["dm_indirect_detection_excluded"])
+        expected_limit = fermi_lat_r16_line_limit(50.0) * (0.121 / 0.049) ** 2
         self.assertTrue(
             math.isclose(
                 dm_exclusion_info["dm_indirect_limit"],
-                1.424560247906609e-9,
+                expected_limit,
                 rel_tol=1e-5,
             )
         )
         self.assertLess(dm_exclusion_info["dm_indirect_ratio"], 1.0)
+
+    def test_negative_relic_density_fails_dm_check(self):
+        invalid_output = MICROMEGAS_OUTPUT.replace(
+            "Omega=4.90e-02",
+            "Omega=-1.00e+00",
+        )
+
+        passed, info, dm_exclusion_info = test_dm(
+            lX=0.2,
+            lPhiX=0.1,
+            lSX=0.5,
+            M3=1000.0,
+            vs=500.0,
+            a12=math.asin(0.3),
+            M2=500.0,
+            raw_output=invalid_output,
+        )
+
+        self.assertIs(passed, False)
+        self.assertIn("Relic density Omega must be finite and non-negative", info)
+        self.assertIsNone(dm_exclusion_info["dm_omega"])
 
     def test_indirect_detection_failure_fails_dm_check(self):
         passed, info, dm_exclusion_info = test_dm(

@@ -117,6 +117,14 @@ class FermiLatLimits:
 # Exclusion Assessment
 # ============================================================================
 
+def relic_density_fraction(omega, relic_upper_limit):
+    if not math.isfinite(omega) or omega < 0.0:
+        raise ValueError("Relic density Omega must be finite and non-negative")
+    if not math.isfinite(relic_upper_limit) or relic_upper_limit <= 0.0:
+        raise ValueError("Relic-density upper limit must be finite and positive")
+    return min(1.0, omega / relic_upper_limit)
+
+
 def assess_indirect_limit(indirect_channels, omega, relic_upper_limit, rescale = True):
     """
     Assess indirect detection limit for a list of gamma-ray channels.
@@ -133,14 +141,15 @@ def assess_indirect_limit(indirect_channels, omega, relic_upper_limit, rescale =
         'flux_cm2s': float('nan'),
         'limit_cm2s': float('nan'),
     }
+    abundance_fraction = relic_density_fraction(omega, relic_upper_limit)
 
     for energy, flux in indirect_channels:
         result['channels_seen'] += 1
 
         limit = FermiLatLimits.get_limit(energy)
         if rescale:
-            if omega > 0.0:
-                limit *= relic_upper_limit / omega
+            if abundance_fraction > 0.0:
+                limit /= abundance_fraction**2
             else:
                 limit = float('inf')
 
@@ -317,6 +326,19 @@ def main():
     omega = float(sys.argv[3])
     dirdet = float(sys.argv[4])
 
+    if not math.isfinite(m_dm) or m_dm <= 0.0:
+        print("Dark matter mass must be finite and positive", file=sys.stderr)
+        return 1
+    if not math.isfinite(omega) or omega < 0.0:
+        print("Relic density Omega must be finite and non-negative", file=sys.stderr)
+        return 1
+    if not math.isfinite(dirdet) or dirdet < 0.0:
+        print(
+            "Direct-detection cross section must be finite and non-negative",
+            file=sys.stderr,
+        )
+        return 1
+
     indirect_channels = []
     for i in range(5, len(sys.argv), 2):
         energy = float(sys.argv[i])
@@ -369,13 +391,14 @@ def main():
     relic_upper_limit = 0.121
     relic_strict_central = 0.12
     relic_strict_width = 0.001
+    abundance_fraction = relic_density_fraction(omega, relic_upper_limit)
     lux = dir_det_excl(m_dm)
     dir_det_limit = lux
 
     rescale = True
     if rescale:
-        if omega > 0.0:
-            dir_det_limit = lux * relic_upper_limit / omega
+        if abundance_fraction > 0.0:
+            dir_det_limit = lux / abundance_fraction
         else:
             dir_det_limit = float('inf')
 

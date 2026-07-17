@@ -444,7 +444,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         self.assertTrue(generator.has_explicit_point(args))
-        self.assertAlmostEqual(generator.effective_m3(args, 7.526), 250.18)
+        self.assertAlmostEqual(generator.effective_m3(args, 7.526), 62.545)
 
     def test_effective_m3_uses_resonant_dm_modes(self):
         generator = load_generator_module()
@@ -453,10 +453,36 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(generator.effective_m3(base, 200.0), 600.0)
 
         dm1 = ewpt_args(resonantDM1=True, resonantDM2=False, m1=125.09, m3=None)
-        self.assertAlmostEqual(generator.effective_m3(dm1, 200.0), 250.18)
+        self.assertAlmostEqual(generator.effective_m3(dm1, 200.0), 62.545)
 
         dm2 = ewpt_args(resonantDM1=False, resonantDM2=True, m1=125.09, m3=None)
-        self.assertEqual(generator.effective_m3(dm2, 200.0), 400.0)
+        self.assertEqual(generator.effective_m3(dm2, 200.0), 100.0)
+
+    def test_resonant_dm2_sampler_respects_the_configured_m3_range(self):
+        generator = load_generator_module()
+        calls = []
+
+        def fake_uniform(low, high):
+            calls.append((low, high))
+            return 200.0
+
+        generator.random.uniform = fake_uniform
+        args = ewpt_args(resonantDM2=True)
+
+        m2, m3 = generator.sample_random_masses(args)
+
+        self.assertEqual((m2, m3), (200.0, 100.0))
+        self.assertEqual(
+            calls,
+            [
+                (
+                    max(generator.m2_min, 2.0 * generator.m3_min),
+                    min(generator.m2_max, 2.0 * generator.m3_max),
+                )
+            ],
+        )
+        self.assertGreaterEqual(m3, generator.m3_min)
+        self.assertLessEqual(m3, generator.m3_max)
 
     def test_approximate_resonant_mass_sampler_samples_both_branches(self):
         generator = load_generator_module()
@@ -478,14 +504,20 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(uniform_calls, [(8, 505.0), (590.0, 610.0)])
 
         uniform_calls.clear()
-        samples = iter([300.0, 604.0])
+        samples = iter([300.0, 62.0])
         generator.random.random = lambda: 0.75
 
         m2, m3 = generator.sample_approximate_resonant_masses(10.0)
 
-        self.assertEqual((m2, m3), (300.0, 604.0))
-        self.assertLessEqual(abs(m3 - 2.0 * m2), 10.0)
-        self.assertEqual(uniform_calls, [(4, 505.0), (590.0, 610.0)])
+        self.assertEqual((m2, m3), (300.0, 62.0))
+        self.assertLessEqual(abs(2.0 * m3 - 125.09), 10.0)
+        self.assertEqual(
+            uniform_calls,
+            [
+                (generator.m2_min, generator.m2_max),
+                ((125.09 - 10.0) / 2.0, (125.09 + 10.0) / 2.0),
+            ],
+        )
 
     def test_independent_m3_sampler_uses_full_configured_range(self):
         generator = load_generator_module()
@@ -511,10 +543,10 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
         self.assertLess(m3, m2 + generator.mhiggs)
 
-    def test_default_mass_sampler_preserves_conditional_m3_endpoint(self):
+    def test_default_mass_sampler_stays_inside_both_configured_ranges(self):
         generator = load_generator_module()
         calls = []
-        samples = iter([900.0, 1010.0])
+        samples = iter([800.0, 950.0])
 
         def fake_uniform(low, high):
             calls.append((low, high))
@@ -524,14 +556,20 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         m2, m3 = generator.sample_random_masses(ewpt_args())
 
-        self.assertEqual((m2, m3), (900.0, 1010.0))
+        self.assertEqual((m2, m3), (800.0, 950.0))
         self.assertEqual(
             calls,
             [
-                (generator.m2_min, generator.m2_max),
+                (
+                    generator.m2_min,
+                    min(generator.m2_max, generator.m3_max - generator.mhiggs),
+                ),
                 (m2 + generator.mhiggs, generator.m3_max),
             ],
         )
+        self.assertLessEqual(m2, generator.m2_max)
+        self.assertLessEqual(m3, generator.m3_max)
+        self.assertGreaterEqual(m3, m2 + generator.mhiggs)
 
     def test_independent_m3_random_scan_passes_sampled_pair_to_evaluator(self):
         generator = load_generator_module(["--independent-m3", "--nrandom", "1"])
@@ -873,7 +911,9 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         generator.random.uniform = lambda low, high: (
             0.9800665778412416 if low == generator.k1_min and high == generator.k1_max else low
         )
-        generator.sample_approximate_resonant_masses = lambda delta: (604.0, 300.0)
+        generator.sample_approximate_resonant_masses = (
+            lambda delta, m1=125.09: (604.0, 300.0)
+        )
         generator.randsign = lambda: 1
         generator.np = SimpleNamespace(
             arccos=generator.math.acos,

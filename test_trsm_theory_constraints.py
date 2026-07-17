@@ -1,109 +1,169 @@
+"""Tree-level boundedness and perturbative-unitarity checks for the TRSM."""
+
 import math
-from scipy.integrate import solve_ivp
-import matplotlib.pyplot as plt
+
 import numpy as np
-from math import *
-from scipy import interpolate
 
-# check Unitarity/boundedness 
+
+__all__ = ["theory_constraints", "theory_constraints_vxzero"]
+
+
+VH = 246.0
+M1 = 125.09
+COPOSITIVITY_TOLERANCE = 1.0e-12
+ROOT_IMAGINARY_TOLERANCE = 1.0e-10
+
+
+def _all_finite(*values):
+    try:
+        return all(math.isfinite(float(value)) for value in values)
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _rotation_matrix(a12, a13, a23):
+    c1, c2, c3 = math.cos(a12), math.cos(a13), math.cos(a23)
+    s1, s2, s3 = math.sin(a12), math.sin(a13), math.sin(a23)
+    return (
+        (c1 * c2, -s1 * c2, -s2),
+        (s1 * c3 - c1 * s2 * s3, c1 * c3 + s1 * s2 * s3, -c2 * s3),
+        (c1 * s2 * c3 + s1 * s3, c1 * s3 - s1 * s2 * c3, c2 * c3),
+    )
+
+
+def _copositive_quartic_matrix(lphi, ls, lx, lphis, lphix, lsx):
+    """Check boundedness of the quartic potential in all field directions.
+
+    For V4 = (lambda_i phi_i^4 + lambda_ij phi_i^2 phi_j^2) / 4,
+    the matrix acting on the non-negative variables phi_i^2 has diagonal
+    entries lambda_i and off-diagonal entries lambda_ij / 2.
+    """
+
+    diagonal = (lphi, ls, lx)
+    if any(value < -COPOSITIVITY_TOLERANCE for value in diagonal):
+        return False
+    a11, a22, a33 = (max(0.0, value) for value in diagonal)
+    a12, a13, a23 = lphis / 2.0, lphix / 2.0, lsx / 2.0
+
+    bar12 = a12 + math.sqrt(a11 * a22)
+    bar13 = a13 + math.sqrt(a11 * a33)
+    bar23 = a23 + math.sqrt(a22 * a33)
+    if any(
+        value < -COPOSITIVITY_TOLERANCE
+        for value in (bar12, bar13, bar23)
+    ):
+        return False
+
+    final_condition = (
+        math.sqrt(a11 * a22 * a33)
+        + a12 * math.sqrt(a33)
+        + a13 * math.sqrt(a22)
+        + a23 * math.sqrt(a11)
+        + math.sqrt(2.0 * max(0.0, bar12 * bar13 * bar23))
+    )
+    return final_condition >= -COPOSITIVITY_TOLERANCE
+
+
+def _unitarity_eigenvalues(lphi, ls, lx, lphis, lphix, lsx):
+    coefficients = [
+        1.0,
+        -12.0 * lphi - 6.0 * ls - 6.0 * lx,
+        72.0 * lphi * (ls + lx)
+        - 4.0 * (lphis**2 + lphix**2)
+        + 36.0 * ls * lx
+        - lsx**2,
+        12.0 * lphi * lsx**2
+        + 24.0 * lphis**2 * lx
+        + 24.0 * lphix**2 * ls
+        - 8.0 * lphis * lphix * lsx
+        - 432.0 * lphi * ls * lx,
+    ]
+    if not _all_finite(*coefficients):
+        return None
+    roots = np.roots(coefficients)
+    if len(roots) != 3:
+        return None
+    return roots
+
+
+def _passes_tree_level_constraints(lphi, ls, lx, lphis, lphix, lsx):
+    quartics = (lphi, ls, lx, lphis, lphix, lsx)
+    if not _all_finite(*quartics):
+        return False
+    if not _copositive_quartic_matrix(*quartics):
+        return False
+
+    if any(abs(value) >= 4.0 * math.pi for value in (lphi, ls, lx)):
+        return False
+    if any(abs(value) >= 8.0 * math.pi for value in (lphis, lphix, lsx)):
+        return False
+
+    roots = _unitarity_eigenvalues(*quartics)
+    if roots is None:
+        return False
+    for root in roots:
+        real = float(np.real(root))
+        imaginary = float(np.imag(root))
+        if not _all_finite(real, imaginary):
+            return False
+        if abs(imaginary) > ROOT_IMAGINARY_TOLERANCE * (1.0 + abs(real)):
+            return False
+        if abs(real) >= 16.0 * math.pi:
+            return False
+    return True
+
+
 def theory_constraints(vs, vx, M2, M3, a12, a13, a23):
+    """Check the general two-singlet model at tree level."""
 
-    vh=246
-    m1=125.09
-    m2=M2
-    m3=M3
-    
-    R = [[0. for x in range(3)] for y in range(3)]
-    #calculate the cos functions
-    c1 = math.cos(a12)
-    c2 = math.cos(a13)
-    c3 = math.cos(a23)
-    # get the sin functions
-    s1 = math.sin(a12)
-    s2 = math.sin(a13)
-    s3 = math.sin(a23)
+    inputs = (vs, vx, M2, M3, a12, a13, a23)
+    if not _all_finite(*inputs) or vs == 0.0 or vx == 0.0:
+        return False
 
-    # calculate the elements
-    R[0][0] = c1 * c2
-    R[0][1] = - s1 * c2
-    R[0][2] = - s2
-    R[1][0] = s1 * c3 - c1 * s2 * s3
-    R[1][1] = c1 * c3 + s1 * s2 * s3
-    R[1][2] = - c2 * s3
-    R[2][0] = c1 * s2 * c3 + s1 * s3
-    R[2][1] = c1 * s3 - s1 * s2 * c3
-    R[2][2] = c2 * c3
+    try:
+        rotation = _rotation_matrix(a12, a13, a23)
+        masses = (M1, M2, M3)
+        lphi = sum(mass**2 * rotation[i][0] ** 2 for i, mass in enumerate(masses)) / (
+            2.0 * VH**2
+        )
+        ls = sum(mass**2 * rotation[i][1] ** 2 for i, mass in enumerate(masses)) / (
+            2.0 * vs**2
+        )
+        lx = sum(mass**2 * rotation[i][2] ** 2 for i, mass in enumerate(masses)) / (
+            2.0 * vx**2
+        )
+        lphis = sum(
+            mass**2 * rotation[i][0] * rotation[i][1]
+            for i, mass in enumerate(masses)
+        ) / (VH * vs)
+        lphix = sum(
+            mass**2 * rotation[i][0] * rotation[i][2]
+            for i, mass in enumerate(masses)
+        ) / (VH * vx)
+        lsx = sum(
+            mass**2 * rotation[i][1] * rotation[i][2]
+            for i, mass in enumerate(masses)
+        ) / (vs * vx)
+    except (OverflowError, TypeError, ValueError, ZeroDivisionError):
+        return False
 
-    myPi=math.pi
+    return _passes_tree_level_constraints(lphi, ls, lx, lphis, lphix, lsx)
 
-    lPhi  =(1/(2*vh**2))*(m1**2*R[0][0]**2+m2**2*R[1][0]**2+m3**2*R[2][0]**2)
-    lS =(1/(2*vs**2))*(m1**2*R[0][1]**2+m2**2*R[1][1]**2+m3**2*R[2][1]**2)
-    lX =(1/(2*vx**2))*(m1**2*R[0][2]**2+m2**2*R[1][2]**2+m3**2*R[2][2]**2)
 
-    lPhiS =(1/(vh*vs))*(m1**2*R[0][0]*R[0][1]+m2**2*R[1][0]*R[1][1]+m3**2*R[2][0]*R[2][1])
-    lPhiX =(1/(vh*vx))*(m1**2*R[0][0]*R[0][2]+m2**2*R[1][0]*R[1][2]+m3**2*R[2][0]*R[2][2])
-    lSX =(1/(vs*vx))*(m1**2*R[0][1]*R[0][2]+m2**2*R[1][1]*R[1][2]+m3**2*R[2][1]*R[2][2])
-
-    coeff_x_3=1
-    coeff_x_2=-12*lPhi-6*lS-6*lX
-    coeff_x=72*lPhi*(lS+lX)-4*(lPhiS**2+lPhiX**2) + 36*lS*lX - lSX**2
-    coeff_0=12*lPhi*lSX**2 +24*lPhiS**2*lX + 24*lPhiX**2*lS - 8*lPhiS*lPhiX*lSX -432*lPhi*lS*lX
-    
-    coeff_array=[coeff_x_3, coeff_x_2, coeff_x, coeff_0]
-    a_array=np.roots(coeff_array)
-    success_flag=False
-    if(lPhi< 4*myPi and lPhiS< 8*myPi and lPhiX< 8*myPi and lSX<8*myPi):
-        if(a_array[0]<16*myPi and a_array[1]<16*myPi and a_array[2]<16*myPi):
-            success_flag=True
-    return success_flag         
-
-# check Unitarity/boundedness when vx = 0
 def theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX):
+    """Check the Z2-symmetric vx=0 dark-matter branch at tree level."""
 
-    vh=246
-    m1=125.09
-    m2=M2
-    m3=M3
-    # for vx = 0:
-    a13 = 0
-    a23 = 0
-    
-    R = [[0. for x in range(3)] for y in range(3)]
-    #calculate the cos functions
-    c1 = math.cos(a12)
-    c2 = math.cos(a13)
-    c3 = math.cos(a23)
-    # get the sin functions
-    s1 = math.sin(a12)
-    s2 = math.sin(a13)
-    s3 = math.sin(a23)
+    inputs = (vs, M2, M3, a12, lX, lPhiX, lSX)
+    if not _all_finite(*inputs) or vs == 0.0:
+        return False
 
-    # calculate the elements
-    R[0][0] = c1 * c2
-    R[0][1] = - s1 * c2
-    R[0][2] = - s2
-    R[1][0] = s1 * c3 - c1 * s2 * s3
-    R[1][1] = c1 * c3 + s1 * s2 * s3
-    R[1][2] = - c2 * s3
-    R[2][0] = c1 * s2 * c3 + s1 * s3
-    R[2][1] = c1 * s3 - s1 * s2 * c3
-    R[2][2] = c2 * c3
+    try:
+        cosine = math.cos(a12)
+        sine = math.sin(a12)
+        lphi = (M1**2 * cosine**2 + M2**2 * sine**2) / (2.0 * VH**2)
+        ls = (M1**2 * sine**2 + M2**2 * cosine**2) / (2.0 * vs**2)
+        lphis = (M2**2 - M1**2) * sine * cosine / (VH * vs)
+    except (OverflowError, TypeError, ValueError, ZeroDivisionError):
+        return False
 
-    myPi=math.pi
-
-    lPhi  =(1/(2*vh**2))*(m1**2*R[0][0]**2+m2**2*R[1][0]**2+m3**2*R[2][0]**2)
-    lS =(1/(2*vs**2))*(m1**2*R[0][1]**2+m2**2*R[1][1]**2+m3**2*R[2][1]**2)
-    lPhiS =(1/(vh*vs))*(m1**2*R[0][0]*R[0][1]+m2**2*R[1][0]*R[1][1]+m3**2*R[2][0]*R[2][1])
-
-    coeff_x_3=1
-    coeff_x_2=-12*lPhi-6*lS-6*lX
-    coeff_x=72*lPhi*(lS+lX)-4*(lPhiS**2+lPhiX**2) + 36*lS*lX - lSX**2
-    coeff_0=12*lPhi*lSX**2 +24*lPhiS**2*lX + 24*lPhiX**2*lS - 8*lPhiS*lPhiX*lSX -432*lPhi*lS*lX
-    
-    coeff_array=[coeff_x_3, coeff_x_2, coeff_x, coeff_0]
-    a_array=np.roots(coeff_array)
-    success_flag=False
-    if(lPhi< 4*myPi and lPhiS< 8*myPi and lPhiX< 8*myPi and lSX<8*myPi):
-        if(a_array[0]<16*myPi and a_array[1]<16*myPi and a_array[2]<16*myPi):
-            success_flag=True
-    return success_flag         
+    return _passes_tree_level_constraints(lphi, ls, lX, lphis, lPhiX, lSX)

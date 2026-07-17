@@ -274,12 +274,27 @@ def fermi_lat_r16_line_limit(energy_gev):
     return limits[-1][1]
 
 
+def relic_density_fraction(omega, relic_upper_limit=RELIC_UPPER_LIMIT):
+    if not math.isfinite(omega) or omega < 0.0:
+        raise ValueError("Relic density Omega must be finite and non-negative")
+    if not math.isfinite(relic_upper_limit) or relic_upper_limit <= 0.0:
+        raise ValueError("Relic-density upper limit must be finite and positive")
+    return min(1.0, omega / relic_upper_limit)
+
+
 def assess_indirect_limit(
     channels,
     omega=None,
     relic_upper_limit=RELIC_UPPER_LIMIT,
     rescale=True,
 ):
+    abundance_fraction = None
+    if omega is not None:
+        if not math.isfinite(omega) or omega < 0.0:
+            raise ValueError("Relic density Omega must be finite and non-negative")
+        if rescale:
+            abundance_fraction = relic_density_fraction(omega, relic_upper_limit)
+
     best = IndirectLimitResult(
         available=False,
         excluded=False,
@@ -294,9 +309,9 @@ def assess_indirect_limit(
 
     for channel in channels:
         limit = fermi_lat_r16_line_limit(channel.energy_gev)
-        if rescale and omega is not None:
-            if omega > 0.0:
-                limit *= relic_upper_limit / omega
+        if abundance_fraction is not None:
+            if abundance_fraction > 0.0:
+                limit /= abundance_fraction**2
             else:
                 limit = math.inf
         if (
@@ -400,8 +415,8 @@ def neutron_si_cross_section(text):
 
 
 def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL):
-    if mdm <= 0.0:
-        raise ValueError("Dark matter mass must be positive")
+    if not math.isfinite(mdm) or mdm <= 0.0:
+        raise ValueError("Dark matter mass must be finite and positive")
     if model == "legacy-output":
         return legacy_output_direct_detection_base_limit(mdm)
     if model == "lz2025-source":
@@ -471,10 +486,18 @@ def summarize_dm_result(
     limit_model=DEFAULT_LIMIT_MODEL,
     rescale=True,
 ):
+    if not math.isfinite(result.mdm) or result.mdm <= 0.0:
+        raise ValueError("Dark matter mass must be finite and positive")
+    abundance_fraction = relic_density_fraction(result.omega, relic_upper_limit)
+    if not math.isfinite(result.dir_det) or result.dir_det < 0.0:
+        raise ValueError(
+            "Direct-detection cross section must be finite and non-negative"
+        )
+
     lux_base_limit = direct_detection_base_limit(result.mdm, model=limit_model)
     if rescale:
-        if result.omega > 0.0:
-            dir_det_limit = lux_base_limit * relic_upper_limit / result.omega
+        if abundance_fraction > 0.0:
+            dir_det_limit = lux_base_limit / abundance_fraction
         else:
             dir_det_limit = math.inf
     else:
