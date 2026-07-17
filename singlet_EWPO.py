@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import math
+import warnings
 from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
@@ -32,20 +33,42 @@ alpha = 7.2973525693E-3
 # W MASS CONSTRAINT                            #
 ################################################
 # the W mass constraint (Tania Robens, Snowmass white paper)
-datalist = [ ( np.loadtxt(SCRIPT_DIR / 'datafiles' / 'Tania_MW_SnowmassWhitepaper.dat'), 'total' ) ]
-for data, label in datalist:
-        x1w = data[:,0]
-        y1w = data[:,1]
+wmass_data = np.loadtxt(SCRIPT_DIR / 'datafiles' / 'Tania_MW_SnowmassWhitepaper.dat')
+x1w = wmass_data[:,0]
+y1w = wmass_data[:,1]
+WMASS_MH2_MIN = float(np.min(x1w))
+WMASS_MH2_MAX = float(np.max(x1w))
 # interpolate the W mass constraint
 interpkind = "cubic"
-sinthetalim_wmass = interp1d(x1w, y1w, kind=interpkind, bounds_error=False)
+sinthetalim_wmass = interp1d(x1w, y1w, kind=interpkind, bounds_error=True)
 
 def check_wmass_tania(mh2, sinth):
-    sinthlim = sinthetalim_wmass(mh2)
-    if sinth > sinthlim:
+    """Check the tabulated two-state singlet W-mass mixing bound.
+
+    The bound is on the magnitude of the mixing.  Finite points outside the
+    mass range covered by the source table pass without applying the
+    constraint, accompanied by a warning; the curve is not extrapolated.
+    """
+    try:
+        mh2 = float(mh2)
+        sinth = float(sinth)
+    except (TypeError, ValueError):
         return False
-    else:
+
+    if not math.isfinite(mh2) or not math.isfinite(sinth):
+        return False
+    if mh2 < WMASS_MH2_MIN or mh2 > WMASS_MH2_MAX:
+        warnings.warn(
+            f"W-mass constraint not applied at mh2={mh2:g} GeV: "
+            f"the tabulated range is {WMASS_MH2_MIN:g}--{WMASS_MH2_MAX:g} GeV; "
+            "accepting the point without extrapolation.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return True
+
+    sinthlim = float(sinthetalim_wmass(mh2))
+    return abs(sinth) <= sinthlim
 
 
 # define the functions for calculation the changes S and T parameters:

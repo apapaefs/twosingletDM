@@ -80,6 +80,13 @@ This option only changes the stopping condition. Later constraints such as
 HiggsTools, EWPO, W mass, dark matter, and EWPT still determine whether a point
 is written or counted as fully viable.
 
+The W-mass constraint uses the tabulated two-state singlet limit in
+`datafiles/Tania_MW_SnowmassWhitepaper.dat`. It is applied to
+`abs(sin(a12))` and is defined only for `133 <= M2 <= 999` GeV. Points outside
+that table range pass the W-mass viability check with a runtime warning because
+the constraint is not applicable there; the code does not extrapolate into an
+unsupported mass region.
+
 To write those `evo`/`thc`-passing points even when later constraints fail, use
 `--write-evo-thc-points`:
 
