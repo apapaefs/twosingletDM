@@ -70,6 +70,15 @@ PLOT_PRESETS = {
         title="EWPT strength vs lPhi",
         output_stem="ewpt_ew_true_over_T_vs_lPhi",
     ),
+    "M3_vs_M2_colored_by_omega": PlotSpec(
+        name="M3_vs_M2_colored_by_omega",
+        x="M2",
+        y="M3",
+        color_by="dm_omega",
+        xlabel="$M_2$ [GeV]",
+        ylabel="$M_3$ [GeV]",
+        output_stem="M3_vs_M2_colored_by_dm_omega",
+    ),
     # Example to adapt:
     # "ewpt_vs_M2_colored_by_omega": PlotSpec(
     #     name="ewpt_vs_M2_colored_by_omega",
