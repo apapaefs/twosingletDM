@@ -68,6 +68,23 @@ the tracked HiggsTools YR4 `SMHiggs` grid and use the same linear interpolation
 as HiggsTools. The established legacy cubic interpolation remains unchanged at
 and above 20 GeV.
 
+Every new scan also writes a JSON provenance sidecar beside the tab-separated
+data file. For example,
+
+```text
+output/trsm_points_13.6-YYYYMMDD-888-False_vxzero.dat
+output/trsm_points_13.6-YYYYMMDD-888-False_vxzero.metadata.json
+```
+
+The sidecar records the seed, requested point count, stopping and output
+selection rules, complete generator invocation, parsed options, mass- and
+portal-sampling modes, fixed parameters, and the configured and effective
+support of every scanned variable. The distinction matters for the default
+mass sampler: although the configured range is `M2 = 4--1000 GeV`, its
+effective range is `4--875 GeV`, and the `M3` lower endpoint depends on the
+sampled `M2`. With `--independent-m3`, the effective ranges are the full
+configured rectangle, `M2 = 4--1000 GeV` and `M3 = 8--1000 GeV`.
+
 By default, `--nrandom` is the number of random draws attempted. To instead
 keep drawing until `--nrandom` points have passed the RGE evolution (`evo`) and
 theory-constraint (`thc`) checks, use:
@@ -381,8 +398,14 @@ and three combined dashboards, together with `constraint_summary.tsv`, under
 `plots/trsm_points_NEW_constraints/`. It also writes a self-contained
 `index.html` with dashboard and individual-plot previews, links to every
 generated PNG/PDF, skipped-plot notices, and the constraint-summary table. Open
-that file in a browser to browse the complete suite. The output location,
-format, and raster resolution can be changed explicitly:
+that file in a browser to browse the complete suite. When the matching
+`<input-stem>.metadata.json` sidecar is present, the index also shows the seed,
+generator modes, exact configured/effective variable ranges, fixed parameters,
+and full invocation. It shows observed extrema of the retained rows in a
+separate column because those can be narrowed by selections. For a legacy scan
+without a sidecar, the index labels those extrema explicitly as observed-only
+ranges rather than configured bounds. The output location, format, and raster
+resolution can be changed explicitly:
 
 ```bash
 /opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
@@ -390,6 +413,15 @@ format, and raster resolution can be changed explicitly:
   --output-dir plots/my_new_scan_constraints \
   --format both \
   --dpi 200
+```
+
+If a scan or its metadata sidecar was renamed, supply the provenance file
+explicitly:
+
+```bash
+/opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
+  output/trsm_points_RENAMED.dat \
+  --scan-metadata output/original_scan.metadata.json
 ```
 
 The input must be a tab-separated scan file with the standard column names

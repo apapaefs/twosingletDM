@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import math
 import sys
 import tempfile
@@ -105,6 +106,92 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             write_fixture(invalid_path, HEADER, invalid_rows)
             with self.assertRaisesRegex(ValueError, "dm on row 2"):
                 self.plotter.load_scan(invalid_path)
+
+    def test_scan_metadata_is_loaded_and_rendered_with_configured_ranges(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            input_path = tmpdir / "points.tsv"
+            write_fixture(input_path)
+            metadata_path = input_path.with_suffix(".metadata.json")
+            metadata = {
+                "schema": "trsm_scan_metadata_v1",
+                "created_utc": "2026-07-18T12:00:00+00:00",
+                "seed": 888,
+                "requested_points": 10000,
+                "stopping_rule": "Stop after evo/thc target",
+                "output_selection": "Points passing evo and thc",
+                "mass_sampling": {
+                    "mode": "independent_m3",
+                    "description": "M2 and M3 are sampled independently.",
+                },
+                "portal_sampling": {
+                    "mode": "k133_k233_log",
+                    "description": "Signed logarithmic K scan.",
+                },
+                "portal_convention": "trsm_vxzero_canonical_v1",
+                "variable_ranges": [
+                    {
+                        "variable": "M2",
+                        "column": "M2",
+                        "configured_min": 4,
+                        "configured_max": 1000,
+                        "effective_min": 4,
+                        "effective_max": 1000,
+                        "unit": "GeV",
+                        "sampling": "uniform",
+                        "note": "",
+                    },
+                    {
+                        "variable": "K133",
+                        "column": "K133",
+                        "configured_min": -1000,
+                        "configured_max": 1000,
+                        "effective_min": -1000,
+                        "effective_max": 1000,
+                        "unit": "GeV",
+                        "sampling": "log-uniform magnitude with random sign",
+                        "note": "|K133| >= 0.001 GeV",
+                    },
+                ],
+                "fixed_parameters": [
+                    {
+                        "variable": "vx",
+                        "value": 0,
+                        "unit": "GeV",
+                        "note": "Dark-matter branch",
+                    }
+                ],
+                "command_line": [
+                    "generate_trsm_points.py",
+                    "888",
+                    "--independent-m3",
+                ],
+                "options": {"independent_m3": True, "nrandom": 10000},
+            }
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+            data = self.plotter.load_scan(input_path)
+            rendered = self.plotter.scan_information_html(data)
+
+        self.assertEqual(data.metadata["seed"], 888)
+        self.assertEqual(data.metadata_source, metadata_path)
+        self.assertIn("Configured scan metadata", rendered)
+        self.assertIn("independent_m3", rendered)
+        self.assertIn("4 – 1000", rendered)
+        self.assertIn("200 – 550", rendered)
+        self.assertIn("generate_trsm_points.py 888 --independent-m3", rendered)
+        self.assertIn("Dark-matter branch", rendered)
+
+    def test_explicit_invalid_scan_metadata_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            input_path = tmpdir / "points.tsv"
+            metadata_path = tmpdir / "broken.json"
+            write_fixture(input_path)
+            metadata_path.write_text("not-json", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "Could not read scan metadata"):
+                self.plotter.load_scan(input_path, metadata_path)
 
     def test_composite_masks_and_four_way_categories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -418,14 +505,26 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         args = self.plotter.parse_args(["points.tsv"])
         self.assertEqual(args.format, "both")
         self.assertEqual(args.dpi, 200)
+        self.assertIsNone(args.scan_metadata)
         self.assertTrue(str(args.output_dir).endswith("plots/points_constraints"))
 
         args = self.plotter.parse_args(
-            ["points.tsv", "--format", "png", "--dpi", "72", "--output-dir", "out"]
+            [
+                "points.tsv",
+                "--format",
+                "png",
+                "--dpi",
+                "72",
+                "--output-dir",
+                "out",
+                "--scan-metadata",
+                "scan.json",
+            ]
         )
         self.assertEqual(args.format, "png")
         self.assertEqual(args.dpi, 72)
         self.assertEqual(args.output_dir, Path("out"))
+        self.assertEqual(args.scan_metadata, Path("scan.json"))
 
     def test_run_orchestrates_all_figures_and_summary(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -474,6 +573,9 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertTrue(index_path.exists())
             index_text = index_path.read_text(encoding="utf-8")
             self.assertIn("TRSM constraint plot suite", index_text)
+            self.assertIn("Observed-range fallback", index_text)
+            self.assertIn("Observed stored rows only", index_text)
+            self.assertIn("200 – 550", index_text)
             self.assertIn('href="constraint_summary.tsv"', index_text)
             self.assertIn(
                 'src="01_dm_experimental_fourway_m2_m3.png"', index_text

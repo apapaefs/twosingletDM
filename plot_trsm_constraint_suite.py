@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import json
 import math
+import shlex
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +34,7 @@ from matplotlib.lines import Line2D
 NOMINAL_MASS_GAP_GEV = 125.0
 NOMINAL_M3_MAX_GEV = 1000.0
 SM_LIKE_HIGGS_MASS_GEV = 125.09
+SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
 
 BOOLEAN_COLUMNS = (
     "evo",
@@ -67,6 +70,36 @@ NUMERIC_COLUMNS = (
     "ewpt_ew_true_over_T",
 )
 
+OPTIONAL_NUMERIC_COLUMNS = (
+    "vs",
+    "vx",
+    "a13",
+    "a23",
+    "lX",
+    "lPhiX",
+    "k1",
+    "k2",
+    "k3",
+)
+
+OBSERVED_PARAMETER_COLUMNS = (
+    ("M2", "GeV"),
+    ("M3", "GeV"),
+    ("vs", "GeV"),
+    ("vx", "GeV"),
+    ("a12", "rad"),
+    ("a13", "rad"),
+    ("a23", "rad"),
+    ("k1", ""),
+    ("k2", ""),
+    ("k3", ""),
+    ("lX", ""),
+    ("lPhiX", ""),
+    ("lSX", ""),
+    ("K133", "GeV"),
+    ("K233", "GeV"),
+)
+
 
 class PlotUnavailable(RuntimeError):
     """Raised when a requested observable has no finite plottable values."""
@@ -79,6 +112,9 @@ class ScanData:
     floats: dict[str, np.ndarray]
     bools: dict[str, np.ndarray]
     derived: dict[str, np.ndarray]
+    metadata: dict[str, object] | None = None
+    metadata_source: Path | None = None
+    metadata_error: str | None = None
 
     def __len__(self) -> int:
         return len(self.floats["M2"])
@@ -466,7 +502,48 @@ def indirect_categories(available: np.ndarray, excluded: np.ndarray) -> np.ndarr
     return categories
 
 
-def load_scan(path: Path | str) -> ScanData:
+def default_scan_metadata_path(scan_path: Path | str) -> Path:
+    return Path(scan_path).with_suffix(".metadata.json")
+
+
+def load_scan_metadata(
+    scan_path: Path | str,
+    metadata_path: Path | str | None = None,
+) -> tuple[dict[str, object] | None, Path | None, str | None]:
+    """Load optional generator metadata without making legacy scans unusable."""
+    explicit = metadata_path is not None
+    candidate = (
+        Path(metadata_path)
+        if explicit
+        else default_scan_metadata_path(scan_path)
+    )
+    if not candidate.exists():
+        error = f"Scan metadata file does not exist: {candidate}" if explicit else None
+        return None, candidate if explicit else None, error
+
+    try:
+        with candidate.open(encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return None, candidate, f"Could not read scan metadata {candidate}: {exc}"
+
+    if not isinstance(payload, dict):
+        return None, candidate, f"Scan metadata {candidate} must contain a JSON object."
+    if payload.get("schema") != SCAN_METADATA_SCHEMA:
+        return (
+            None,
+            candidate,
+            f"Unsupported scan metadata schema in {candidate}: {payload.get('schema')!r}",
+        )
+    if not isinstance(payload.get("variable_ranges"), list):
+        return None, candidate, f"Scan metadata {candidate} has no variable_ranges list."
+    return payload, candidate, None
+
+
+def load_scan(
+    path: Path | str,
+    metadata_path: Path | str | None = None,
+) -> ScanData:
     path = Path(path)
     with path.open(encoding="ascii", newline="") as stream:
         reader = csv.reader(stream, delimiter="\t")
@@ -490,7 +567,11 @@ def load_scan(path: Path | str) -> ScanData:
             for column in BOOLEAN_COLUMNS + OPTIONAL_BOOLEAN_COLUMNS
             if column in index
         }
-        float_buffers = {column: [] for column in NUMERIC_COLUMNS}
+        float_buffers = {
+            column: []
+            for column in NUMERIC_COLUMNS + OPTIONAL_NUMERIC_COLUMNS
+            if column in index
+        }
 
         for row_number, row in enumerate(reader, start=2):
             if len(row) != len(header):
@@ -501,7 +582,7 @@ def load_scan(path: Path | str) -> ScanData:
                 bool_buffers[column].append(
                     strict_bool(row[index[column]], column, row_number)
                 )
-            for column in NUMERIC_COLUMNS:
+            for column in float_buffers:
                 float_buffers[column].append(
                     strict_float(row[index[column]], column, row_number)
                 )
@@ -564,12 +645,21 @@ def load_scan(path: Path | str) -> ScanData:
         "abs_a12": np.abs(floats["a12"]),
     }
 
+    metadata, metadata_source, metadata_error = load_scan_metadata(
+        path, metadata_path
+    )
+    if metadata_path is not None and metadata_error is not None:
+        raise ValueError(metadata_error)
+
     return ScanData(
         source=path,
         columns=tuple(header),
         floats=floats,
         bools=bools,
         derived=derived,
+        metadata=metadata,
+        metadata_source=metadata_source,
+        metadata_error=metadata_error,
     )
 
 
@@ -1428,6 +1518,194 @@ def write_summary(path: Path, rows: Sequence[SummaryRow]) -> None:
             writer.writerow([row.metric, row.count, row.denominator, percent, row.note])
 
 
+def observed_parameter_range(
+    data: ScanData, column: str
+) -> tuple[float, float] | None:
+    values = data.floats.get(column)
+    if values is None:
+        return None
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return None
+    return float(np.min(finite)), float(np.max(finite))
+
+
+def format_index_number(value: object) -> str:
+    if value is None:
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if not math.isfinite(number):
+        return str(value)
+    return f"{number:.8g}"
+
+
+def format_index_range(minimum: object, maximum: object) -> str:
+    if minimum is None or maximum is None:
+        return "—"
+    lower = format_index_number(minimum)
+    upper = format_index_number(maximum)
+    if lower == upper:
+        return lower
+    return f"{lower} – {upper}"
+
+
+def scan_information_html(data: ScanData) -> str:
+    """Render configured scan provenance or a clearly labelled legacy fallback."""
+    escaped = lambda value: html.escape(str(value), quote=True)
+    metadata = data.metadata
+
+    if metadata is not None:
+        source = data.metadata_source or default_scan_metadata_path(data.source)
+        notice = (
+            '<div class="notice"><strong>Configured scan metadata</strong> loaded from '
+            f'<code>{escaped(source)}</code>. Configured/effective bounds describe the '
+            "generator; observed bounds describe only rows retained in this data file and "
+            "can be narrower after selections and rounding.</div>"
+        )
+        range_entries = metadata.get("variable_ranges", [])
+    else:
+        expected = default_scan_metadata_path(data.source)
+        warning = (
+            f"{data.metadata_error} " if data.metadata_error else ""
+        )
+        notice = (
+            '<div class="notice warning"><strong>Observed-range fallback.</strong> '
+            f"{escaped(warning)}No usable scan-metadata sidecar was found at "
+            f'<code>{escaped(expected)}</code>. The ranges below are extrema of stored rows, '
+            "not the configured scan bounds; selections and finite sampling can narrow them.</div>"
+        )
+        range_entries = [
+            {
+                "variable": column,
+                "column": column,
+                "configured_min": None,
+                "configured_max": None,
+                "effective_min": None,
+                "effective_max": None,
+                "unit": unit,
+                "sampling": "Unavailable for legacy input",
+                "note": "Observed stored rows only",
+            }
+            for column, unit in OBSERVED_PARAMETER_COLUMNS
+            if observed_parameter_range(data, column) is not None
+        ]
+
+    range_rows = []
+    for entry in range_entries:
+        if not isinstance(entry, dict):
+            continue
+        variable = str(entry.get("variable", ""))
+        column = str(entry.get("column", variable))
+        observed = observed_parameter_range(data, column)
+        observed_text = (
+            format_index_range(*observed) if observed is not None else "—"
+        )
+        range_rows.append(
+            "<tr>"
+            f"<td><code>{escaped(variable)}</code></td>"
+            f"<td>{escaped(format_index_range(entry.get('configured_min'), entry.get('configured_max')))}</td>"
+            f"<td>{escaped(format_index_range(entry.get('effective_min'), entry.get('effective_max')))}</td>"
+            f"<td>{escaped(observed_text)}</td>"
+            f"<td>{escaped(entry.get('unit', ''))}</td>"
+            f"<td>{escaped(entry.get('sampling', ''))}</td>"
+            f"<td>{escaped(entry.get('note', ''))}</td>"
+            "</tr>"
+        )
+
+    facts = []
+    if metadata is not None:
+        mass_sampling = metadata.get("mass_sampling", {})
+        portal_sampling = metadata.get("portal_sampling", {})
+        if not isinstance(mass_sampling, dict):
+            mass_sampling = {}
+        if not isinstance(portal_sampling, dict):
+            portal_sampling = {}
+        for label, value in (
+            ("Seed", metadata.get("seed")),
+            ("Requested points", metadata.get("requested_points")),
+            ("Stopping rule", metadata.get("stopping_rule")),
+            ("Rows written", metadata.get("output_selection")),
+            ("Mass mode", mass_sampling.get("mode")),
+            ("Portal mode", portal_sampling.get("mode")),
+            ("Created (UTC)", metadata.get("created_utc")),
+            ("Portal convention", metadata.get("portal_convention")),
+        ):
+            if value is not None:
+                facts.append(
+                    '<div class="fact"><span>'
+                    f"{escaped(label)}</span><strong>{escaped(value)}</strong></div>"
+                )
+        descriptions = "".join(
+            f"<p>{escaped(description)}</p>"
+            for description in (
+                mass_sampling.get("description"),
+                portal_sampling.get("description"),
+            )
+            if description
+        )
+    else:
+        facts = [
+            '<div class="fact"><span>Input rows</span>'
+            f"<strong>{len(data):,}</strong></div>"
+        ]
+        descriptions = ""
+
+    fixed_html = ""
+    fixed_parameters = metadata.get("fixed_parameters", []) if metadata else []
+    if isinstance(fixed_parameters, list) and fixed_parameters:
+        fixed_rows = []
+        for entry in fixed_parameters:
+            if not isinstance(entry, dict):
+                continue
+            fixed_rows.append(
+                "<tr>"
+                f"<td><code>{escaped(entry.get('variable', ''))}</code></td>"
+                f"<td>{escaped(format_index_number(entry.get('value')))}</td>"
+                f"<td>{escaped(entry.get('unit', ''))}</td>"
+                f"<td>{escaped(entry.get('note', ''))}</td>"
+                "</tr>"
+            )
+        fixed_html = (
+            "<h3>Fixed parameters</h3>"
+            '<div class="table-wrap"><table><thead><tr><th>Variable</th><th>Value</th>'
+            "<th>Unit</th><th>Note</th></tr></thead>"
+            f"<tbody>{''.join(fixed_rows)}</tbody></table></div>"
+        )
+
+    details_html = ""
+    if metadata is not None:
+        command_line = metadata.get("command_line")
+        command_html = ""
+        if isinstance(command_line, list):
+            command = shlex.join(str(item) for item in command_line)
+            command_html = f"<h4>Command line</h4><pre>{escaped(command)}</pre>"
+        options = metadata.get("options")
+        options_html = ""
+        if isinstance(options, dict):
+            options_json = json.dumps(options, indent=2, sort_keys=True)
+            options_html = f"<h4>Parsed options</h4><pre>{escaped(options_json)}</pre>"
+        if command_html or options_html:
+            details_html = (
+                "<details><summary>Complete generator invocation</summary>"
+                f"{command_html}{options_html}</details>"
+            )
+
+    return (
+        '<section id="scan"><h2>Scan configuration</h2>'
+        f"{notice}<div class=\"fact-grid\">{''.join(facts)}</div>{descriptions}"
+        "<h3>Variable ranges</h3>"
+        '<div class="table-wrap"><table><thead><tr><th>Variable</th>'
+        "<th>Configured</th><th>Effective/support</th><th>Observed stored</th>"
+        "<th>Unit</th><th>Sampling</th><th>Note</th></tr></thead>"
+        f"<tbody>{''.join(range_rows)}</tbody></table></div>"
+        f"{fixed_html}{details_html}</section>"
+    )
+
+
 def write_plot_index(
     path: Path,
     data: ScanData,
@@ -1490,6 +1768,7 @@ def write_plot_index(
     standalone_cards = "\n".join(
         plot_card(spec.stem, spec.title) for spec in PLOT_SPECS
     )
+    scan_information = scan_information_html(data)
     summary_table_rows = []
     for row in summary_rows:
         percent = "&mdash;" if not math.isfinite(row.percent) else f"{row.percent:.6g}%"
@@ -1532,6 +1811,14 @@ nav a:hover, .file-links a:hover {{ background: #e3f4fc; }}
 .placeholder {{ display: grid; place-items: center; min-height: 210px; margin-top: 12px; padding: 24px; color: var(--muted); text-align: center; border: 1px dashed #aeb8c1; background: #fff; }}
 .unavailable {{ opacity: .78; }}
 .file-links {{ display: flex; gap: 8px; margin-top: 13px; }}
+.notice {{ margin: 12px 0 18px; padding: 12px 14px; border-left: 4px solid #0072b2; background: #eef8fd; }}
+.notice.warning {{ border-left-color: #e69f00; background: #fff8e8; }}
+.fact-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 16px 0; }}
+.fact {{ display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }}
+.fact span {{ color: var(--muted); font-size: .82rem; }}
+details {{ margin: 18px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; }}
+summary {{ cursor: pointer; font-weight: 650; }}
+pre {{ overflow-x: auto; padding: 12px; background: #f4f6f8; border-radius: 6px; }}
 table {{ width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }}
 th, td {{ padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }}
 th {{ position: sticky; top: 0; background: #eef3f7; }}
@@ -1544,8 +1831,9 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <header>
 <h1>TRSM constraint plot suite</h1>
 <p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; DM {dm_pass:,} &middot; full viability {full:,}</p>
-<nav><a href="#dashboards">Dashboards</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
+<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>
+{scan_information}
 <section id="dashboards"><h2>Dashboards</h2><div class="grid">{dashboard_cards}</div></section>
 <section id="standalone"><h2>Individual plots</h2><div class="grid">{standalone_cards}</div></section>
 <section id="summary"><h2>Constraint summary</h2><p><a href="constraint_summary.tsv">Download constraint_summary.tsv</a></p>
@@ -1592,6 +1880,14 @@ def parse_args(argv: Sequence[str] | None = None):
         help="Output directory. Defaults to plots/<input-stem>_constraints beside this script.",
     )
     parser.add_argument(
+        "--scan-metadata",
+        type=Path,
+        help=(
+            "Optional scan-metadata JSON sidecar. By default the suite looks "
+            "for <input-stem>.metadata.json beside the input scan."
+        ),
+    )
+    parser.add_argument(
         "--format", choices=("png", "pdf", "both"), default="both"
     )
     parser.add_argument("--dpi", type=int, default=200)
@@ -1606,11 +1902,20 @@ def parse_args(argv: Sequence[str] | None = None):
 def run(argv: Sequence[str] | None = None) -> list[Path]:
     args = parse_args(argv)
     configure_style()
-    data = load_scan(args.input)
+    data = load_scan(args.input, args.scan_metadata)
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loaded {len(data):,} rows from {data.source}")
+    if data.metadata is not None:
+        print(f"Loaded scan metadata from {data.metadata_source}")
+    elif data.metadata_error is not None:
+        print(f"Warning: {data.metadata_error}")
+    else:
+        print(
+            "No scan metadata sidecar found; the index will label ranges as "
+            "observed stored-row extrema."
+        )
     print(
         "Selections: "
         f"experimental={np.count_nonzero(data.b('experimental')):,} "

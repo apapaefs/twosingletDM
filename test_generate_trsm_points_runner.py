@@ -760,6 +760,78 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(generator.K233_pow_min, -3)
         self.assertEqual(generator.K233_pow_max, 3)
 
+    def test_scan_metadata_records_independent_log_scan_ranges(self):
+        generator = load_generator_module(
+            [
+                "888",
+                "--nrandom",
+                "10000",
+                "--independent-m3",
+                "--scan-k133-k233-log",
+                "--nrandom-count-evo-thc",
+                "--write-evo-thc-points",
+            ]
+        )
+
+        metadata = generator.build_scan_metadata(
+            generator.cli_args,
+            "test-run",
+            Path("output/test.dat"),
+        )
+        ranges = {
+            entry["variable"]: entry for entry in metadata["variable_ranges"]
+        }
+
+        self.assertEqual(metadata["schema"], "trsm_scan_metadata_v1")
+        self.assertEqual(metadata["seed"], 888)
+        self.assertEqual(metadata["requested_points"], 10000)
+        self.assertEqual(metadata["mass_sampling"]["mode"], "independent_m3")
+        self.assertEqual(metadata["portal_sampling"]["mode"], "k133_k233_log")
+        self.assertEqual(metadata["output_selection"], "Points passing evo and thc")
+        self.assertEqual(
+            metadata["stopping_rule"],
+            "Stop after the requested number of evo/thc-passing points",
+        )
+        self.assertEqual(
+            (ranges["M2"]["effective_min"], ranges["M2"]["effective_max"]),
+            (generator.m2_min, generator.m2_max),
+        )
+        self.assertEqual(
+            (ranges["M3"]["effective_min"], ranges["M3"]["effective_max"]),
+            (generator.m3_min, generator.m3_max),
+        )
+        self.assertEqual(
+            (ranges["K133"]["effective_min"], ranges["K133"]["effective_max"]),
+            (-1000.0, 1000.0),
+        )
+        self.assertIn("|K133| in [0.001, 1000]", ranges["K133"]["note"])
+
+    def test_main_writes_scan_metadata_sidecar_atomically(self):
+        generator = load_generator_module(["888", "--nrandom", "0", "--independent-m3"])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            generator.OutputDir = str(output_dir) + "/"
+            generator.RunTag = "metadata-test"
+            generator.ResetOutput = True
+            generator.run_random_vxzero_scan = lambda: 0
+
+            result = generator.main()
+
+            metadata_path = output_dir / "trsm_points_metadata-test_vxzero.metadata.json"
+            data_path = output_dir / "trsm_points_metadata-test_vxzero.dat"
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            data_path_exists = data_path.exists()
+            temporary_exists = metadata_path.with_name(
+                f".{metadata_path.name}.tmp"
+            ).exists()
+
+        self.assertEqual(result, 0)
+        self.assertTrue(data_path_exists)
+        self.assertEqual(payload["scan_file"], data_path.name)
+        self.assertEqual(payload["mass_sampling"]["mode"], "independent_m3")
+        self.assertFalse(temporary_exists)
+
     def test_parse_args_accepts_ewpt_on_dm_failed_option(self):
         generator = load_generator_module()
 

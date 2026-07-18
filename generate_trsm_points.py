@@ -3,12 +3,15 @@ import json
 import math
 import os
 import random
-from datetime import date
+import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 
 TRSM_POINT_ARGS = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
 EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
+SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
+ORIGINAL_COMMAND_LINE = (Path(sys.argv[0]).name, *sys.argv[1:])
 
 
 def parse_args(argv=None):
@@ -1218,6 +1221,451 @@ K233_pow_min = -3
 K233_pow_max = 3
 
 
+def scan_metadata_path(scan_path):
+    """Return the JSON sidecar path associated with a scan data file."""
+    return Path(scan_path).with_suffix(".metadata.json")
+
+
+def _range_record(
+    variable,
+    configured_min,
+    configured_max,
+    effective_min,
+    effective_max,
+    unit,
+    sampling,
+    note="",
+):
+    return {
+        "variable": variable,
+        "column": variable,
+        "configured_min": configured_min,
+        "configured_max": configured_max,
+        "effective_min": effective_min,
+        "effective_max": effective_max,
+        "unit": unit,
+        "sampling": sampling,
+        "note": note,
+    }
+
+
+def _fixed_parameter(variable, value, unit="", note=""):
+    return {
+        "variable": variable,
+        "value": value,
+        "unit": unit,
+        "note": note,
+    }
+
+
+def _mass_sampling_metadata(args):
+    configured_m2 = (m2_min, m2_max)
+    configured_m3 = (m3_min, m3_max)
+
+    if has_explicit_point(args):
+        m2 = float(args.m2)
+        m3 = float(effective_m3(args, m2))
+        return (
+            "explicit_point",
+            "One explicitly supplied mass point; no random mass interval is sampled.",
+            [
+                _range_record("M2", *configured_m2, m2, m2, "GeV", "fixed"),
+                _range_record("M3", *configured_m3, m3, m3, "GeV", "fixed"),
+            ],
+        )
+
+    if getattr(args, "independent_m3", False):
+        return (
+            "independent_m3",
+            "M2 and M3 are sampled independently and uniformly over the full configured rectangle.",
+            [
+                _range_record(
+                    "M2", *configured_m2, *configured_m2, "GeV", "uniform"
+                ),
+                _range_record(
+                    "M3", *configured_m3, *configured_m3, "GeV", "uniform"
+                ),
+            ],
+        )
+
+    if getattr(args, "approximate_resonantDM", False):
+        delta = float(args.delta_res)
+        m1 = float(getattr(args, "m1", 125.09))
+        h2_m3_min = max(m3_min, (m2_min - delta) / 2.0)
+        h2_m3_max = min(m3_max, (m2_max + delta) / 2.0)
+        h1_m3_min = max(m3_min, (m1 - delta) / 2.0)
+        h1_m3_max = min(m3_max, (m1 + delta) / 2.0)
+        return (
+            "approximate_resonant_dm",
+            "A 50/50 branch samples either |M2 - 2 M3| <= delta_res or |M1 - 2 M3| <= delta_res.",
+            [
+                _range_record(
+                    "M2",
+                    *configured_m2,
+                    *configured_m2,
+                    "GeV",
+                    "conditional uniform mixture",
+                    f"delta_res = {delta:g} GeV",
+                ),
+                _range_record(
+                    "M3",
+                    *configured_m3,
+                    min(h2_m3_min, h1_m3_min),
+                    max(h2_m3_max, h1_m3_max),
+                    "GeV",
+                    "conditional uniform mixture",
+                    f"Union support of the two resonance branches; delta_res = {delta:g} GeV",
+                ),
+            ],
+        )
+
+    if getattr(args, "resonantDM1", False):
+        m3 = 0.5 * float(getattr(args, "m1", 125.09))
+        return (
+            "exact_h1_resonance",
+            "M3 is fixed to M1/2 while M2 is sampled uniformly.",
+            [
+                _range_record(
+                    "M2", *configured_m2, *configured_m2, "GeV", "uniform"
+                ),
+                _range_record("M3", *configured_m3, m3, m3, "GeV", "fixed"),
+            ],
+        )
+
+    if getattr(args, "resonantDM2", False):
+        effective_m2_min = max(m2_min, 2.0 * m3_min)
+        effective_m2_max = min(m2_max, 2.0 * m3_max)
+        return (
+            "exact_h2_resonance",
+            "M2 is sampled uniformly over the resonance-compatible interval and M3 is fixed to M2/2.",
+            [
+                _range_record(
+                    "M2",
+                    *configured_m2,
+                    effective_m2_min,
+                    effective_m2_max,
+                    "GeV",
+                    "uniform",
+                ),
+                _range_record(
+                    "M3",
+                    *configured_m3,
+                    0.5 * effective_m2_min,
+                    0.5 * effective_m2_max,
+                    "GeV",
+                    "derived: M3 = M2/2",
+                ),
+            ],
+        )
+
+    effective_m2_max = min(m2_max, m3_max - mhiggs)
+    effective_m3_min = max(m3_min, m2_min + mhiggs)
+    return (
+        "conditional_m3",
+        "M2 is sampled first, then M3 is sampled uniformly subject to M3 >= M2 + mhiggs.",
+        [
+            _range_record(
+                "M2",
+                *configured_m2,
+                m2_min,
+                effective_m2_max,
+                "GeV",
+                "uniform",
+                f"Upper endpoint reduced by m3_max - mhiggs with mhiggs = {mhiggs:g} GeV",
+            ),
+            _range_record(
+                "M3",
+                *configured_m3,
+                effective_m3_min,
+                m3_max,
+                "GeV",
+                "conditional uniform",
+                f"Per-point lower endpoint is max(m3_min, M2 + {mhiggs:g} GeV)",
+            ),
+        ],
+    )
+
+
+def _portal_sampling_metadata(args):
+    if has_explicit_point(args):
+        return (
+            "explicit_lambdas",
+            "Portal couplings are supplied explicitly.",
+            [
+                _range_record(
+                    "lPhiX",
+                    -lPhiX_max,
+                    lPhiX_max,
+                    args.lphix,
+                    args.lphix,
+                    "",
+                    "fixed",
+                ),
+                _range_record(
+                    "lSX",
+                    -lSX_max,
+                    lSX_max,
+                    args.lsx,
+                    args.lsx,
+                    "",
+                    "fixed",
+                ),
+            ],
+        )
+
+    if getattr(args, "scan_k133_k233_log", False):
+        k133_abs_min = 10.0**K133_pow_min
+        k133_abs_max = 10.0**K133_pow_max
+        k233_abs_min = 10.0**K233_pow_min
+        k233_abs_max = 10.0**K233_pow_max
+        return (
+            "k133_k233_log",
+            "The magnitudes of K133 and K233 are sampled logarithmically with independent random signs; lPhiX and lSX are derived.",
+            [
+                _range_record(
+                    "K133",
+                    -k133_abs_max,
+                    k133_abs_max,
+                    -k133_abs_max,
+                    k133_abs_max,
+                    "GeV",
+                    "log-uniform magnitude with random sign",
+                    f"|K133| in [{k133_abs_min:g}, {k133_abs_max:g}] GeV; zero is excluded",
+                ),
+                _range_record(
+                    "K233",
+                    -k233_abs_max,
+                    k233_abs_max,
+                    -k233_abs_max,
+                    k233_abs_max,
+                    "GeV",
+                    "log-uniform magnitude with random sign",
+                    f"|K233| in [{k233_abs_min:g}, {k233_abs_max:g}] GeV; zero is excluded",
+                ),
+            ],
+        )
+
+    if getattr(args, "scan_k133_k233", False):
+        return (
+            "k133_k233_linear",
+            "K133 and K233 are sampled directly; lPhiX and lSX are derived.",
+            [
+                _range_record(
+                    "K133",
+                    -K133_max,
+                    K133_max,
+                    -K133_max,
+                    K133_max,
+                    "GeV",
+                    "product of two uniform draws",
+                    f"Uniform({K133_min:g}, {K133_max:g}) multiplied by Uniform(-1, 1)",
+                ),
+                _range_record(
+                    "K233",
+                    -K233_max,
+                    K233_max,
+                    -K233_max,
+                    K233_max,
+                    "GeV",
+                    "product of two uniform draws",
+                    f"Uniform({K233_min:g}, {K233_max:g}) multiplied by Uniform(-1, 1)",
+                ),
+            ],
+        )
+
+    return (
+        "lambda_portals",
+        "lPhiX and lSX are sampled directly; K133 and K233 are derived.",
+        [
+            _range_record(
+                "lPhiX",
+                -lPhiX_max,
+                lPhiX_max,
+                -lPhiX_max,
+                lPhiX_max,
+                "",
+                "product of two uniform draws",
+                f"Uniform({lPhiX_min:g}, {lPhiX_max:g}) multiplied by Uniform(-1, 1)",
+            ),
+            _range_record(
+                "lSX",
+                -lSX_max,
+                lSX_max,
+                -lSX_max,
+                lSX_max,
+                "",
+                "product of two uniform draws",
+                f"Uniform({lSX_min:g}, {lSX_max:g}) multiplied by Uniform(-1, 1)",
+            ),
+        ],
+    )
+
+
+def _output_selection(args, output_role):
+    if output_role == "dm_failed":
+        return "Points passing all non-DM constraints but failing the aggregate DM constraint"
+    if has_explicit_point(args):
+        return "The explicitly evaluated point"
+    if getattr(args, "write_all_points", False):
+        return "All evaluated points"
+    if getattr(args, "write_evo_thc_points", False):
+        return "Points passing evo and thc"
+    if getattr(args, "write_dm_failed_to_main", False):
+        return "Fully viable points plus points passing all non-DM constraints but failing DM"
+    return "Fully viable points only"
+
+
+def _json_safe(value):
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def build_scan_metadata(
+    args,
+    runtag,
+    scan_file,
+    output_role="main",
+    command_line=None,
+):
+    mass_mode, mass_description, mass_ranges = _mass_sampling_metadata(args)
+    portal_mode, portal_description, portal_ranges = _portal_sampling_metadata(args)
+    explicit = has_explicit_point(args)
+
+    variable_ranges = list(mass_ranges)
+    if explicit:
+        variable_ranges.extend(
+            [
+                _range_record(
+                    "vs", vs_min, vs_max, args.vs, args.vs, "GeV", "fixed"
+                ),
+                _range_record(
+                    "a12",
+                    -math.acos(k1_min),
+                    math.acos(k1_min),
+                    args.a12,
+                    args.a12,
+                    "rad",
+                    "fixed",
+                ),
+                _range_record(
+                    "lX", lX_min, lX_max, args.lx, args.lx, "", "fixed"
+                ),
+            ]
+        )
+    else:
+        a12_max = math.acos(k1_min)
+        variable_ranges.extend(
+            [
+                _range_record(
+                    "vs", vs_min, vs_max, vs_min, vs_max, "GeV", "uniform"
+                ),
+                _range_record(
+                    "k1", k1_min, k1_max, k1_min, k1_max, "", "uniform"
+                ),
+                _range_record(
+                    "a12",
+                    -a12_max,
+                    a12_max,
+                    -a12_max,
+                    a12_max,
+                    "rad",
+                    "derived from k1 with random sign",
+                    "a12 = +/- arccos(k1); the distribution is not uniform in a12",
+                ),
+                _range_record(
+                    "lX", lX_min, lX_max, lX_min, lX_max, "", "uniform"
+                ),
+            ]
+        )
+    variable_ranges.extend(portal_ranges)
+
+    fixed_parameters = [
+        _fixed_parameter("M1", float(getattr(args, "m1", 125.09)), "GeV", "SM-like Higgs mass"),
+        _fixed_parameter("vx", 0.0, "GeV", "Dark-matter branch"),
+        _fixed_parameter("a13", 0.0, "rad"),
+        _fixed_parameter("a23", 0.0, "rad"),
+        _fixed_parameter("k3", 0.0),
+        _fixed_parameter("sqrt(s)", Energy, "TeV", "Collider energy used for optional MG5 cross sections"),
+        _fixed_parameter("mhiggs", mhiggs, "GeV", "Mass gap used by the default conditional M3 sampler"),
+    ]
+    if portal_mode.startswith("k133_k233"):
+        fixed_parameters.append(
+            _fixed_parameter(
+                "v",
+                SM_VEV_FOR_K_SCAN,
+                "GeV",
+                "Electroweak VEV used to convert K133/K233 to lPhiX/lSX",
+            )
+        )
+
+    stopping_rule = (
+        "Stop after the requested number of evo/thc-passing points"
+        if getattr(args, "nrandom_count_evo_thc", False)
+        else "Stop after the requested number of random draws"
+    )
+    if explicit:
+        stopping_rule = "Evaluate one explicit point"
+
+    return {
+        "schema": SCAN_METADATA_SCHEMA,
+        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generator": "generate_trsm_points.py",
+        "run_tag": runtag,
+        "scan_file": Path(scan_file).name,
+        "output_role": output_role,
+        "seed": int(getattr(args, "seed", ini_seed)),
+        "requested_points": 1 if explicit else int(getattr(args, "nrandom", nrandom)),
+        "stopping_rule": stopping_rule,
+        "output_selection": _output_selection(args, output_role),
+        "mass_sampling": {
+            "mode": mass_mode,
+            "description": mass_description,
+        },
+        "portal_sampling": {
+            "mode": portal_mode,
+            "description": portal_description,
+        },
+        "portal_convention": PORTAL_CONVENTION_ID,
+        "micromegas_model_convention": PORTAL_CONVENTION_ID,
+        "variable_ranges": variable_ranges,
+        "fixed_parameters": fixed_parameters,
+        "command_line": list(command_line or ORIGINAL_COMMAND_LINE),
+        "options": _json_safe(vars(args)),
+    }
+
+
+def write_scan_metadata_file(path, payload):
+    """Atomically write one scan-metadata JSON sidecar."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(payload, stream, indent=2, sort_keys=False)
+        stream.write("\n")
+    os.replace(temporary, path)
+
+
+def write_scan_metadata_files(runtag, args):
+    outputs = [(Path(output_path(runtag)), "main")]
+    if getattr(args, "write_dm_failed", False) or getattr(
+        args, "run_ewpt_on_dm_failed", False
+    ):
+        outputs.append((Path(dm_failed_output_path(runtag)), "dm_failed"))
+
+    metadata_paths = []
+    for scan_file, output_role in outputs:
+        path = scan_metadata_path(scan_file)
+        payload = build_scan_metadata(args, runtag, scan_file, output_role)
+        write_scan_metadata_file(path, payload)
+        metadata_paths.append(path)
+    return metadata_paths
+
+
 ############################################################
 # Scan begins here
 ############################################################
@@ -1374,6 +1822,9 @@ def main():
     # reset the output file?
     if ResetOutput is True:
         reset_output(RunTag)
+
+    for metadata_file in write_scan_metadata_files(RunTag, cli_args):
+        print('Wrote scan metadata to', metadata_file)
 
     if has_explicit_point(cli_args):
         return run_single_vxzero_point(cli_args)
