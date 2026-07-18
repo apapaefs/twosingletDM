@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import html
 import math
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -371,6 +372,12 @@ DASHBOARDS = OrderedDict(
         ),
     ]
 )
+
+DASHBOARD_TITLES = {
+    "dashboard_status_summary": "TRSM constraint-status summary",
+    "dashboard_dm_summary": "TRSM dark-matter constraint summary",
+    "dashboard_diagnostic_summary": "TRSM diagnostic maps",
+}
 
 
 def strict_bool(value: str, column: str = "value", row_number: int | None = None) -> bool:
@@ -1265,12 +1272,7 @@ def render_dashboard(
                 fontweight="bold",
                 zorder=20,
             )
-        title_map = {
-            "dashboard_status_summary": "TRSM constraint-status summary",
-            "dashboard_dm_summary": "TRSM dark-matter constraint summary",
-            "dashboard_diagnostic_summary": "TRSM diagnostic maps",
-        }
-        fig.suptitle(title_map[stem], fontsize=16.0)
+        fig.suptitle(DASHBOARD_TITLES[stem], fontsize=16.0)
         return save_figure(fig, output_dir, stem, plot_format, dpi)
     finally:
         plt.close(fig)
@@ -1426,6 +1428,137 @@ def write_summary(path: Path, rows: Sequence[SummaryRow]) -> None:
             writer.writerow([row.metric, row.count, row.denominator, percent, row.note])
 
 
+def write_plot_index(
+    path: Path,
+    data: ScanData,
+    figure_paths: Sequence[Path],
+    summary_rows: Sequence[SummaryRow],
+    skipped_figures: Iterable[tuple[str, str]] = (),
+) -> None:
+    """Write a self-contained HTML inventory for the generated plot suite."""
+    files_by_stem: dict[str, dict[str, str]] = {}
+    for figure_path in figure_paths:
+        files_by_stem.setdefault(figure_path.stem, {})[
+            figure_path.suffix.lstrip(".").lower()
+        ] = figure_path.name
+    skipped = dict(skipped_figures)
+
+    def escaped(value: object) -> str:
+        return html.escape(str(value), quote=True)
+
+    def plot_card(stem: str, title: str) -> str:
+        files = files_by_stem.get(stem, {})
+        reason = skipped.get(stem)
+        classes = "plot-card unavailable" if reason else "plot-card"
+        parts = [
+            f'<article class="{classes}" id="{escaped(stem)}">',
+            f"<h3>{escaped(title)}</h3>",
+            f'<p class="stem"><code>{escaped(stem)}</code></p>',
+        ]
+        if reason:
+            parts.append(
+                f'<div class="placeholder"><strong>Unavailable</strong><br>{escaped(reason)}</div>'
+            )
+        elif "png" in files:
+            png = escaped(files["png"])
+            parts.append(
+                f'<a class="preview" href="{png}" target="_blank">'
+                f'<img loading="lazy" src="{png}" alt="{escaped(title)}"></a>'
+            )
+        elif files:
+            parts.append(
+                '<div class="placeholder">Preview unavailable for PDF-only output.</div>'
+            )
+        else:
+            parts.append('<div class="placeholder">No file generated for this plot.</div>')
+
+        links = []
+        for extension in ("png", "pdf"):
+            if extension in files:
+                filename = escaped(files[extension])
+                links.append(
+                    f'<a href="{filename}" target="_blank">{extension.upper()}</a>'
+                )
+        if links:
+            parts.append(f'<p class="file-links">{" ".join(links)}</p>')
+        parts.append("</article>")
+        return "\n".join(parts)
+
+    dashboard_cards = "\n".join(
+        plot_card(stem, DASHBOARD_TITLES[stem]) for stem in DASHBOARDS
+    )
+    standalone_cards = "\n".join(
+        plot_card(spec.stem, spec.title) for spec in PLOT_SPECS
+    )
+    summary_table_rows = []
+    for row in summary_rows:
+        percent = "&mdash;" if not math.isfinite(row.percent) else f"{row.percent:.6g}%"
+        summary_table_rows.append(
+            "<tr>"
+            f"<td><code>{escaped(row.metric)}</code></td>"
+            f"<td>{row.count:,}</td>"
+            f"<td>{row.denominator:,}</td>"
+            f"<td>{percent}</td>"
+            f"<td>{escaped(row.note)}</td>"
+            "</tr>"
+        )
+
+    experimental = int(np.count_nonzero(data.b("experimental")))
+    dm_pass = int(np.count_nonzero(data.b("dm")))
+    full = int(np.count_nonzero(data.b("full_viability")))
+    document = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRSM constraint plots - {escaped(data.source.name)}</title>
+<style>
+:root {{ color-scheme: light; --ink: #17202a; --muted: #5f6b76; --line: #d9e0e6; --panel: #f7f9fb; --accent: #0072b2; }}
+* {{ box-sizing: border-box; }}
+body {{ margin: 0; color: var(--ink); background: #fff; font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+main {{ width: min(1500px, calc(100% - 32px)); margin: 0 auto 64px; }}
+header {{ padding: 34px 0 20px; border-bottom: 1px solid var(--line); }}
+h1 {{ margin: 0 0 8px; font-size: clamp(1.65rem, 3vw, 2.45rem); }}
+h2 {{ margin-top: 38px; }}
+h3 {{ margin: 0; font-size: 1rem; }}
+p {{ margin: .45rem 0; }}
+.meta, .stem {{ color: var(--muted); }}
+nav {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }}
+nav a, .file-links a {{ color: var(--accent); text-decoration: none; border: 1px solid #b9d9ea; border-radius: 999px; padding: 5px 10px; background: #f3faff; }}
+nav a:hover, .file-links a:hover {{ background: #e3f4fc; }}
+.grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 20px; }}
+.plot-card {{ min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }}
+.plot-card img {{ display: block; width: 100%; height: auto; margin-top: 12px; border: 1px solid var(--line); background: #fff; }}
+.placeholder {{ display: grid; place-items: center; min-height: 210px; margin-top: 12px; padding: 24px; color: var(--muted); text-align: center; border: 1px dashed #aeb8c1; background: #fff; }}
+.unavailable {{ opacity: .78; }}
+.file-links {{ display: flex; gap: 8px; margin-top: 13px; }}
+table {{ width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }}
+th, td {{ padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }}
+th {{ position: sticky; top: 0; background: #eef3f7; }}
+.table-wrap {{ overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }}
+footer {{ margin-top: 36px; color: var(--muted); }}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>TRSM constraint plot suite</h1>
+<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; DM {dm_pass:,} &middot; full viability {full:,}</p>
+<nav><a href="#dashboards">Dashboards</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
+</header>
+<section id="dashboards"><h2>Dashboards</h2><div class="grid">{dashboard_cards}</div></section>
+<section id="standalone"><h2>Individual plots</h2><div class="grid">{standalone_cards}</div></section>
+<section id="summary"><h2>Constraint summary</h2><p><a href="constraint_summary.tsv">Download constraint_summary.tsv</a></p>
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Count</th><th>Denominator</th><th>Percent</th><th>Note</th></tr></thead>
+<tbody>{''.join(summary_table_rows)}</tbody></table></div></section>
+<footer>Generated by <code>plot_trsm_constraint_suite.py</code>.</footer>
+</main>
+</body>
+</html>
+"""
+    path.write_text(document, encoding="utf-8")
+
+
 def configure_style() -> None:
     plt.rcParams.update(
         {
@@ -1509,9 +1642,13 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             )
         )
 
+    summary_rows = build_summary(data, skipped)
     summary_path = output_dir / "constraint_summary.tsv"
-    write_summary(summary_path, build_summary(data, skipped))
+    write_summary(summary_path, summary_rows)
     print(f"Saved {summary_path}")
+    index_path = output_dir / "index.html"
+    write_plot_index(index_path, data, paths, summary_rows, skipped)
+    print(f"Saved {index_path}")
     print(f"Created {len(paths)} figure files in {output_dir}")
     return paths
 

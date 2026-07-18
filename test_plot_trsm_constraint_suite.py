@@ -470,10 +470,45 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertEqual(len(paths), 50)
             self.assertEqual(len(set(paths)), 50)
             self.assertTrue((output_dir / "constraint_summary.tsv").exists())
+            index_path = output_dir / "index.html"
+            self.assertTrue(index_path.exists())
+            index_text = index_path.read_text(encoding="utf-8")
+            self.assertIn("TRSM constraint plot suite", index_text)
+            self.assertIn('href="constraint_summary.tsv"', index_text)
+            self.assertIn(
+                'src="01_dm_experimental_fourway_m2_m3.png"', index_text
+            )
+            self.assertIn(
+                'href="dashboard_status_summary.pdf"', index_text
+            )
+            for path in paths:
+                self.assertIn(f'href="{path.name}"', index_text)
             self.assertEqual(
                 {path.name for path in paths},
                 {path.name for path in self.plotter.expected_figure_paths(output_dir, "both")},
             )
+
+    def test_plot_index_handles_pdf_only_and_skipped_figures(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            data = self.load_fixture(tmpdir)
+            pdf_path = tmpdir / "dashboard_status_summary.pdf"
+            pdf_path.write_bytes(b"pdf")
+            skipped = [
+                ("14_indirect_ratio_m2_m3", "No finite values < threshold")
+            ]
+            summary_rows = self.plotter.build_summary(data, skipped)
+            index_path = tmpdir / "index.html"
+            self.plotter.write_plot_index(
+                index_path, data, [pdf_path], summary_rows, skipped
+            )
+
+            text = index_path.read_text(encoding="utf-8")
+            self.assertIn('href="dashboard_status_summary.pdf"', text)
+            self.assertNotIn('src="dashboard_status_summary.png"', text)
+            self.assertIn("Preview unavailable for PDF-only output.", text)
+            self.assertIn("No finite values &lt; threshold", text)
+            self.assertIn("skipped_figure_14_indirect_ratio_m2_m3", text)
 
     def test_headline_png_smoke(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -378,8 +378,11 @@ the constraint suite from the repository root:
 The command above uses the Python installation tested on `manto`. With the
 defaults, the suite writes PNG and PDF versions of up to 22 standalone figures
 and three combined dashboards, together with `constraint_summary.tsv`, under
-`plots/trsm_points_NEW_constraints/`. The output location, format, and raster
-resolution can be changed explicitly:
+`plots/trsm_points_NEW_constraints/`. It also writes a self-contained
+`index.html` with dashboard and individual-plot previews, links to every
+generated PNG/PDF, skipped-plot notices, and the constraint-summary table. Open
+that file in a browser to browse the complete suite. The output location,
+format, and raster resolution can be changed explicitly:
 
 ```bash
 /opt/homebrew/bin/python3.11 plot_trsm_constraint_suite.py \
