@@ -425,13 +425,16 @@ explicitly:
 ```
 
 The input must be a tab-separated scan file with the standard column names
-written by `generate_trsm_points.py`; boolean flags are parsed strictly as
-`True` or `False`. The suite uses the stored constraint flags rather than
+written by `generate_trsm_points.py`. Selection booleans are parsed strictly as
+`True` or `False`. The detailed DM component flags additionally accept the
+canonical `nan` written when the microOMEGAs evaluation fails; such relic,
+direct-detection, and indirect-detection results are shown as unavailable and
+are never treated as passing. Their points still retain the strict aggregate
+`dm=False` selection. The suite uses the stored constraint flags rather than
 reconstructing the selections. It defines the experimental selection as
 `hb & hs & ewpo & wmass`, the theory selection as `evo & thc`, and full
 viability as theory, experimental, and dark-matter (`dm`) selections passing
-together. An unavailable indirect-detection result is shown as unavailable,
-not as passing.
+together.
 
 For scans made with `--independent-m3`, the dashed
 `M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the

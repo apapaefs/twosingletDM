@@ -88,6 +88,17 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "expected 'True' or 'False'"):
                     self.plotter.strict_bool(value, "dm", 9)
 
+    def test_nullable_dm_boolean_accepts_only_canonical_nan(self):
+        self.assertIs(self.plotter.strict_nullable_bool("True"), True)
+        self.assertIs(self.plotter.strict_nullable_bool("False"), False)
+        self.assertIsNone(self.plotter.strict_nullable_bool("nan"))
+        for value in ["NaN", "none", "", " nan "]:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "expected 'True' or 'False'"):
+                    self.plotter.strict_nullable_bool(
+                        value, "dm_relic_excluded", 384
+                    )
+
     def test_load_scan_rejects_missing_column_and_invalid_boolean(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             missing_path = Path(tmpdir) / "missing.tsv"
@@ -275,6 +286,54 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertTrue(math.isnan(indirect[1]))
         self.assertEqual(indirect[2], 0.25)
         self.assertNotEqual(data.derived["indirect"][0], "allowed")
+
+    def test_unavailable_dm_component_results_are_never_counted_as_passing(self):
+        unavailable = list(ROWS[0])
+        unavailable[HEADER.index("dm")] = False
+        for column in (
+            "dm_relic_excluded",
+            "dm_direct_detection_excluded",
+            "dm_indirect_available",
+            "dm_indirect_detection_excluded",
+        ):
+            unavailable[HEADER.index(column)] = "nan"
+        for column in (
+            "dm_omega",
+            "dm_relic_upper_limit",
+            "dm_dir_det",
+            "dm_dir_det_limit",
+            "dm_indirect_ratio",
+        ):
+            unavailable[HEADER.index(column)] = "nan"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "unavailable.tsv"
+            write_fixture(path, rows=[unavailable])
+            data = self.plotter.load_scan(path)
+            summary = {
+                row.metric: row for row in self.plotter.build_summary(data)
+            }
+
+        self.assertFalse(data.b("dm_result_available")[0])
+        self.assertFalse(data.b("relic_available")[0])
+        self.assertFalse(data.b("direct_available")[0])
+        self.assertFalse(data.b("relic_pass")[0])
+        self.assertFalse(data.b("direct_pass")[0])
+        self.assertEqual(data.derived["dm_failure"][0], "DM unavailable")
+        self.assertEqual(data.derived["indirect"][0], "DM unavailable")
+        relic_categories, relic_styles = self.plotter.category_styles(
+            data, "relic_pass"
+        )
+        self.assertEqual(relic_categories[0], "unavailable")
+        self.assertIn("unavailable", relic_styles)
+        self.assertEqual(summary["dm_result_available"].count, 0)
+        self.assertEqual(summary["dm_result_unavailable"].count, 1)
+        self.assertEqual(summary["relic_pass"].count, 0)
+        self.assertEqual(summary["relic_pass"].denominator, 0)
+        self.assertEqual(summary["direct_pass"].count, 0)
+        self.assertEqual(summary["dm_failure_DM_unavailable"].count, 1)
+        self.assertEqual(summary["indirect_dm_unavailable"].count, 1)
+        self.assertEqual(summary["dm_component_mismatch"].denominator, 0)
 
     def test_safe_ratio_and_positive_log10(self):
         numerator = np.array([2.0, 5.0, 0.0, 1.0, np.nan, 1.0])

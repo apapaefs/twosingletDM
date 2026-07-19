@@ -44,6 +44,9 @@ BOOLEAN_COLUMNS = (
     "ewpo",
     "wmass",
     "dm",
+)
+
+NULLABLE_BOOLEAN_COLUMNS = (
     "dm_relic_excluded",
     "dm_direct_detection_excluded",
     "dm_indirect_available",
@@ -427,6 +430,17 @@ def strict_bool(value: str, column: str = "value", row_number: int | None = None
     )
 
 
+def strict_nullable_bool(
+    value: str,
+    column: str = "value",
+    row_number: int | None = None,
+) -> bool | None:
+    """Parse a component result that can be absent after a provider failure."""
+    if value == "nan":
+        return None
+    return strict_bool(value, column, row_number)
+
+
 def strict_float(value: str, column: str, row_number: int) -> float:
     try:
         return float(value)
@@ -479,26 +493,45 @@ def four_way_categories(dm: np.ndarray, experimental: np.ndarray) -> np.ndarray:
 
 
 def dm_failure_categories(
-    dm: np.ndarray, relic_excluded: np.ndarray, direct_excluded: np.ndarray
+    dm: np.ndarray,
+    relic_excluded: np.ndarray,
+    direct_excluded: np.ndarray,
+    available: np.ndarray | None = None,
 ) -> np.ndarray:
     dm = np.asarray(dm, dtype=bool)
     relic_excluded = np.asarray(relic_excluded, dtype=bool)
     direct_excluded = np.asarray(direct_excluded, dtype=bool)
+    if available is None:
+        available = np.ones(dm.shape, dtype=bool)
+    available = np.asarray(available, dtype=bool)
+    if not (dm.shape == relic_excluded.shape == direct_excluded.shape == available.shape):
+        raise ValueError("DM failure-category arrays must have identical shapes")
     categories = np.full(dm.shape, "other DM failure", dtype=object)
-    categories[dm] = "pass"
-    failed = ~dm
+    categories[~available] = "DM unavailable"
+    categories[available & dm] = "pass"
+    failed = available & ~dm
     categories[failed & relic_excluded & ~direct_excluded] = "relic only"
     categories[failed & ~relic_excluded & direct_excluded] = "direct only"
     categories[failed & relic_excluded & direct_excluded] = "relic + direct"
     return categories
 
 
-def indirect_categories(available: np.ndarray, excluded: np.ndarray) -> np.ndarray:
+def indirect_categories(
+    available: np.ndarray,
+    excluded: np.ndarray,
+    dm_result_available: np.ndarray | None = None,
+) -> np.ndarray:
     available = np.asarray(available, dtype=bool)
     excluded = np.asarray(excluded, dtype=bool)
+    if dm_result_available is None:
+        dm_result_available = np.ones(available.shape, dtype=bool)
+    dm_result_available = np.asarray(dm_result_available, dtype=bool)
+    if not (available.shape == excluded.shape == dm_result_available.shape):
+        raise ValueError("Indirect-category arrays must have identical shapes")
     categories = np.full(available.shape, "unavailable", dtype=object)
-    categories[available & ~excluded] = "allowed"
-    categories[available & excluded] = "excluded"
+    categories[~dm_result_available] = "DM unavailable"
+    categories[dm_result_available & available & ~excluded] = "allowed"
+    categories[dm_result_available & available & excluded] = "excluded"
     return categories
 
 
@@ -556,7 +589,11 @@ def load_scan(
             duplicates = sorted({name for name in header if header.count(name) > 1})
             raise ValueError(f"Duplicate input columns: {', '.join(duplicates)}")
 
-        required = set(BOOLEAN_COLUMNS) | set(NUMERIC_COLUMNS)
+        required = (
+            set(BOOLEAN_COLUMNS)
+            | set(NULLABLE_BOOLEAN_COLUMNS)
+            | set(NUMERIC_COLUMNS)
+        )
         missing = sorted(required - set(header))
         if missing:
             raise ValueError(f"Missing required input columns: {', '.join(missing)}")
@@ -566,6 +603,12 @@ def load_scan(
             column: []
             for column in BOOLEAN_COLUMNS + OPTIONAL_BOOLEAN_COLUMNS
             if column in index
+        }
+        nullable_bool_buffers = {
+            column: [] for column in NULLABLE_BOOLEAN_COLUMNS
+        }
+        nullable_available_buffers = {
+            column: [] for column in NULLABLE_BOOLEAN_COLUMNS
         }
         float_buffers = {
             column: []
@@ -582,6 +625,12 @@ def load_scan(
                 bool_buffers[column].append(
                     strict_bool(row[index[column]], column, row_number)
                 )
+            for column in nullable_bool_buffers:
+                value = strict_nullable_bool(
+                    row[index[column]], column, row_number
+                )
+                nullable_bool_buffers[column].append(value is True)
+                nullable_available_buffers[column].append(value is not None)
             for column in float_buffers:
                 float_buffers[column].append(
                     strict_float(row[index[column]], column, row_number)
@@ -590,6 +639,16 @@ def load_scan(
     bools = {
         column: np.asarray(values, dtype=bool)
         for column, values in bool_buffers.items()
+    }
+    bools.update(
+        {
+            column: np.asarray(values, dtype=bool)
+            for column, values in nullable_bool_buffers.items()
+        }
+    )
+    nullable_available = {
+        column: np.asarray(values, dtype=bool)
+        for column, values in nullable_available_buffers.items()
     }
     floats = {
         column: np.asarray(values, dtype=float)
@@ -608,12 +667,18 @@ def load_scan(
     theory = bools["evo"] & bools["thc"]
     experimental = bools["hb"] & bools["hs"] & bools["ewpo"] & bools["wmass"]
     full_viability = theory & experimental & bools["dm"]
-    relic_pass = ~bools["dm_relic_excluded"]
-    direct_pass = ~bools["dm_direct_detection_excluded"]
+    relic_available = nullable_available["dm_relic_excluded"]
+    direct_available = nullable_available["dm_direct_detection_excluded"]
+    dm_result_available = np.logical_and.reduce(
+        [nullable_available[column] for column in NULLABLE_BOOLEAN_COLUMNS]
+    )
+    relic_pass = relic_available & ~bools["dm_relic_excluded"]
+    direct_pass = direct_available & ~bools["dm_direct_detection_excluded"]
     relic_ratio = safe_ratio(floats["dm_omega"], floats["dm_relic_upper_limit"])
     direct_ratio = safe_ratio(floats["dm_dir_det"], floats["dm_dir_det_limit"])
     indirect_ratio = np.where(
-        bools["dm_indirect_available"]
+        dm_result_available
+        & bools["dm_indirect_available"]
         & np.isfinite(floats["dm_indirect_ratio"])
         & (floats["dm_indirect_ratio"] > 0.0),
         floats["dm_indirect_ratio"],
@@ -626,15 +691,20 @@ def load_scan(
         "full_viability": full_viability,
         "relic_pass": relic_pass,
         "direct_pass": direct_pass,
+        "relic_available": relic_available,
+        "direct_available": direct_available,
+        "dm_result_available": dm_result_available,
         "fourway": four_way_categories(bools["dm"], experimental),
         "dm_failure": dm_failure_categories(
             bools["dm"],
             bools["dm_relic_excluded"],
             bools["dm_direct_detection_excluded"],
+            dm_result_available,
         ),
         "indirect": indirect_categories(
             bools["dm_indirect_available"],
             bools["dm_indirect_detection_excluded"],
+            dm_result_available,
         ),
         "relic_ratio": relic_ratio,
         "direct_ratio": direct_ratio,
@@ -781,7 +851,7 @@ def category_styles(data: ScanData, scheme: str):
             [
                 (
                     "unavailable",
-                    CategoryStyle("Unavailable", "#BDBDBD", "o", 8.0, 0.18, 1.0),
+                    CategoryStyle("Indirect unavailable", "#BDBDBD", "o", 8.0, 0.18, 1.0),
                 ),
                 (
                     "allowed",
@@ -790,6 +860,10 @@ def category_styles(data: ScanData, scheme: str):
                 (
                     "excluded",
                     CategoryStyle("Available / excluded", "#D55E00", "X", 38.0, 0.9, 3.0),
+                ),
+                (
+                    "DM unavailable",
+                    CategoryStyle("DM evaluation unavailable", "#4D4D4D", "P", 34.0, 0.9, 4.0),
                 ),
             ]
         )
@@ -819,7 +893,47 @@ def category_styles(data: ScanData, scheme: str):
             styles["other DM failure"] = CategoryStyle(
                 "Other DM failure", "#F0E442", "D", 28.0, 0.9, 3.5, "#202020", 0.3
             )
+        if np.any(data.derived["dm_failure"] == "DM unavailable"):
+            styles["DM unavailable"] = CategoryStyle(
+                "DM evaluation unavailable", "#4D4D4D", "P", 34.0, 0.9, 4.5
+            )
         return data.derived["dm_failure"], styles
+
+    if scheme in {"relic_pass", "direct_pass"}:
+        available_name = (
+            "relic_available" if scheme == "relic_pass" else "direct_available"
+        )
+        available = data.b(available_name)
+        passed = data.b(scheme)
+        categories = np.full(passed.shape, "unavailable", dtype=object)
+        categories[available] = "fail"
+        categories[passed] = "pass"
+        styles = OrderedDict(
+            [
+                (
+                    "unavailable",
+                    CategoryStyle(
+                        "DM evaluation unavailable",
+                        "#4D4D4D",
+                        "P",
+                        34.0,
+                        0.9,
+                        3.0,
+                    ),
+                ),
+                (
+                    "fail",
+                    CategoryStyle("Fail", "#BDBDBD", "o", 8.0, 0.18, 1.0),
+                ),
+                (
+                    "pass",
+                    CategoryStyle(
+                        "Pass", "#0072B2", "D", 24.0, 0.78, 2.0, "#202020", 0.25
+                    ),
+                ),
+            ]
+        )
+        return categories, styles
 
     mask = data.b(scheme)
     color = BINARY_COLORS[scheme]
@@ -1209,6 +1323,12 @@ def constraint_bar_metrics(data: ScanData):
         ("EWPO pass", int(np.count_nonzero(data.b("ewpo"))), "#E69F00", ""),
         (r"$W$ mass pass", int(np.count_nonzero(data.b("wmass"))), "#E69F00", ""),
         ("Experimental pass", int(np.count_nonzero(data.b("experimental"))), "#E69F00", ""),
+        (
+            "DM evaluation available",
+            int(np.count_nonzero(data.b("dm_result_available"))),
+            "#56B4E9",
+            "//",
+        ),
         ("Relic-density pass", int(np.count_nonzero(data.b("relic_pass"))), "#0072B2", ""),
         ("Direct-detection pass", int(np.count_nonzero(data.b("direct_pass"))), "#0072B2", ""),
         (
@@ -1383,10 +1503,55 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         ("experimental", "hb & hs & ewpo & wmass"),
         ("dm", "Stored aggregate DM pass"),
         ("full_viability", "theory & experimental & dm"),
-        ("relic_pass", "Not relic-density excluded"),
-        ("direct_pass", "Not direct-detection excluded"),
     ):
         rows.append(SummaryRow(name, int(np.count_nonzero(data.b(name))), n, note))
+
+    dm_result_available = data.b("dm_result_available")
+    relic_available = data.b("relic_available")
+    direct_available = data.b("direct_available")
+    n_dm_available = int(np.count_nonzero(dm_result_available))
+    n_relic_available = int(np.count_nonzero(relic_available))
+    n_direct_available = int(np.count_nonzero(direct_available))
+    rows.extend(
+        [
+            SummaryRow(
+                "dm_result_available",
+                n_dm_available,
+                n,
+                "Detailed microOMEGAs component result is available",
+            ),
+            SummaryRow(
+                "dm_result_unavailable",
+                n - n_dm_available,
+                n,
+                "Detailed microOMEGAs component result is missing; never treated as passing",
+            ),
+            SummaryRow(
+                "relic_pass",
+                int(np.count_nonzero(data.b("relic_pass"))),
+                n_relic_available,
+                "Not relic-density excluded among available relic results",
+            ),
+            SummaryRow(
+                "relic_unavailable",
+                n - n_relic_available,
+                n,
+                "Relic-density result unavailable",
+            ),
+            SummaryRow(
+                "direct_pass",
+                int(np.count_nonzero(data.b("direct_pass"))),
+                n_direct_available,
+                "Not direct-detection excluded among available direct results",
+            ),
+            SummaryRow(
+                "direct_unavailable",
+                n - n_direct_available,
+                n,
+                "Direct-detection result unavailable",
+            ),
+        ]
+    )
 
     for category in FOURWAY_STYLES:
         rows.append(
@@ -1401,6 +1566,8 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
     dm_failure_names = ["pass", "relic only", "direct only", "relic + direct"]
     if np.any(data.derived["dm_failure"] == "other DM failure"):
         dm_failure_names.append("other DM failure")
+    if np.any(data.derived["dm_failure"] == "DM unavailable"):
+        dm_failure_names.append("DM unavailable")
     for category in dm_failure_names:
         rows.append(
             SummaryRow(
@@ -1411,10 +1578,15 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
             )
         )
 
-    for category in ("unavailable", "allowed", "excluded"):
+    for category, metric_name in (
+        ("DM unavailable", "dm_unavailable"),
+        ("unavailable", "unavailable"),
+        ("allowed", "allowed"),
+        ("excluded", "excluded"),
+    ):
         rows.append(
             SummaryRow(
-                f"indirect_{category}",
+                f"indirect_{metric_name}",
                 int(np.count_nonzero(data.derived["indirect"] == category)),
                 n,
                 "Indirect-detection availability/status",
@@ -1484,12 +1656,21 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         & ~data.bools["dm_direct_detection_excluded"]
         & ~data.bools["dm_indirect_detection_excluded"]
     )
+    component_mismatch = dm_result_available & (component_dm != data.bools["dm"])
     rows.append(
         SummaryRow(
             "dm_component_mismatch",
-            int(np.count_nonzero(component_dm != data.bools["dm"])),
+            int(np.count_nonzero(component_mismatch)),
+            n_dm_available,
+            "Among available results, stored dm differs from conjunction of stored component exclusions",
+        )
+    )
+    rows.append(
+        SummaryRow(
+            "dm_pass_without_component_results",
+            int(np.count_nonzero(data.bools["dm"] & ~dm_result_available)),
             n,
-            "Stored dm differs from conjunction of stored component exclusions",
+            "Aggregate DM pass is stored although detailed component results are unavailable",
         )
     )
 
