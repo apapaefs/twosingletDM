@@ -34,6 +34,9 @@ from matplotlib.lines import Line2D
 NOMINAL_MASS_GAP_GEV = 125.0
 NOMINAL_M3_MAX_GEV = 1000.0
 SM_LIKE_HIGGS_MASS_GEV = 125.09
+BSMPT_STRONG_EWPT_THRESHOLD = 1.0
+M2_EQ_2M3_GUIDE_COLOR = "#CC79A7"
+M3_EQ_2M2_GUIDE_COLOR = "#0072B2"
 SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
 
 BOOLEAN_COLUMNS = (
@@ -57,6 +60,16 @@ OPTIONAL_BOOLEAN_COLUMNS = (
     "higgs_invisible_widths_included",
 )
 
+OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
+    "ewpt_has_x_broken",
+)
+
+OPTIONAL_TEXT_COLUMNS = (
+    "ewpt_status",
+    "ewpt_error",
+    "ewpt_global_phase_path",
+)
+
 NUMERIC_COLUMNS = (
     "M2",
     "M3",
@@ -74,6 +87,8 @@ NUMERIC_COLUMNS = (
 )
 
 OPTIONAL_NUMERIC_COLUMNS = (
+    "w2",
+    "ewpt_ew_step_index",
     "vs",
     "vx",
     "a13",
@@ -114,6 +129,7 @@ class ScanData:
     columns: tuple[str, ...]
     floats: dict[str, np.ndarray]
     bools: dict[str, np.ndarray]
+    strings: dict[str, np.ndarray]
     derived: dict[str, np.ndarray]
     metadata: dict[str, object] | None = None
     metadata_source: Path | None = None
@@ -131,6 +147,11 @@ class ScanData:
         if name in self.derived:
             return self.derived[name]
         return self.bools[name]
+
+    def s(self, name: str) -> np.ndarray:
+        if name in self.derived:
+            return self.derived[name]
+        return self.strings[name]
 
 
 @dataclass(frozen=True)
@@ -159,6 +180,7 @@ class PlotSpec:
     xlabel: str | None = None
     ylabel: str | None = None
     colorbar_label: str | None = None
+    requires_bsmpt: bool = False
 
 
 @dataclass(frozen=True)
@@ -195,6 +217,185 @@ FOURWAY_STYLES = OrderedDict(
             "both",
             CategoryStyle(
                 "Both", "#009E73", "*", 52.0, 0.95, 4.0, "#202020", 0.35
+            ),
+        ),
+    ]
+)
+
+CUMULATIVE_CONSTRAINT_STYLES = OrderedDict(
+    [
+        (
+            "all",
+            CategoryStyle("All stored", "#BDBDBD", "o", 7.0, 0.16, 1.0),
+        ),
+        (
+            "hb",
+            CategoryStyle("HB", "#CC79A7", "^", 18.0, 0.54, 2.0),
+        ),
+        (
+            "hb_hs",
+            CategoryStyle("HB + HS", "#E69F00", "s", 22.0, 0.66, 3.0),
+        ),
+        (
+            "hb_hs_wmass",
+            CategoryStyle(
+                r"HB + HS + $M_W$", "#0072B2", "D", 26.0, 0.78, 4.0
+            ),
+        ),
+        (
+            "hb_hs_wmass_dm",
+            CategoryStyle(
+                r"HB + HS + $M_W$ + DM",
+                "#009E73",
+                "*",
+                54.0,
+                0.96,
+                5.0,
+                "#202020",
+                0.35,
+            ),
+        ),
+    ]
+)
+
+BSMPT_STATUS_STYLES = OrderedDict(
+    [
+        (
+            "not run",
+            CategoryStyle("Not run", "#BDBDBD", "o", 7.0, 0.14, 1.0),
+        ),
+        (
+            "failed",
+            CategoryStyle("BSMPT failed", "#D55E00", "X", 34.0, 0.9, 4.0),
+        ),
+        (
+            "success / no selected FOPT",
+            CategoryStyle(
+                "Success / no selected FOPT",
+                "#0072B2",
+                "D",
+                24.0,
+                0.78,
+                2.0,
+                "#202020",
+                0.25,
+            ),
+        ),
+        (
+            "selected weak FOPT",
+            CategoryStyle(
+                r"Selected FOPT: $v_{\rm EW,true}/T<1$",
+                "#E69F00",
+                "^",
+                30.0,
+                0.86,
+                3.0,
+                "#202020",
+                0.25,
+            ),
+        ),
+        (
+            "selected strong FOPT",
+            CategoryStyle(
+                r"Selected FOPT: $v_{\rm EW,true}/T\geq1$",
+                "#009E73",
+                "*",
+                54.0,
+                0.96,
+                5.0,
+                "#202020",
+                0.35,
+            ),
+        ),
+    ]
+)
+
+BSMPT_PHASE_STYLES = OrderedDict(
+    [
+        (
+            "not run",
+            CategoryStyle("Not run", "#BDBDBD", "o", 7.0, 0.12, 1.0),
+        ),
+        (
+            "failed",
+            CategoryStyle("BSMPT failed", "#D55E00", "X", 34.0, 0.9, 6.0),
+        ),
+        (
+            "phase unavailable",
+            CategoryStyle(
+                "Phase history unavailable", "#4D4D4D", "P", 30.0, 0.82, 2.0
+            ),
+        ),
+        (
+            "direct EW",
+            CategoryStyle(
+                "Direct EW entry", "#0072B2", "D", 25.0, 0.82, 3.0
+            ),
+        ),
+        (
+            "singlet-assisted",
+            CategoryStyle(
+                r"Path through $S$-broken phase",
+                "#E69F00",
+                "s",
+                28.0,
+                0.86,
+                4.0,
+            ),
+        ),
+        (
+            "X-broken",
+            CategoryStyle(
+                r"Path through $X$-broken phase",
+                "#CC79A7",
+                "X",
+                38.0,
+                0.9,
+                5.0,
+                "#202020",
+                0.25,
+            ),
+        ),
+        (
+            "other / multistep",
+            CategoryStyle(
+                "Other / multistep path",
+                "#009E73",
+                "^",
+                30.0,
+                0.86,
+                4.5,
+            ),
+        ),
+    ]
+)
+
+BSMPT_STEP_STYLES = OrderedDict(
+    [
+        (
+            "not run",
+            CategoryStyle("Not run", "#BDBDBD", "o", 7.0, 0.12, 1.0),
+        ),
+        (
+            "failed",
+            CategoryStyle("BSMPT failed", "#D55E00", "X", 34.0, 0.9, 6.0),
+        ),
+        (
+            "unavailable",
+            CategoryStyle("EW entry unavailable", "#4D4D4D", "P", 30.0, 0.82, 2.0),
+        ),
+        (
+            "step 0",
+            CategoryStyle("Direct EW entry (step 0)", "#0072B2", "D", 25.0, 0.82, 3.0),
+        ),
+        (
+            "step 1",
+            CategoryStyle("One prior phase (step 1)", "#E69F00", "s", 28.0, 0.86, 4.0),
+        ),
+        (
+            "step 2+",
+            CategoryStyle(
+                "Two or more prior phases", "#009E73", "*", 50.0, 0.94, 5.0
             ),
         ),
     ]
@@ -317,12 +518,12 @@ PLOT_SPECS = (
     ),
     PlotSpec(
         "16_k233_m2_m3",
-        r"Portal trilinear $K_{233}$",
+        r"Portal trilinear magnitude $|K_{233}|$",
         "continuous_mass",
-        value="K233",
-        norm_kind="signed",
-        cmap="coolwarm",
-        colorbar_label=r"$K_{233}$ [GeV]",
+        value="abs_K233",
+        norm_kind="log_to_one",
+        cmap="viridis",
+        colorbar_label=r"$|K_{233}|$ [GeV]",
     ),
     PlotSpec(
         "17_lsx_m2_m3",
@@ -372,6 +573,130 @@ PLOT_SPECS = (
         "Constraint and coverage counts",
         "bars",
     ),
+    PlotSpec(
+        "23_h2_width_dm_status_m2_m3",
+        r"Dark-matter status and $h_2$ total width",
+        "continuous_mass",
+        scheme="dm",
+        value="w2",
+        norm_kind="log",
+        cmap="viridis",
+        colorbar_label=r"$\Gamma(h_2)$ [GeV]",
+    ),
+    PlotSpec(
+        "24_cumulative_constraints_m2_m3",
+        r"Cumulative constraint survival: $M_2$ versus $M_3$",
+        "cumulative_xy",
+        x="M2",
+        y="M3",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$M_3$ [GeV]",
+    ),
+    PlotSpec(
+        "25_cumulative_constraints_m2_vs",
+        r"Cumulative constraint survival: $M_2$ versus $v_s$",
+        "cumulative_xy",
+        x="M2",
+        y="vs",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$v_s$ [GeV]",
+    ),
+    PlotSpec(
+        "26_cumulative_constraints_m2_a12",
+        r"Cumulative constraint survival: $M_2$ versus $a_{12}$",
+        "cumulative_xy",
+        x="M2",
+        y="a12",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$a_{12}$",
+    ),
+    PlotSpec(
+        "27_cumulative_constraints_m3_lx",
+        r"Cumulative constraint survival: $M_3$ versus $\lambda_X$",
+        "cumulative_xy",
+        x="M3",
+        y="lX",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\lambda_X$",
+    ),
+    PlotSpec(
+        "28_cumulative_constraints_m3_lphix",
+        r"Cumulative constraint survival: $M_3$ versus $\lambda_{\Phi X}$",
+        "cumulative_xy",
+        x="M3",
+        y="lPhiX",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\lambda_{\Phi X}$",
+    ),
+    PlotSpec(
+        "29_cumulative_constraints_m3_lsx",
+        r"Cumulative constraint survival: $M_3$ versus $\lambda_{SX}$",
+        "cumulative_xy",
+        x="M3",
+        y="lSX",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\lambda_{SX}$",
+    ),
+    PlotSpec(
+        "30_bsmpt_status_m2_m3",
+        "BSMPT evaluation and selected FOPT status",
+        "categorical_mass",
+        scheme="bsmpt_status",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "31_bsmpt_ew_true_over_t_m2_m3",
+        r"Selected BSMPT electroweak order parameter",
+        "continuous_mass",
+        scheme="bsmpt_phase",
+        value="ewpt_ew_true_over_T",
+        norm_kind="threshold1",
+        cmap="RdBu_r",
+        colorbar_label=r"$v_{\rm EW,true}(T_*)/T_*$",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "32_bsmpt_phase_history_m2_m3",
+        "BSMPT global phase history",
+        "categorical_mass",
+        scheme="bsmpt_phase",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "33_bsmpt_ew_entry_step_m2_m3",
+        "BSMPT electroweak-entry step",
+        "categorical_mass",
+        scheme="bsmpt_step",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "34_bsmpt_strength_vs_m2",
+        r"Selected BSMPT order parameter versus $M_2$",
+        "bsmpt_strength_xy",
+        scheme="bsmpt_phase",
+        x="M2",
+        y="ewpt_ew_true_over_T",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$v_{\rm EW,true}(T_*)/T_*$",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "35_bsmpt_strength_vs_m3",
+        r"Selected BSMPT order parameter versus $M_3$",
+        "bsmpt_strength_xy",
+        scheme="bsmpt_phase",
+        x="M3",
+        y="ewpt_ew_true_over_T",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$v_{\rm EW,true}(T_*)/T_*$",
+        requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "36_bsmpt_counts",
+        "BSMPT evaluation and phase-transition counts",
+        "bsmpt_bars",
+        requires_bsmpt=True,
+    ),
 )
 
 PLOT_BY_STEM = {spec.stem: spec for spec in PLOT_SPECS}
@@ -409,6 +734,28 @@ DASHBOARDS = OrderedDict(
                 "18_higgssignals_delta_chi2_m2_m3",
             ),
         ),
+        (
+            "dashboard_cumulative_constraint_summary",
+            (
+                "24_cumulative_constraints_m2_m3",
+                "25_cumulative_constraints_m2_vs",
+                "26_cumulative_constraints_m2_a12",
+                "27_cumulative_constraints_m3_lx",
+                "28_cumulative_constraints_m3_lphix",
+                "29_cumulative_constraints_m3_lsx",
+            ),
+        ),
+        (
+            "dashboard_bsmpt_summary",
+            (
+                "30_bsmpt_status_m2_m3",
+                "31_bsmpt_ew_true_over_t_m2_m3",
+                "32_bsmpt_phase_history_m2_m3",
+                "33_bsmpt_ew_entry_step_m2_m3",
+                "34_bsmpt_strength_vs_m2",
+                "36_bsmpt_counts",
+            ),
+        ),
     ]
 )
 
@@ -416,7 +763,13 @@ DASHBOARD_TITLES = {
     "dashboard_status_summary": "TRSM constraint-status summary",
     "dashboard_dm_summary": "TRSM dark-matter constraint summary",
     "dashboard_diagnostic_summary": "TRSM diagnostic maps",
+    "dashboard_cumulative_constraint_summary": (
+        "TRSM cumulative constraint-survival diagnostics"
+    ),
+    "dashboard_bsmpt_summary": "TRSM BSMPT electroweak phase-transition summary",
 }
+
+BSMPT_DASHBOARDS = frozenset({"dashboard_bsmpt_summary"})
 
 
 def strict_bool(value: str, column: str = "value", row_number: int | None = None) -> bool:
@@ -482,6 +835,140 @@ def finite_mask(*arrays: np.ndarray) -> np.ndarray:
     return result
 
 
+def normalize_optional_text(value: object) -> str:
+    """Normalize the scan writer's ``nan`` sentinel for optional text fields."""
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return ""
+    return text
+
+
+def derive_bsmpt_results(
+    status: np.ndarray,
+    strength: np.ndarray,
+    phase_path: np.ndarray,
+    ew_step_index: np.ndarray,
+    has_x_broken: np.ndarray,
+    has_x_broken_available: np.ndarray,
+) -> dict[str, np.ndarray]:
+    """Derive stable BSMPT status and phase-history categories.
+
+    ``ewpt_ew_true_over_T`` is the generator's selected FOPT diagnostic, with
+    temperature priority nucleation, percolation, completion, then critical.
+    A finite value therefore indicates a selected first-order transition
+    result, while a successful BSMPT run can legitimately have no such value.
+    """
+    status = np.asarray(
+        [normalize_optional_text(value).lower() for value in status],
+        dtype=object,
+    )
+    strength = np.asarray(strength, dtype=float)
+    phase_path = np.asarray(
+        [normalize_optional_text(value) for value in phase_path],
+        dtype=object,
+    )
+    ew_step_index = np.asarray(ew_step_index, dtype=float)
+    has_x_broken = np.asarray(has_x_broken, dtype=bool)
+    has_x_broken_available = np.asarray(has_x_broken_available, dtype=bool)
+
+    shape = strength.shape
+    for name, values in (
+        ("status", status),
+        ("phase_path", phase_path),
+        ("ew_step_index", ew_step_index),
+        ("has_x_broken", has_x_broken),
+        ("has_x_broken_available", has_x_broken_available),
+    ):
+        if values.shape != shape:
+            raise ValueError(f"BSMPT {name} array has shape {values.shape}, expected {shape}")
+
+    status_present = status != ""
+    strength_available = np.isfinite(strength)
+    phase_available = phase_path != ""
+    step_available = np.isfinite(ew_step_index) & (ew_step_index >= 0.0)
+    attempted = (
+        status_present
+        | strength_available
+        | phase_available
+        | step_available
+        | has_x_broken_available
+    )
+    failed = status_present & (status != "success")
+    success = attempted & ~failed
+    selected_fopt = success & strength_available
+    strong_fopt = selected_fopt & (strength >= BSMPT_STRONG_EWPT_THRESHOLD)
+    weak_fopt = selected_fopt & ~strong_fopt
+
+    status_categories = np.full(shape, "not run", dtype=object)
+    status_categories[failed] = "failed"
+    status_categories[success] = "success / no selected FOPT"
+    status_categories[weak_fopt] = "selected weak FOPT"
+    status_categories[strong_fopt] = "selected strong FOPT"
+
+    normalized_paths = np.asarray(
+        [" -> ".join(part.strip().upper() for part in path.split("->")) for path in phase_path],
+        dtype=object,
+    )
+    path_has_x = np.asarray(
+        ["X_BROKEN" in path for path in normalized_paths], dtype=bool
+    )
+    path_has_s = np.asarray(
+        ["SINGLET_S" in path for path in normalized_paths], dtype=bool
+    )
+    x_broken_path = success & phase_available & (
+        path_has_x | (has_x_broken_available & has_x_broken)
+    )
+    singlet_path = success & phase_available & path_has_s & ~x_broken_path
+    direct_ew = success & step_available & (ew_step_index < 0.5)
+    other_path = (
+        success
+        & phase_available
+        & ~x_broken_path
+        & ~singlet_path
+        & ~direct_ew
+    )
+
+    phase_categories = np.full(shape, "not run", dtype=object)
+    phase_categories[failed] = "failed"
+    phase_categories[success] = "phase unavailable"
+    phase_categories[direct_ew & phase_available] = "direct EW"
+    phase_categories[other_path] = "other / multistep"
+    phase_categories[singlet_path] = "singlet-assisted"
+    phase_categories[x_broken_path] = "X-broken"
+
+    step_categories = np.full(shape, "not run", dtype=object)
+    step_categories[failed] = "failed"
+    step_categories[success] = "unavailable"
+    step_categories[success & step_available & (ew_step_index < 0.5)] = "step 0"
+    step_categories[
+        success
+        & step_available
+        & (ew_step_index >= 0.5)
+        & (ew_step_index < 1.5)
+    ] = "step 1"
+    step_categories[success & step_available & (ew_step_index >= 1.5)] = "step 2+"
+
+    return {
+        "bsmpt_attempted": attempted,
+        "bsmpt_success": success,
+        "bsmpt_failed": failed,
+        "bsmpt_selected_fopt": selected_fopt,
+        "bsmpt_strong_fopt": strong_fopt,
+        "bsmpt_weak_fopt": weak_fopt,
+        "bsmpt_phase_available": success & phase_available,
+        "bsmpt_x_broken_path": x_broken_path,
+        "bsmpt_direct_ew_entry": direct_ew,
+        "bsmpt_multistep_ew_entry": success & step_available & (ew_step_index >= 0.5),
+        "bsmpt_status": status_categories,
+        "bsmpt_phase": phase_categories,
+        "bsmpt_step": step_categories,
+    }
+
+
+def has_bsmpt_results(data: ScanData) -> bool:
+    return bool(np.any(data.b("bsmpt_attempted")))
+
+
 def four_way_categories(dm: np.ndarray, experimental: np.ndarray) -> np.ndarray:
     dm = np.asarray(dm, dtype=bool)
     experimental = np.asarray(experimental, dtype=bool)
@@ -490,6 +977,29 @@ def four_way_categories(dm: np.ndarray, experimental: np.ndarray) -> np.ndarray:
     categories[~dm & experimental] = "experimental only"
     categories[dm & experimental] = "both"
     return categories
+
+
+def cumulative_constraint_masks(
+    data: ScanData,
+) -> OrderedDict[str, np.ndarray]:
+    """Return the collaborator diagnostic's nested survivor selections.
+
+    This sequence intentionally mirrors the supplied plots and therefore does
+    not apply the EWPO flag.  It is kept separate from ``experimental``, whose
+    definition remains HB & HS & EWPO & W-mass.
+    """
+    hb = data.b("hb")
+    hb_hs = hb & data.b("hs")
+    hb_hs_wmass = hb_hs & data.b("wmass")
+    return OrderedDict(
+        [
+            ("all", np.ones(len(data), dtype=bool)),
+            ("hb", hb),
+            ("hb_hs", hb_hs),
+            ("hb_hs_wmass", hb_hs_wmass),
+            ("hb_hs_wmass_dm", hb_hs_wmass & data.b("dm")),
+        ]
+    )
 
 
 def dm_failure_categories(
@@ -604,16 +1114,22 @@ def load_scan(
             for column in BOOLEAN_COLUMNS + OPTIONAL_BOOLEAN_COLUMNS
             if column in index
         }
-        nullable_bool_buffers = {
-            column: [] for column in NULLABLE_BOOLEAN_COLUMNS
-        }
+        nullable_columns = list(NULLABLE_BOOLEAN_COLUMNS) + [
+            column
+            for column in OPTIONAL_NULLABLE_BOOLEAN_COLUMNS
+            if column in index
+        ]
+        nullable_bool_buffers = {column: [] for column in nullable_columns}
         nullable_available_buffers = {
-            column: [] for column in NULLABLE_BOOLEAN_COLUMNS
+            column: [] for column in nullable_columns
         }
         float_buffers = {
             column: []
             for column in NUMERIC_COLUMNS + OPTIONAL_NUMERIC_COLUMNS
             if column in index
+        }
+        string_buffers = {
+            column: [] for column in OPTIONAL_TEXT_COLUMNS if column in index
         }
 
         for row_number, row in enumerate(reader, start=2):
@@ -635,6 +1151,10 @@ def load_scan(
                 float_buffers[column].append(
                     strict_float(row[index[column]], column, row_number)
                 )
+            for column in string_buffers:
+                string_buffers[column].append(
+                    normalize_optional_text(row[index[column]])
+                )
 
     bools = {
         column: np.asarray(values, dtype=bool)
@@ -654,6 +1174,10 @@ def load_scan(
         column: np.asarray(values, dtype=float)
         for column, values in float_buffers.items()
     }
+    strings = {
+        column: np.asarray(values, dtype=object)
+        for column, values in string_buffers.items()
+    }
     if len(floats["M2"]) == 0:
         raise ValueError(f"Input file has a header but no data rows: {path}")
     for column in OPTIONAL_BOOLEAN_COLUMNS:
@@ -661,6 +1185,15 @@ def load_scan(
             # Legacy scans predate explicit invisible-width provenance.  Such
             # rows are intentionally treated as unmodelled, not as passing.
             bools[column] = np.zeros(len(floats["M2"]), dtype=bool)
+    for column in OPTIONAL_NULLABLE_BOOLEAN_COLUMNS:
+        if column not in bools:
+            bools[column] = np.zeros(len(floats["M2"]), dtype=bool)
+            nullable_available[column] = np.zeros(
+                len(floats["M2"]), dtype=bool
+            )
+    for column in OPTIONAL_TEXT_COLUMNS:
+        if column not in strings:
+            strings[column] = np.full(len(floats["M2"]), "", dtype=object)
     if not np.all(finite_mask(floats["M2"], floats["M3"])):
         raise ValueError("M2 and M3 must be finite for every scan row.")
 
@@ -683,6 +1216,18 @@ def load_scan(
         & (floats["dm_indirect_ratio"] > 0.0),
         floats["dm_indirect_ratio"],
         np.nan,
+    )
+    ewpt_step_index = floats.get(
+        "ewpt_ew_step_index",
+        np.full(len(floats["M2"]), np.nan, dtype=float),
+    )
+    bsmpt_results = derive_bsmpt_results(
+        strings["ewpt_status"],
+        floats["ewpt_ew_true_over_T"],
+        strings["ewpt_global_phase_path"],
+        ewpt_step_index,
+        bools["ewpt_has_x_broken"],
+        nullable_available["ewpt_has_x_broken"],
     )
 
     derived = {
@@ -713,7 +1258,9 @@ def load_scan(
         "log10_direct_ratio": positive_log10(direct_ratio),
         "log10_indirect_ratio": positive_log10(indirect_ratio),
         "abs_a12": np.abs(floats["a12"]),
+        "abs_K233": np.abs(floats["K233"]),
     }
+    derived.update(bsmpt_results)
 
     metadata, metadata_source, metadata_error = load_scan_metadata(
         path, metadata_path
@@ -726,6 +1273,7 @@ def load_scan(
         columns=tuple(header),
         floats=floats,
         bools=bools,
+        strings=strings,
         derived=derived,
         metadata=metadata,
         metadata_source=metadata_source,
@@ -815,13 +1363,15 @@ def sparse_symlog_ticks(norm: SymLogNorm, max_per_side: int = 3) -> list[float]:
     return [-value for value in reversed(positive)] + [0.0] + positive
 
 
-def robust_log_norm_to_one(values: np.ndarray) -> LogNorm:
+def robust_log_norm(values: np.ndarray, include_one: bool = False) -> LogNorm:
     finite = np.asarray(values, dtype=float)
     finite = finite[np.isfinite(finite) & (finite > 0.0)]
     if finite.size == 0:
         raise PlotUnavailable("no finite positive values for logarithmic normalization")
     vmin = float(np.percentile(finite, 1.0))
-    vmax = max(1.0, float(np.percentile(finite, 99.0)))
+    vmax = float(np.percentile(finite, 99.0))
+    if include_one:
+        vmax = max(1.0, vmax)
     if not vmin < vmax:
         vmin = max(float(np.min(finite)), vmax * 0.1)
     if not vmin < vmax:
@@ -829,15 +1379,25 @@ def robust_log_norm_to_one(values: np.ndarray) -> LogNorm:
     return LogNorm(vmin=vmin, vmax=vmax, clip=True)
 
 
+def robust_log_norm_to_one(values: np.ndarray) -> LogNorm:
+    return robust_log_norm(values, include_one=True)
+
+
 def norm_for(spec: PlotSpec, values: np.ndarray):
     if spec.norm_kind == "threshold0":
         return robust_threshold_norm(values, center=0.0)
+    if spec.norm_kind == "threshold1":
+        return robust_threshold_norm(
+            values, center=BSMPT_STRONG_EWPT_THRESHOLD
+        )
     if spec.norm_kind == "threshold4":
         return robust_threshold_norm(values, center=4.0)
     if spec.norm_kind == "positive":
         return robust_linear_norm(values, include_zero=True)
     if spec.norm_kind == "signed":
         return robust_symlog_norm(values)
+    if spec.norm_kind == "log":
+        return robust_log_norm(values)
     if spec.norm_kind == "log_to_one":
         return robust_log_norm_to_one(values)
     return robust_linear_norm(values)
@@ -846,6 +1406,12 @@ def norm_for(spec: PlotSpec, values: np.ndarray):
 def category_styles(data: ScanData, scheme: str):
     if scheme == "fourway":
         return data.derived["fourway"], FOURWAY_STYLES
+    if scheme == "bsmpt_status":
+        return data.derived["bsmpt_status"], BSMPT_STATUS_STYLES
+    if scheme == "bsmpt_phase":
+        return data.derived["bsmpt_phase"], BSMPT_PHASE_STYLES
+    if scheme == "bsmpt_step":
+        return data.derived["bsmpt_step"], BSMPT_STEP_STYLES
     if scheme == "indirect":
         styles = OrderedDict(
             [
@@ -966,6 +1532,35 @@ def mass_limits(data: ScanData) -> tuple[tuple[float, float], tuple[float, float
 
 def draw_mass_guides(ax, data: ScanData, annotate: bool = False) -> None:
     (xmin, xmax), (ymin, ymax) = mass_limits(data)
+
+    m2_eq_2m3_min = max(xmin, 2.0 * ymin)
+    m2_eq_2m3_max = min(xmax, 2.0 * ymax)
+    if m2_eq_2m3_min < m2_eq_2m3_max:
+        guide_x = np.linspace(m2_eq_2m3_min, m2_eq_2m3_max, 200)
+        ax.plot(
+            guide_x,
+            0.5 * guide_x,
+            color=M2_EQ_2M3_GUIDE_COLOR,
+            linestyle="-.",
+            linewidth=1.0,
+            alpha=0.82,
+            zorder=1.5,
+        )
+
+    m3_eq_2m2_min = max(xmin, 0.5 * ymin)
+    m3_eq_2m2_max = min(xmax, 0.5 * ymax)
+    if m3_eq_2m2_min < m3_eq_2m2_max:
+        guide_x = np.linspace(m3_eq_2m2_min, m3_eq_2m2_max, 200)
+        ax.plot(
+            guide_x,
+            2.0 * guide_x,
+            color=M3_EQ_2M2_GUIDE_COLOR,
+            linestyle="--",
+            linewidth=1.0,
+            alpha=0.82,
+            zorder=1.5,
+        )
+
     guide_min = max(xmin, ymin - NOMINAL_MASS_GAP_GEV)
     guide_max = min(xmax, ymax - NOMINAL_MASS_GAP_GEV)
     if guide_min < guide_max:
@@ -990,15 +1585,18 @@ def draw_mass_guides(ax, data: ScanData, annotate: bool = False) -> None:
     if annotate:
         tail = int(np.count_nonzero(data.f("M3") > NOMINAL_M3_MAX_GEV))
         ax.text(
-            0.985,
+            0.015,
             0.018,
             (
-                r"References: legacy nominal $M_3=M_2+125$ GeV (dashed), "
-                r"nominal $M_3=1000$ GeV maximum (dotted)"
-                f"\n{tail:,} points above the nominal $M_3$ maximum"
+                r"Guides: $M_2=2M_3$ (magenta dash-dot), "
+                r"$M_3=2M_2$ (blue dashed)"
+                "\n"
+                r"Gray: $M_3=M_2+125$ GeV (dashed), "
+                r"$M_3=1000$ GeV (dotted); "
+                f"{tail:,} points above the latter"
             ),
             transform=ax.transAxes,
-            ha="right",
+            ha="left",
             va="bottom",
             fontsize=7.2,
             color="#444444",
@@ -1022,10 +1620,13 @@ def category_legend_handles(
     styles: OrderedDict[str, CategoryStyle],
     denominator: int,
     neutral_colors: bool = False,
+    include_empty: bool = True,
 ) -> list[Line2D]:
     handles = []
     for key, style in styles.items():
         count = int(np.count_nonzero(categories == key))
+        if count == 0 and not include_empty:
+            continue
         percent = 100.0 * count / denominator if denominator else 0.0
         facecolor = "#D9D9D9" if neutral_colors else style.color
         handles.append(
@@ -1080,9 +1681,32 @@ def render_categorical_mass(
             + r"Experimental = HB $\wedge$ HS $\wedge$ EWPO $\wedge$ $M_W$",
             fontsize=9.5 if compact else 12.0,
         )
+    elif spec.scheme == "bsmpt_status":
+        ax.set_title(
+            spec.title
+            + "\n"
+            + r"Conventional strong-FOPT diagnostic: "
+            + r"$v_{\rm EW,true}(T_*)/T_*\geq1$",
+            fontsize=8.8 if compact else 11.2,
+        )
+    elif spec.scheme == "bsmpt_phase":
+        ax.set_title(
+            spec.title + "\nGlobal-minimum route on cooling",
+            fontsize=8.8 if compact else 11.2,
+        )
+    elif spec.scheme == "bsmpt_step":
+        ax.set_title(
+            spec.title + "\nStep 0 is the first transition into an EW phase",
+            fontsize=8.8 if compact else 11.2,
+        )
     else:
         ax.set_title(spec.title, fontsize=9.5 if compact else 12.0)
-    handles = category_legend_handles(categories[valid], styles, int(np.count_nonzero(valid)))
+    handles = category_legend_handles(
+        categories[valid],
+        styles,
+        int(np.count_nonzero(valid)),
+        include_empty=not str(spec.scheme).startswith("bsmpt"),
+    )
     ax.legend(
         handles=handles,
         loc="best",
@@ -1098,7 +1722,10 @@ def render_categorical_mass(
 def render_continuous_mass(
     fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
 ) -> None:
-    values = data.f(spec.value)
+    try:
+        values = data.f(spec.value)
+    except KeyError as exc:
+        raise PlotUnavailable(f"{spec.value} column is unavailable") from exc
     m2 = data.f("M2")
     m3 = data.f("M3")
     valid = finite_mask(m2, m3, values)
@@ -1107,14 +1734,19 @@ def render_continuous_mass(
 
     norm = norm_for(spec, values[valid])
     cmap = plt.get_cmap(spec.cmap)
-    categories = data.derived["fourway"]
-    for key, style in FOURWAY_STYLES.items():
+    marker_scheme = spec.scheme or "fourway"
+    categories, marker_styles = category_styles(data, marker_scheme)
+    for key, style in marker_styles.items():
         mask = valid & (categories == key)
         if not np.any(mask):
             continue
         group_values = values[mask]
-        if spec.norm_kind in {"threshold0", "threshold4"}:
-            center = 0.0 if spec.norm_kind == "threshold0" else 4.0
+        if spec.norm_kind in {"threshold0", "threshold1", "threshold4"}:
+            center = {
+                "threshold0": 0.0,
+                "threshold1": BSMPT_STRONG_EWPT_THRESHOLD,
+                "threshold4": 4.0,
+            }[spec.norm_kind]
             order = np.argsort(np.abs(group_values - center), kind="stable")
         elif spec.norm_kind == "signed":
             order = np.argsort(np.abs(group_values), kind="stable")
@@ -1130,25 +1762,37 @@ def render_continuous_mass(
             s=max(7.0, style.size * (0.62 if compact else 0.72)),
             marker=style.marker,
             alpha=0.58 if key == "neither" else min(style.alpha + 0.05, 0.95),
-            edgecolors="#202020" if key == "both" else "none",
-            linewidths=0.25 if key == "both" else 0.0,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
             rasterized=True,
             zorder=style.zorder,
         )
 
     style_mass_axis(ax, data)
-    ax.set_title(spec.title, fontsize=9.5 if compact else 12.0)
-    ax.text(
-        0.985,
-        0.018,
-        f"finite N = {int(np.count_nonzero(valid)):,}",
-        transform=ax.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=6.7 if compact else 7.6,
-        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72, "pad": 1.5},
-        zorder=10,
-    )
+    title = spec.title
+    if spec.norm_kind == "threshold1":
+        title += (
+            "\n"
+            + r"$T_*$ priority: nucleation, percolation, completion, critical"
+        )
+    ax.set_title(title, fontsize=8.8 if compact else 12.0)
+    if spec.scheme is None:
+        ax.text(
+            0.985,
+            0.018,
+            f"finite N = {int(np.count_nonzero(valid)):,}",
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=6.7 if compact else 7.6,
+            bbox={
+                "facecolor": "white",
+                "edgecolor": "none",
+                "alpha": 0.72,
+                "pad": 1.5,
+            },
+            zorder=10,
+        )
     scalar_mappable = ScalarMappable(norm=norm, cmap=cmap)
     scalar_mappable.set_array([])
     colorbar = fig.colorbar(
@@ -1162,12 +1806,23 @@ def render_continuous_mass(
     colorbar.ax.tick_params(labelsize=7.0 if compact else 8.0)
     if spec.norm_kind == "signed":
         colorbar.set_ticks(sparse_symlog_ticks(norm))
-    if spec.norm_kind == "threshold4":
+    if spec.norm_kind in {"threshold1", "threshold4"}:
+        threshold = (
+            BSMPT_STRONG_EWPT_THRESHOLD
+            if spec.norm_kind == "threshold1"
+            else 4.0
+        )
         ticks = [tick for tick in colorbar.get_ticks() if norm.vmin <= tick <= norm.vmax]
-        colorbar.set_ticks(sorted(set(ticks + [4.0])))
-        colorbar.ax.axhline(4.0, color="#222222", linewidth=0.8, alpha=0.8)
+        colorbar.set_ticks(sorted(set(ticks + [threshold])))
+        colorbar.ax.axhline(
+            threshold, color="#222222", linewidth=0.8, alpha=0.8
+        )
     handles = category_legend_handles(
-        categories[valid], FOURWAY_STYLES, int(np.count_nonzero(valid)), neutral_colors=True
+        categories[valid],
+        marker_styles,
+        int(np.count_nonzero(valid)),
+        neutral_colors=True,
+        include_empty=not str(marker_scheme).startswith("bsmpt"),
     )
     ax.legend(
         handles=handles,
@@ -1229,6 +1884,176 @@ def render_categorical_xy(
         framealpha=0.82,
         edgecolor="none",
         fontsize=6.8 if compact else 8.0,
+    )
+
+
+def cumulative_constraint_legend_handles(
+    masks: OrderedDict[str, np.ndarray],
+    valid: np.ndarray,
+) -> list[Line2D]:
+    denominator = int(np.count_nonzero(valid))
+    handles = []
+    for key, style in CUMULATIVE_CONSTRAINT_STYLES.items():
+        count = int(np.count_nonzero(valid & masks[key]))
+        percent = 100.0 * count / denominator if denominator else 0.0
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                linestyle="None",
+                marker=style.marker,
+                markersize=max(4.0, math.sqrt(style.size)),
+                markerfacecolor=style.color,
+                markeredgecolor=(
+                    style.edgecolor
+                    if style.edgecolor != "none"
+                    else style.color
+                ),
+                markeredgewidth=max(style.linewidth, 0.35),
+                color="none",
+                label=f"{style.display}: {count:,} ({percent:.2f}%)",
+            )
+        )
+    return handles
+
+
+def render_cumulative_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    try:
+        x = data.f(spec.x)
+        y = data.f(spec.y)
+    except KeyError as exc:
+        missing = exc.args[0]
+        raise PlotUnavailable(f"{missing} column is unavailable") from exc
+
+    valid = finite_mask(x, y)
+    if not np.any(valid):
+        raise PlotUnavailable(f"{spec.x} and {spec.y} have no finite pairs")
+
+    masks = cumulative_constraint_masks(data)
+    for key, style in CUMULATIVE_CONSTRAINT_STYLES.items():
+        mask = valid & masks[key]
+        if not np.any(mask):
+            continue
+        ax.scatter(
+            x[mask],
+            y[mask],
+            s=style.size * (0.78 if compact else 1.0),
+            c=style.color,
+            marker=style.marker,
+            alpha=style.alpha,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
+            rasterized=True,
+            zorder=style.zorder,
+        )
+
+    if spec.x == "M2" and spec.y == "M3":
+        style_mass_axis(ax, data)
+    else:
+        y_finite = y[valid]
+        if float(np.min(y_finite)) < 0.0 < float(np.max(y_finite)):
+            ax.axhline(
+                0.0,
+                color="#666666",
+                linewidth=0.7,
+                alpha=0.55,
+                zorder=0.1,
+            )
+        ax.set_xlabel(spec.xlabel)
+        ax.set_ylabel(spec.ylabel)
+        ax.grid(True, alpha=0.18, linewidth=0.6)
+
+    ax.set_title(
+        spec.title + "\n" + r"Nested sequence; EWPO not applied",
+        fontsize=8.7 if compact else 11.5,
+    )
+    handles = cumulative_constraint_legend_handles(masks, valid)
+    ax.legend(
+        handles=handles,
+        loc="best",
+        frameon=True,
+        framealpha=0.84,
+        edgecolor="none",
+        fontsize=5.7 if compact else 7.4,
+        handletextpad=0.45,
+        borderpad=0.42,
+    )
+
+
+def render_bsmpt_strength_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    x = data.f(spec.x)
+    strength = data.f(spec.y)
+    valid = finite_mask(x, strength) & (strength >= 0.0)
+    if not np.any(valid):
+        raise PlotUnavailable("no finite selected BSMPT FOPT strengths")
+
+    categories, styles = category_styles(data, spec.scheme)
+    for key, style in styles.items():
+        mask = valid & (categories == key)
+        if not np.any(mask):
+            continue
+        order = np.argsort(strength[mask], kind="stable")
+        indices = np.flatnonzero(mask)[order]
+        ax.scatter(
+            x[indices],
+            strength[indices],
+            s=style.size * (0.82 if compact else 1.0),
+            c=style.color,
+            marker=style.marker,
+            alpha=style.alpha,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
+            rasterized=True,
+            zorder=style.zorder,
+        )
+
+    positive = strength[valid & (strength > 0.0)]
+    if positive.size and np.count_nonzero(strength[valid] <= 0.0) == 0:
+        ax.set_yscale("log")
+    else:
+        linthresh = 0.05
+        if positive.size:
+            linthresh = max(
+                min(float(np.percentile(positive, 5.0)), 0.25),
+                1.0e-4,
+            )
+        ax.set_yscale("symlog", linthresh=linthresh)
+    ax.axhline(
+        BSMPT_STRONG_EWPT_THRESHOLD,
+        color="#222222",
+        linestyle="--",
+        linewidth=1.0,
+        alpha=0.85,
+        zorder=0.5,
+    )
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    ax.set_title(
+        spec.title
+        + "\n"
+        + r"$T_*$ priority: nucleation, percolation, completion, critical",
+        fontsize=8.8 if compact else 11.2,
+    )
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    handles = category_legend_handles(
+        categories[valid],
+        styles,
+        int(np.count_nonzero(valid)),
+        include_empty=False,
+    )
+    ax.legend(
+        handles=handles,
+        loc="best",
+        frameon=True,
+        framealpha=0.82,
+        edgecolor="none",
+        fontsize=5.9 if compact else 7.2,
+        handletextpad=0.4,
+        borderpad=0.4,
     )
 
 
@@ -1342,6 +2167,104 @@ def constraint_bar_metrics(data: ScanData):
     )
 
 
+def bsmpt_bar_metrics(data: ScanData):
+    attempted = data.b("bsmpt_attempted")
+    success = data.b("bsmpt_success")
+    selected = data.b("bsmpt_selected_fopt")
+    no_selected = success & ~selected
+    return (
+        (
+            "BSMPT attempted",
+            int(np.count_nonzero(attempted)),
+            "#56B4E9",
+            "//",
+        ),
+        (
+            "BSMPT successful",
+            int(np.count_nonzero(success)),
+            "#0072B2",
+            "",
+        ),
+        (
+            "BSMPT failed",
+            int(np.count_nonzero(data.b("bsmpt_failed"))),
+            "#D55E00",
+            "",
+        ),
+        (
+            "Phase history available",
+            int(np.count_nonzero(data.b("bsmpt_phase_available"))),
+            "#CC79A7",
+            "",
+        ),
+        (
+            "Success / no selected FOPT",
+            int(np.count_nonzero(no_selected)),
+            "#0072B2",
+            "..",
+        ),
+        (
+            r"Selected FOPT: $v/T<1$",
+            int(np.count_nonzero(data.b("bsmpt_weak_fopt"))),
+            "#E69F00",
+            "",
+        ),
+        (
+            r"Selected FOPT: $v/T\geq1$",
+            int(np.count_nonzero(data.b("bsmpt_strong_fopt"))),
+            "#009E73",
+            "",
+        ),
+        (
+            r"Path includes $X$ breaking",
+            int(np.count_nonzero(data.b("bsmpt_x_broken_path"))),
+            "#CC79A7",
+            "xx",
+        ),
+    )
+
+
+def render_bsmpt_bars(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    metrics = bsmpt_bar_metrics(data)
+    labels = [metric[0] for metric in metrics]
+    counts = [metric[1] for metric in metrics]
+    colors = [metric[2] for metric in metrics]
+    hatches = [metric[3] for metric in metrics]
+    positions = np.arange(len(labels))
+    bars = ax.barh(
+        positions,
+        counts,
+        color=colors,
+        alpha=0.82,
+        edgecolor="#333333",
+        linewidth=0.25,
+    )
+    for bar, hatch in zip(bars, hatches):
+        bar.set_hatch(hatch)
+    ax.set_yticks(positions, labels)
+    ax.invert_yaxis()
+    maximum = max(max(counts, default=0), 1)
+    ax.set_xlim(0.0, maximum * 1.22)
+    ax.set_xlabel(f"Points (stored total N = {len(data):,})")
+    ax.set_title(
+        spec.title
+        + "\n"
+        + r"Strong-FOPT diagnostic uses $v_{\rm EW,true}(T_*)/T_*\geq1$",
+        fontsize=8.8 if compact else 11.2,
+    )
+    ax.grid(True, axis="x", alpha=0.18, linewidth=0.6)
+    for position, count in zip(positions, counts):
+        ax.text(
+            count + maximum * 0.018,
+            position,
+            f"{count:,} ({100.0 * count / len(data):.2f}%)",
+            va="center",
+            fontsize=6.3 if compact else 8.0,
+        )
+
+
 def render_bars(ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> None:
     metrics = constraint_bar_metrics(data)
     labels = [metric[0] for metric in metrics]
@@ -1379,16 +2302,24 @@ def render_bars(ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> No
 
 
 def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> None:
+    if spec.requires_bsmpt and not has_bsmpt_results(data):
+        raise PlotUnavailable("BSMPT was not run for any stored scan row")
     if spec.kind == "categorical_mass":
         render_categorical_mass(ax, data, spec, compact=compact)
     elif spec.kind == "continuous_mass":
         render_continuous_mass(fig, ax, data, spec, compact=compact)
     elif spec.kind == "categorical_xy":
         render_categorical_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "cumulative_xy":
+        render_cumulative_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "bsmpt_strength_xy":
+        render_bsmpt_strength_xy(ax, data, spec, compact=compact)
     elif spec.kind == "ratio_plane":
         render_ratio_plane(ax, data, spec, compact=compact)
     elif spec.kind == "bars":
         render_bars(ax, data, spec, compact=compact)
+    elif spec.kind == "bsmpt_bars":
+        render_bsmpt_bars(ax, data, spec, compact=compact)
     else:
         raise ValueError(f"Unknown plot kind: {spec.kind}")
 
@@ -1403,11 +2334,31 @@ def all_figure_stems() -> tuple[str, ...]:
     return tuple(spec.stem for spec in PLOT_SPECS) + tuple(DASHBOARDS)
 
 
-def expected_figure_paths(output_dir: Path | str, plot_format: str) -> list[Path]:
+def figure_stems_for_data(data: ScanData) -> tuple[str, ...]:
+    include_bsmpt = has_bsmpt_results(data)
+    plot_stems = tuple(
+        spec.stem
+        for spec in PLOT_SPECS
+        if include_bsmpt or not spec.requires_bsmpt
+    )
+    dashboard_stems = tuple(
+        stem
+        for stem in DASHBOARDS
+        if include_bsmpt or stem not in BSMPT_DASHBOARDS
+    )
+    return plot_stems + dashboard_stems
+
+
+def expected_figure_paths(
+    output_dir: Path | str,
+    plot_format: str,
+    data: ScanData | None = None,
+) -> list[Path]:
     output_dir = Path(output_dir)
+    stems = all_figure_stems() if data is None else figure_stems_for_data(data)
     return [
         output_dir / f"{stem}.{extension}"
-        for stem in all_figure_stems()
+        for stem in stems
         for extension in extensions_for_format(plot_format)
     ]
 
@@ -1435,7 +2386,7 @@ def render_standalone(
     plot_format: str,
     dpi: int,
 ) -> list[Path]:
-    if spec.kind == "bars":
+    if spec.kind in {"bars", "bsmpt_bars"}:
         figsize = (9.2, 6.3)
     else:
         figsize = (8.2, 6.2)
@@ -1505,6 +2456,27 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         ("full_viability", "theory & experimental & dm"),
     ):
         rows.append(SummaryRow(name, int(np.count_nonzero(data.b(name))), n, note))
+
+    cumulative_masks = cumulative_constraint_masks(data)
+    cumulative_notes = {
+        "all": "All stored rows in the collaborator diagnostic sequence",
+        "hb": "HB",
+        "hb_hs": "HB & HS",
+        "hb_hs_wmass": "HB & HS & wmass",
+        "hb_hs_wmass_dm": "HB & HS & wmass & dm",
+    }
+    for name, mask in cumulative_masks.items():
+        rows.append(
+            SummaryRow(
+                f"cumulative_selection_{name}",
+                int(np.count_nonzero(mask)),
+                n,
+                (
+                    cumulative_notes[name]
+                    + "; EWPO intentionally not applied in this diagnostic sequence"
+                ),
+            )
+        )
 
     dm_result_available = data.b("dm_result_available")
     relic_available = data.b("relic_available")
@@ -1593,15 +2565,128 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
             )
         )
 
-    ewpt_finite = int(np.count_nonzero(np.isfinite(data.f("ewpt_ew_true_over_T"))))
-    rows.append(
-        SummaryRow(
-            "ewpt_finite",
-            ewpt_finite,
-            n,
-            "EWPT plots omitted because no finite values are present" if ewpt_finite == 0 else "Finite EWPT strengths",
+    bsmpt_attempted = int(np.count_nonzero(data.b("bsmpt_attempted")))
+    bsmpt_success = int(np.count_nonzero(data.b("bsmpt_success")))
+    bsmpt_failed = int(np.count_nonzero(data.b("bsmpt_failed")))
+    bsmpt_selected = int(np.count_nonzero(data.b("bsmpt_selected_fopt")))
+    bsmpt_strong = int(np.count_nonzero(data.b("bsmpt_strong_fopt")))
+    bsmpt_phase_available = int(
+        np.count_nonzero(data.b("bsmpt_phase_available"))
+    )
+    bsmpt_step_available = int(
+        np.count_nonzero(
+            np.isin(data.derived["bsmpt_step"], ["step 0", "step 1", "step 2+"])
         )
     )
+    rows.extend(
+        [
+            SummaryRow(
+                "bsmpt_attempted",
+                bsmpt_attempted,
+                n,
+                (
+                    "BSMPT run recorded for this stored row"
+                    if bsmpt_attempted
+                    else "No BSMPT runs recorded; BSMPT plots omitted"
+                ),
+            ),
+            SummaryRow(
+                "bsmpt_success",
+                bsmpt_success,
+                bsmpt_attempted,
+                "Successful BSMPT evaluation among attempted rows",
+            ),
+            SummaryRow(
+                "bsmpt_failed",
+                bsmpt_failed,
+                bsmpt_attempted,
+                "Failed BSMPT evaluation among attempted rows",
+            ),
+            SummaryRow(
+                "bsmpt_success_no_selected_fopt",
+                bsmpt_success - bsmpt_selected,
+                bsmpt_success,
+                "Successful evaluation without a finite selected FOPT strength",
+            ),
+            SummaryRow(
+                "bsmpt_selected_fopt",
+                bsmpt_selected,
+                bsmpt_success,
+                (
+                    "Finite selected FOPT result; temperature priority is "
+                    "nucleation, percolation, completion, then critical"
+                ),
+            ),
+            SummaryRow(
+                "bsmpt_selected_weak_fopt",
+                int(np.count_nonzero(data.b("bsmpt_weak_fopt"))),
+                bsmpt_selected,
+                (
+                    "Selected FOPT with "
+                    f"v_EW,true(T*)/T* < {BSMPT_STRONG_EWPT_THRESHOLD:g}"
+                ),
+            ),
+            SummaryRow(
+                "bsmpt_selected_strong_fopt",
+                bsmpt_strong,
+                bsmpt_selected,
+                (
+                    "Conventional strong-FOPT diagnostic: "
+                    f"v_EW,true(T*)/T* >= {BSMPT_STRONG_EWPT_THRESHOLD:g}; "
+                    "not an additional scan constraint"
+                ),
+            ),
+            SummaryRow(
+                "bsmpt_phase_history_available",
+                bsmpt_phase_available,
+                bsmpt_success,
+                "MinimaTracer global-minimum phase route is stored",
+            ),
+            SummaryRow(
+                "bsmpt_ew_entry_step_available",
+                bsmpt_step_available,
+                bsmpt_success,
+                "Index of the transition entering an EW-broken phase is stored",
+            ),
+            SummaryRow(
+                "bsmpt_direct_ew_entry",
+                int(np.count_nonzero(data.b("bsmpt_direct_ew_entry"))),
+                bsmpt_step_available,
+                "EW breaking occurs at step 0",
+            ),
+            SummaryRow(
+                "bsmpt_multistep_ew_entry",
+                int(np.count_nonzero(data.b("bsmpt_multistep_ew_entry"))),
+                bsmpt_step_available,
+                "One or more phase transitions precede EW breaking",
+            ),
+            SummaryRow(
+                "bsmpt_x_broken_path",
+                int(np.count_nonzero(data.b("bsmpt_x_broken_path"))),
+                bsmpt_phase_available,
+                (
+                    "Global cooling path includes X_BROKEN or EW_X_BROKEN; "
+                    "inspect such points because the nominal dark Z2 is broken "
+                    "at an intermediate or final phase"
+                ),
+            ),
+            SummaryRow(
+                "ewpt_finite",
+                bsmpt_selected,
+                n,
+                "Backward-compatible alias for finite selected BSMPT FOPT strengths",
+            ),
+        ]
+    )
+    for category in BSMPT_PHASE_STYLES:
+        rows.append(
+            SummaryRow(
+                f"bsmpt_phase_{category.replace(' ', '_').replace('/', 'or')}",
+                int(np.count_nonzero(data.derived["bsmpt_phase"] == category)),
+                n,
+                "BSMPT/MinimaTracer global phase-route category",
+            )
+        )
     rows.append(
         SummaryRow(
             "m3_above_nominal_max",
@@ -1622,9 +2707,34 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
             "M2 > M3_max - 125 GeV, where the legacy conditional sampler reverses its endpoints",
         )
     )
+    h2_to_h3h3_open = data.f("M2") > 2.0 * data.f("M3")
+    m3_above_2m2 = data.f("M3") > 2.0 * data.f("M2")
+    rows.extend(
+        [
+            SummaryRow(
+                "h2_to_h3h3_kinematically_open",
+                int(np.count_nonzero(h2_to_h3h3_open)),
+                n,
+                (
+                    "Below the M2 = 2*M3 magenta dash-dot guide: "
+                    "h2 -> h3 h3 has nonzero phase space"
+                ),
+            ),
+            SummaryRow(
+                "m3_above_2m2_reference",
+                int(np.count_nonzero(m3_above_2m2)),
+                n,
+                (
+                    "Above the M3 = 2*M2 blue dashed guide: "
+                    "reciprocal mass-hierarchy reference, not an h3 decay "
+                    "threshold because h3 is Z2-stable"
+                ),
+            ),
+        ]
+    )
     invisible_width_open = (
         (2.0 * data.f("M3") < SM_LIKE_HIGGS_MASS_GEV)
-        | (2.0 * data.f("M3") < data.f("M2"))
+        | h2_to_h3h3_open
     )
     rows.append(
         SummaryRow(
@@ -1801,10 +2911,13 @@ def scan_information_html(data: ScanData) -> str:
     if metadata is not None:
         mass_sampling = metadata.get("mass_sampling", {})
         portal_sampling = metadata.get("portal_sampling", {})
+        scan_options = metadata.get("options", {})
         if not isinstance(mass_sampling, dict):
             mass_sampling = {}
         if not isinstance(portal_sampling, dict):
             portal_sampling = {}
+        if not isinstance(scan_options, dict):
+            scan_options = {}
         for label, value in (
             ("Seed", metadata.get("seed")),
             ("Requested points", metadata.get("requested_points")),
@@ -1814,6 +2927,8 @@ def scan_information_html(data: ScanData) -> str:
             ("Portal mode", portal_sampling.get("mode")),
             ("Created (UTC)", metadata.get("created_utc")),
             ("Portal convention", metadata.get("portal_convention")),
+            ("BSMPT requested", scan_options.get("run_ewpt")),
+            ("BSMPT high temperature", scan_options.get("ewpt_thigh")),
         ):
             if value is not None:
                 facts.append(
@@ -1944,11 +3059,44 @@ def write_plot_index(
         return "\n".join(parts)
 
     dashboard_cards = "\n".join(
-        plot_card(stem, DASHBOARD_TITLES[stem]) for stem in DASHBOARDS
+        plot_card(stem, DASHBOARD_TITLES[stem])
+        for stem in DASHBOARDS
+        if stem not in BSMPT_DASHBOARDS
     )
     standalone_cards = "\n".join(
-        plot_card(spec.stem, spec.title) for spec in PLOT_SPECS
+        plot_card(spec.stem, spec.title)
+        for spec in PLOT_SPECS
+        if not spec.requires_bsmpt
     )
+    bsmpt_attempted = int(np.count_nonzero(data.b("bsmpt_attempted")))
+    if bsmpt_attempted:
+        bsmpt_cards = [
+            plot_card(stem, DASHBOARD_TITLES[stem])
+            for stem in DASHBOARDS
+            if stem in BSMPT_DASHBOARDS
+        ]
+        bsmpt_cards.extend(
+            plot_card(spec.stem, spec.title)
+            for spec in PLOT_SPECS
+            if spec.requires_bsmpt
+        )
+        bsmpt_section = (
+            '<section id="bsmpt"><h2>BSMPT electroweak phase-transition plots</h2>'
+            "<p>The selected order parameter uses the first available temperature "
+            "in the priority nucleation, percolation, completion, then critical. "
+            f"The suite records {bsmpt_attempted:,} attempted BSMPT evaluations; "
+            r"$v_{\rm EW,true}(T_*)/T_*\geq1$ is shown as a conventional strong-FOPT "
+            "diagnostic, not as an additional scan constraint.</p>"
+            f'<div class="grid">{"".join(bsmpt_cards)}</div></section>'
+        )
+    else:
+        bsmpt_section = (
+            '<section id="bsmpt"><h2>BSMPT electroweak phase-transition plots</h2>'
+            '<div class="notice warning"><strong>No stored BSMPT evaluations.</strong> '
+            "These plots are generated automatically when at least one row contains "
+            "a BSMPT status, selected EWPT strength, phase history, or EW-entry "
+            "step.</div></section>"
+        )
     scan_information = scan_information_html(data)
     summary_table_rows = []
     for row in summary_rows:
@@ -2011,11 +3159,12 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <main>
 <header>
 <h1>TRSM constraint plot suite</h1>
-<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; DM {dm_pass:,} &middot; full viability {full:,}</p>
-<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
+<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
+<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>
 {scan_information}
 <section id="dashboards"><h2>Dashboards</h2><div class="grid">{dashboard_cards}</div></section>
+{bsmpt_section}
 <section id="standalone"><h2>Individual plots</h2><div class="grid">{standalone_cards}</div></section>
 <section id="summary"><h2>Constraint summary</h2><p><a href="constraint_summary.tsv">Download constraint_summary.tsv</a></p>
 <div class="table-wrap"><table><thead><tr><th>Metric</th><th>Count</th><th>Denominator</th><th>Percent</th><th>Note</th></tr></thead>
@@ -2107,6 +3256,11 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
     paths: list[Path] = []
     skipped: list[tuple[str, str]] = []
     for spec in PLOT_SPECS:
+        if spec.requires_bsmpt and not has_bsmpt_results(data):
+            reason = "BSMPT was not run for any stored scan row"
+            skipped.append((spec.stem, reason))
+            print(f"Skipped {spec.stem}: {reason}")
+            continue
         try:
             paths.extend(
                 render_standalone(data, spec, output_dir, args.format, args.dpi)
@@ -2117,6 +3271,11 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             print(f"Skipped {spec.stem}: {reason}")
 
     for dashboard_stem, plot_stems in DASHBOARDS.items():
+        if dashboard_stem in BSMPT_DASHBOARDS and not has_bsmpt_results(data):
+            reason = "BSMPT was not run for any stored scan row"
+            skipped.append((dashboard_stem, reason))
+            print(f"Skipped {dashboard_stem}: {reason}")
+            continue
         paths.extend(
             render_dashboard(
                 data,

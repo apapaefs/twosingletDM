@@ -83,7 +83,57 @@ support of every scanned variable. The distinction matters for the default
 mass sampler: although the configured range is `M2 = 4--1000 GeV`, its
 effective range is `4--875 GeV`, and the `M3` lower endpoint depends on the
 sampled `M2`. With `--independent-m3`, the effective ranges are the full
-configured rectangle, `M2 = 4--1000 GeV` and `M3 = 8--1000 GeV`.
+configured rectangle, `M2 = 4--1000 GeV` and `M3 = 4--1000 GeV`.
+
+### Resume an interrupted random scan
+
+Random scans are checkpointed automatically. The adjacent
+`<scan-stem>.checkpoint.json` records the state after the last committed raw
+draw, including the Python random-number state, raw draw index, constraint
+counters, output sizes, and immutable scan-configuration fingerprint. The
+default is to checkpoint every completed draw; use `--checkpoint-every N` to
+change that cadence.
+
+Resume by naming the existing main TSV:
+
+```bash
+./trsmdm/bin/python generate_trsm_points.py \
+  --resume-from output/trsm_points_13.6-20260723-879-False_vxzero.dat \
+  --nrandom 10000
+```
+
+On resume, `--nrandom` is the **total campaign target**, not the number of
+additional points. For a campaign using `--nrandom-count-evo-thc`, the example
+therefore stops when the file contains 10,000 evo/thc-passing points. Omitting
+`--nrandom` retains the most recently recorded target. The original seed,
+sampling ranges and modes, output selection, Higgs/micrOMEGAs conventions, and
+BSMPT executable and work-directory settings are loaded automatically from the
+metadata sidecar; do not repeat them. They are immutable within one campaign.
+The only resume overrides are `--nrandom`, `--checkpoint-every`,
+`--print-info`, and `--no-print-info`.
+
+The generator uses an adjacent lock file to reject concurrent writers. A
+same-host lock is archived only when its PID is no longer alive. If a crash
+leaves output beyond the last checkpoint, the uncommitted tail is backed up and
+rolled back before continuation. BSMPT `point_XXXXXX` directories beyond the
+committed raw draw are renamed with an `.interrupted-...` suffix rather than
+deleted.
+
+Scans created before checkpoint support can be adopted once when both
+`--nrandom-count-evo-thc` and `--write-evo-thc-points` were used. Stop the old
+generator first and confirm that its PID has exited, then use the same
+`--resume-from` command. The generator replays only the inexpensive random
+candidate draws from the saved seed and matches every stored scan coordinate
+in order. HiggsTools, micrOMEGAs, and BSMPT are not called during this
+reconstruction. Adoption aborts before appending anything if the recorded
+prefix cannot be reproduced exactly.
+
+The metadata retains the initial target and invocation, adds an append-only
+resume history, and reports the current campaign status and counters. A
+requested target below the completed count is rejected; an equal target is a
+clean no-op marked complete, and a larger target extends a completed campaign.
+Starting a fresh command over an existing checkpointed run tag is also rejected
+with an instruction to use `--resume-from`.
 
 By default, `--nrandom` is the number of random draws attempted. To instead
 keep drawing until `--nrandom` points have passed the RGE evolution (`evo`) and
@@ -135,7 +185,7 @@ The `K133` and `K233` scan ranges are set in the `define ranges here` block of
 `generate_trsm_points.py`:
 
 ```python
-K133_min = 1E-4
+K133_min = 1E-5
 K133_max = 8.0
 
 K233_min = 1E-4
@@ -153,11 +203,11 @@ python3 generate_trsm_points.py 123 \
 The logarithmic scan samples powers set by:
 
 ```python
-K133_pow_min = -3
+K133_pow_min = -4
 K133_pow_max = 3
 
 K233_pow_min = -3
-K233_pow_max = 3
+K233_pow_max = 5
 ```
 
 In either K-scan mode, each sampled `K133` and `K233` point is converted to the
@@ -393,8 +443,8 @@ the constraint suite from the repository root:
 ```
 
 The command above uses the Python installation tested on `manto`. With the
-defaults, the suite writes PNG and PDF versions of up to 22 standalone figures
-and three combined dashboards, together with `constraint_summary.tsv`, under
+defaults, the suite writes PNG and PDF versions of up to 36 standalone figures
+and five combined dashboards, together with `constraint_summary.tsv`, under
 `plots/trsm_points_NEW_constraints/`. It also writes a self-contained
 `index.html` with dashboard and individual-plot previews, links to every
 generated PNG/PDF, skipped-plot notices, and the constraint-summary table. Open
@@ -436,11 +486,64 @@ reconstructing the selections. It defines the experimental selection as
 viability as theory, experimental, and dark-matter (`dm`) selections passing
 together.
 
+The `23_h2_width_dm_status_m2_m3` map uses the same aggregate DM pass/fail
+marker distinction as plot 02, while point color shows the stored complete
+$h_2$ width `w2` on a logarithmic scale.
+
+Plots 24--29 reproduce the collaborator diagnostic set as cumulative survivor
+overlays for $M_2$--$M_3$, $M_2$--$v_s$, $M_2$--$a_{12}$,
+$M_3$--$\lambda_X$, $M_3$--$\lambda_{\Phi X}$, and
+$M_3$--$\lambda_{SX}$. The layers are nested in the exact supplied order:
+all stored rows, HB, HB and HS, HB and HS and the $W$-mass constraint, and
+finally those three constraints together with aggregate DM passing. Distinct
+markers and the suite's colorblind-safe palette make the smaller survivor sets
+visible above the full scan. This collaborator sequence deliberately does not
+apply EWPO and is therefore separate from the suite's `experimental` and
+`full_viability` definitions. The fourth dashboard collects all six plots, and
+`constraint_summary.tsv` records each cumulative count explicitly.
+
+When the scan contains recorded BSMPT results, plots 30--36 and a fifth
+dashboard are added automatically:
+
+- BSMPT run/failed/no-selected-FOPT/weak-FOPT/strong-FOPT status on the
+  \(M_2,M_3\) plane;
+- the selected \(v_{\rm EW,true}(T_*)/T_*\) on the mass plane, with one shared
+  threshold-centred normalization;
+- MinimaTracer global phase-route and electroweak-entry-step maps;
+- \(v_{\rm EW,true}(T_*)/T_*\) versus \(M_2\) and \(M_3\); and
+- BSMPT evaluation, phase-history, and transition-result counts.
+
+The generator selects \(T_*\) with priority nucleation, then percolation,
+completion, and critical temperature. The displayed
+\(v_{\rm EW,true}(T_*)/T_*\geq1\) split is the conventional strong-first-order
+transition diagnostic; it is not added to the scan's viability selection.
+The phase-route map distinguishes direct electroweak entry, paths through an
+\(S\)-broken phase, paths through an \(X\)-broken phase, and other multistep
+histories. Since an \(X\)-broken phase violates the nominal dark-sector
+\(Z_2\), those points are also counted explicitly in `constraint_summary.tsv`.
+Rows for which BSMPT was not requested remain visible as “not run”, while
+failed evaluations are never interpreted as successful or as having no
+first-order transition.
+
+For a file with no recorded BSMPT attempt, these seven figures and their
+dashboard are skipped, the original 29-plot/four-dashboard inventory is
+unchanged, and the HTML index explains why the BSMPT section is absent. A
+finite `ewpt_ew_true_over_T` is sufficient for compatibility with older files;
+newer files additionally use `ewpt_status`, `ewpt_global_phase_path`,
+`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Detailed transition
+temperatures remain in the per-point `ewpt_result.json` files and are not
+reconstructed by the scan-table plot suite.
+
 For scans made with `--independent-m3`, the dashed
 `M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the
 default conditional relation; it is not a selection applied to the data in
-that mode. `constraint_summary.tsv` records both how many points have a
-kinematically open invisible Higgs decay and how many of those are unmodelled.
+that mode. The same figures show `M2 = 2*M3` (magenta dash-dot), the physical
+threshold for `h2 -> h3 h3`, and the reciprocal mass-hierarchy reference
+`M3 = 2*M2` (blue dashed). The latter is not an `h3` decay threshold because
+`h3` is the stable dark-matter state. `constraint_summary.tsv` records the
+number of points below the first guide and above the second, as well as how
+many points have a kinematically open invisible Higgs decay and how many of
+those are unmodelled.
 Canonical-v1 files should have zero unmodelled points; legacy files without the
 new metadata remain supported and are classified conservatively.
 

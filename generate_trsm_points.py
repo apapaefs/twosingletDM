@@ -1,20 +1,160 @@
 import argparse
+import csv
 import json
 import math
 import os
 import random
+import signal
+import socket
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+from trsm_scan_campaign import (
+    CHECKPOINT_SCHEMA,
+    SAMPLING_ALGORITHM_VERSION,
+    CampaignLock,
+    CampaignStateError,
+    advance_output_records,
+    atomic_write_json,
+    checkpoint_path,
+    configuration_fingerprint,
+    decode_rng_state,
+    encode_rng_state,
+    inspect_tsv,
+    load_json,
+    output_records,
+    quarantine_uncheckpointed_point_dirs,
+    reconcile_outputs,
+    repair_incomplete_tsv_tail,
+    utc_now,
+)
 
 
 TRSM_POINT_ARGS = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
 EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
 SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
 ORIGINAL_COMMAND_LINE = (Path(sys.argv[0]).name, *sys.argv[1:])
+RESUME_PATH_OPTIONS = {
+    "ewpt_executable",
+    "ewpt_minima_executable",
+    "ewpt_workdir",
+    "ewpt_plot_output",
+}
+RESUME_RUNTIME_DESTS = {
+    "resume_from",
+    "checkpoint_every",
+    "nrandom",
+    "print_info",
+}
+RESUME_ALLOWED_OPTIONS = {
+    "--resume-from": 1,
+    "--nrandom": 1,
+    "--checkpoint-every": 1,
+    "--print-info": 0,
+    "--no-print-info": 0,
+}
+
+
+def _resume_cli_option_names(argv):
+    """Validate the deliberately small set of command-line resume overrides."""
+    names = set()
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        matched = None
+        for option, argument_count in RESUME_ALLOWED_OPTIONS.items():
+            if token == option:
+                matched = (option, argument_count)
+                break
+            if argument_count and token.startswith(option + "="):
+                matched = (option, 0)
+                break
+        if matched is None:
+            raise ValueError(
+                "When --resume-from is used, only --nrandom, "
+                "--checkpoint-every, --print-info, and --no-print-info may "
+                "override the saved campaign settings; unexpected argument "
+                f"{token!r}."
+            )
+        option, argument_count = matched
+        names.add(option)
+        if argument_count:
+            if index + argument_count >= len(argv):
+                raise ValueError(f"{option} requires a value")
+            index += argument_count
+        index += 1
+    return names
+
+
+def _hydrate_resume_args(parser, args, argv):
+    if args.resume_from is None:
+        return args
+
+    try:
+        explicit_options = _resume_cli_option_names(argv)
+    except ValueError as error:
+        parser.error(str(error))
+
+    scan_path = args.resume_from.expanduser().resolve()
+    metadata_path = scan_path.with_suffix(".metadata.json")
+    try:
+        metadata = load_json(metadata_path, "scan metadata")
+    except CampaignStateError as error:
+        parser.error(str(error))
+    if metadata.get("schema") != SCAN_METADATA_SCHEMA:
+        parser.error(
+            f"Unsupported scan metadata schema in {metadata_path}: "
+            f"{metadata.get('schema')!r}"
+        )
+    if metadata.get("output_role", "main") != "main":
+        parser.error("--resume-from must name the main scan output")
+    if metadata.get("scan_file") != scan_path.name:
+        parser.error(
+            f"Metadata scan_file={metadata.get('scan_file')!r} does not match "
+            f"--resume-from {scan_path.name!r}"
+        )
+    saved_options = metadata.get("options")
+    if not isinstance(saved_options, dict):
+        parser.error(f"Scan metadata has no usable options object: {metadata_path}")
+
+    explicit_nrandom = "--nrandom" in explicit_options
+    explicit_print = (
+        "--print-info" in explicit_options
+        or "--no-print-info" in explicit_options
+    )
+    requested_target = args.nrandom
+    requested_print = args.print_info
+    checkpoint_every = args.checkpoint_every
+
+    for name, value in saved_options.items():
+        if name in RESUME_RUNTIME_DESTS or not hasattr(args, name):
+            continue
+        if name in RESUME_PATH_OPTIONS and value is not None:
+            value = Path(value)
+        setattr(args, name, value)
+
+    args.seed = int(metadata.get("seed", saved_options.get("seed", args.seed)))
+    args.nrandom = (
+        requested_target
+        if explicit_nrandom
+        else int(metadata.get("requested_points", saved_options.get("nrandom", 100)))
+    )
+    args.print_info = (
+        requested_print
+        if explicit_print
+        else bool(saved_options.get("print_info", False))
+    )
+    args.checkpoint_every = checkpoint_every
+    args.resume_from = scan_path
+    args.resume_metadata = metadata
+    args.resume_metadata_path = metadata_path
+    return args
 
 
 def parse_args(argv=None):
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         description=(
             "Generate TRSM points. By default this runs the existing random "
@@ -84,7 +224,25 @@ def parse_args(argv=None):
         "--nrandom",
         type=int,
         default=100,
-        help="Number of points for the default random scan.",
+        help=(
+            "Total number of points for a fresh or resumed random scan. In "
+            "--nrandom-count-evo-thc mode this is the total evo/thc-passing "
+            "target, not an additional number on resume."
+        ),
+    )
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        help=(
+            "Resume an existing main scan TSV. Immutable scan and provider "
+            "settings are restored from its adjacent metadata sidecar."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=1,
+        help="Atomically checkpoint after every N completed random draws (default: 1).",
     )
     parser.add_argument(
         "--nrandom-count-evo-thc",
@@ -154,6 +312,12 @@ def parse_args(argv=None):
             "summary for each fully evaluated scan point. This does not change "
             "which points are written."
         ),
+    )
+    parser.add_argument(
+        "--no-print-info",
+        dest="print_info",
+        action="store_false",
+        help="Disable per-point diagnostic printing, including on resume.",
     )
     parser.add_argument(
         "--run-ewpt",
@@ -241,9 +405,14 @@ def parse_args(argv=None):
     parser.add_argument("--ewpt-w1-threshold", type=float, default=5.0)
     parser.add_argument("--ewpt-wx-threshold", type=float, default=1.0)
     parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
+    args = _hydrate_resume_args(parser, args, raw_argv)
 
     provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
+    if args.nrandom < 0:
+        parser.error("--nrandom must be non-negative")
+    if args.checkpoint_every < 1:
+        parser.error("--checkpoint-every must be at least 1")
     if args.approximate_resonantDM and provided:
         parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
     if args.independent_m3 and provided:
@@ -290,6 +459,7 @@ from test_trsm_higgstools import * # HiggsTools setup
 from trsm_kstoalphas import * # Convert from k1, k2, k3 to a12, a13, a23
 from generate_mg5_trsm_xsecs import * # call MG5 to get the cross section for a specific proces. Make sure that the process has been generated (and check run card for energy/cuts etc!)
 from mg5_process_runner import run_mg5_processes # run selected MG5 processes and collect cross sections
+from scan_output import output_columns as scan_output_columns
 from scan_output import write_valid_point as write_valid_point_file
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
 from test_trsm_DM import print_dm_info, test_dm # micrOMEGAs dark matter check for the vx=0 branch
@@ -569,13 +739,21 @@ def output_path(runtag, suffix=""):
 def dm_failed_output_path(runtag):
     return output_path(runtag, "_dm_failed")
 
+
+def campaign_output_paths(runtag, args):
+    paths = {"main": Path(output_path(runtag))}
+    if getattr(args, "write_dm_failed", False) or getattr(
+        args, "run_ewpt_on_dm_failed", False
+    ):
+        paths["dm_failed"] = Path(dm_failed_output_path(runtag))
+    return paths
+
+
 def reset_output(runtag):
-    outfile = output_path(runtag)
-    filestream = open(outfile,'w')
-    filestream.close()
-    if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
-        filestream = open(dm_failed_output_path(runtag),'w')
-        filestream.close()
+    for outfile in campaign_output_paths(runtag, cli_args).values():
+        outfile.parent.mkdir(parents=True, exist_ok=True)
+        with outfile.open("w", encoding="ascii"):
+            pass
 
 
 def ewpt_point_workdir(args, point_index):
@@ -654,49 +832,70 @@ def effective_m3(args, m2):
     return getattr(args, "m3", None)
 
 
-def checked_uniform(low, high, label):
+def checked_uniform(low, high, label, rng=None):
     if low > high:
         raise ValueError(f"No valid {label} sampling window: [{low}, {high}]")
-    return random.uniform(low, high)
+    return (rng or random).uniform(low, high)
 
 
-def sample_approximate_resonant_masses(delta_res, m1=125.09):
+def sample_approximate_resonant_masses(delta_res, m1=125.09, rng=None):
     delta_res = float(delta_res)
     m1 = float(m1)
+    rng = rng or random
     if delta_res < 0.0:
         raise ValueError("delta_res must be non-negative")
     if not math.isfinite(m1) or m1 <= 0.0:
         raise ValueError("M1 must be finite and positive")
 
-    if random.random() < 0.5:
+    if rng.random() < 0.5:
         m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
         m3_high = min(m3_max, (m2_max + delta_res) / 2.0)
-        m3 = checked_uniform(m3_low, m3_high, "M3 anchor")
+        m3 = checked_uniform(m3_low, m3_high, "M3 anchor", rng=rng)
         m2 = checked_uniform(
             max(m2_min, 2.0 * m3 - delta_res),
             min(m2_max, 2.0 * m3 + delta_res),
             "M2 approximate resonance",
+            rng=rng,
         )
         return m2, m3
 
-    m2 = checked_uniform(m2_min, m2_max, "M2 h1-resonance companion")
+    m2 = checked_uniform(
+        m2_min,
+        m2_max,
+        "M2 h1-resonance companion",
+        rng=rng,
+    )
     m3 = checked_uniform(
         max(m3_min, (m1 - delta_res) / 2.0),
         min(m3_max, (m1 + delta_res) / 2.0),
         "M3 approximate h1 resonance",
+        rng=rng,
     )
     return m2, m3
 
 
-def sample_random_masses(args):
+def sample_random_masses(args, rng=None):
+    supplied_rng = rng
+    rng = rng or random
     if getattr(args, "approximate_resonantDM", False):
+        if supplied_rng is None:
+            return sample_approximate_resonant_masses(
+                args.delta_res,
+                getattr(args, "m1", 125.09),
+            )
         return sample_approximate_resonant_masses(
             args.delta_res,
             getattr(args, "m1", 125.09),
+            rng=rng,
         )
 
     if getattr(args, "resonantDM1", False):
-        m2 = checked_uniform(m2_min, m2_max, "M2 h1-resonance companion")
+        m2 = checked_uniform(
+            m2_min,
+            m2_max,
+            "M2 h1-resonance companion",
+            rng=rng,
+        )
         m3 = effective_m3(args, m2)
         if not m3_min <= m3 <= m3_max:
             raise ValueError(
@@ -708,23 +907,26 @@ def sample_random_masses(args):
             max(m2_min, 2.0 * m3_min),
             min(m2_max, 2.0 * m3_max),
             "M2 h2 resonance",
+            rng=rng,
         )
         return m2, effective_m3(args, m2)
     if getattr(args, "independent_m3", False):
         return (
-            checked_uniform(m2_min, m2_max, "M2 independent scan"),
-            checked_uniform(m3_min, m3_max, "M3 independent scan"),
+            checked_uniform(m2_min, m2_max, "M2 independent scan", rng=rng),
+            checked_uniform(m3_min, m3_max, "M3 independent scan", rng=rng),
         )
 
     m2 = checked_uniform(
         m2_min,
         min(m2_max, m3_max - mhiggs),
         "M2 default scan",
+        rng=rng,
     )
     m3 = checked_uniform(
         max(m3_min, m2 + mhiggs),
         m3_max,
         "M3 default scan",
+        rng=rng,
     )
     return m2, m3
 
@@ -1165,8 +1367,8 @@ def round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, sgf):
 
 
 # random number either -1 or 1:
-def randsign():
-    return 1 if random.random() < 0.5 else -1
+def randsign(rng=None):
+    return 1 if (rng or random).random() < 0.5 else -1
 
 
 ############################################################
@@ -1177,7 +1379,7 @@ def randsign():
 m2_min=4
 m2_max=1000
 
-m3_min=8
+m3_min=4
 m3_max=1000
 
 # ranges of vevs
@@ -1198,7 +1400,7 @@ num_m3 = 2
 
 # ranges of couplings if vx=0
 lX_min = 0.0
-lX_max= 0.5
+lX_max= 10.0
 
 lPhiX_min = 0.0
 lPhiX_max = 0.002
@@ -1207,18 +1409,107 @@ lSX_min = 0.0
 lSX_max = 0.002
 
 # ranges of physical dimensionful couplings if --scan-k133-k233 is used [GeV]
-K133_min = 1E-4
+K133_min = 1E-5
 K133_max = 8.0
 
 K233_min = 1E-4
 K233_max = 8.0
 
 # ranges of physical dimensionful couplings' POWERS if --scan-k133-k233-log is used [GeV]
-K133_pow_min = -3
+K133_pow_min = -4
 K133_pow_max = 3
 
 K233_pow_min = -3
-K233_pow_max = 3
+K233_pow_max = 5
+
+
+def draw_random_vxzero_candidate(args, rng=None):
+    """Draw one candidate while preserving the historical random-call order."""
+    rng = rng or random
+    draw_sign = (lambda: randsign()) if rng is random else (lambda: randsign(rng))
+    k1 = rng.uniform(k1_min, k1_max)
+    if rng is random:
+        m2, m3 = sample_random_masses(args)
+    else:
+        m2, m3 = sample_random_masses(args, rng=rng)
+    vs = rng.uniform(vs_min, vs_max)
+    vx = 0
+    a13 = 0
+    a23 = 0
+    lX = rng.uniform(lX_min, lX_max)
+    scan_k133_k233 = getattr(args, "scan_k133_k233", False)
+    scan_k133_k233_log = getattr(args, "scan_k133_k233_log", False)
+    if scan_k133_k233:
+        K133 = rng.uniform(K133_min, K133_max) * rng.uniform(-1, 1)
+        K233 = rng.uniform(K233_min, K233_max) * rng.uniform(-1, 1)
+        lPhiX = 0
+        lSX = 0
+    elif scan_k133_k233_log:
+        K133_pow = rng.uniform(K133_pow_min, K133_pow_max)
+        K233_pow = rng.uniform(K233_pow_min, K233_pow_max)
+        K133 = 10**K133_pow * draw_sign()
+        K233 = 10**K233_pow * draw_sign()
+        lPhiX = 0
+        lSX = 0
+    else:
+        lPhiX = rng.uniform(lPhiX_min, lPhiX_max) * rng.uniform(-1, 1)
+        lSX = rng.uniform(lSX_min, lSX_max) * rng.uniform(-1, 1)
+        K133 = None
+        K233 = None
+
+    a12 = draw_sign() * np.arccos(k1)
+    k2 = draw_sign() * np.sqrt(1 - k1**2)
+    (
+        m2,
+        m3,
+        vs,
+        vx,
+        a12,
+        a13,
+        a23,
+        lX,
+        lPhiX,
+        lSX,
+    ) = round_signif(
+        m2,
+        m3,
+        vs,
+        vx,
+        a12,
+        a13,
+        a23,
+        lX,
+        lPhiX,
+        lSX,
+        4,
+    )
+    if scan_k133_k233 or scan_k133_k233_log:
+        K133 = round_sig(K133, 4)
+        K233 = round_sig(K233, 4)
+        lPhiX, lSX = k133_k233_to_lambdas(K133, K233, vs, a12)
+    else:
+        K133, K233 = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)
+    if getattr(args, "resonantDM1", False) or getattr(
+        args, "resonantDM2", False
+    ):
+        m3 = round_sig(effective_m3(args, m2), 4)
+
+    return {
+        "m2": m2,
+        "m3": m3,
+        "vs": vs,
+        "vx": vx,
+        "a12": a12,
+        "a13": a13,
+        "a23": a23,
+        "lX": lX,
+        "lPhiX": lPhiX,
+        "lSX": lSX,
+        "K133": K133,
+        "K233": K233,
+        "k1_sampled": k1,
+        "k2_sampled": k2,
+    }
 
 
 def scan_metadata_path(scan_path):
@@ -1635,19 +1926,19 @@ def build_scan_metadata(
         "variable_ranges": variable_ranges,
         "fixed_parameters": fixed_parameters,
         "command_line": list(command_line or ORIGINAL_COMMAND_LINE),
-        "options": _json_safe(vars(args)),
+        "options": _json_safe(
+            {
+                key: value
+                for key, value in vars(args).items()
+                if key not in {"resume_metadata", "resume_metadata_path"}
+            }
+        ),
     }
 
 
 def write_scan_metadata_file(path, payload):
     """Atomically write one scan-metadata JSON sidecar."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    with temporary.open("w", encoding="utf-8") as stream:
-        json.dump(payload, stream, indent=2, sort_keys=False)
-        stream.write("\n")
-    os.replace(temporary, path)
+    atomic_write_json(path, payload)
 
 
 def write_scan_metadata_files(runtag, args):
@@ -1666,6 +1957,115 @@ def write_scan_metadata_files(runtag, args):
     return metadata_paths
 
 
+def _resolved_path_value(value):
+    if value is None:
+        return None
+    return str(Path(value).expanduser().resolve())
+
+
+def immutable_scan_configuration(args):
+    mass_mode, _mass_description, mass_ranges = _mass_sampling_metadata(args)
+    portal_mode, _portal_description, portal_ranges = _portal_sampling_metadata(args)
+    excluded = RESUME_RUNTIME_DESTS | {"resume_metadata", "resume_metadata_path"}
+    immutable_options = {}
+    for key, value in sorted(vars(args).items()):
+        if key in excluded:
+            continue
+        if key in RESUME_PATH_OPTIONS:
+            value = _resolved_path_value(value)
+        immutable_options[key] = _json_safe(value)
+    mg5_template = (
+        {process: None for process in MG5ProcessesToRun}
+        if RunMG5
+        else {}
+    )
+    return {
+        "sampling_algorithm_version": SAMPLING_ALGORITHM_VERSION,
+        "seed": int(args.seed),
+        "mass_sampling_mode": mass_mode,
+        "portal_sampling_mode": portal_mode,
+        "mass_ranges": mass_ranges,
+        "portal_ranges": portal_ranges,
+        "configured_ranges": {
+            "M2": [m2_min, m2_max],
+            "M3": [m3_min, m3_max],
+            "vs": [vs_min, vs_max],
+            "k1": [k1_min, k1_max],
+            "lX": [lX_min, lX_max],
+            "lPhiX": [lPhiX_min, lPhiX_max],
+            "lSX": [lSX_min, lSX_max],
+            "K133_linear": [K133_min, K133_max],
+            "K233_linear": [K233_min, K233_max],
+            "K133_log_power": [K133_pow_min, K133_pow_max],
+            "K233_log_power": [K233_pow_min, K233_pow_max],
+        },
+        "fixed": {
+            "Energy": Energy,
+            "mhiggs": mhiggs,
+            "SM_VEV_FOR_K_SCAN": SM_VEV_FOR_K_SCAN,
+            "RunMG5": RunMG5,
+            "MG5ProcessesToRun": list(MG5ProcessesToRun),
+            "portal_convention": PORTAL_CONVENTION_ID,
+            "micromegas_model_convention": PORTAL_CONVENTION_ID,
+        },
+        "output_columns": scan_output_columns(mg5_template),
+        "options": immutable_options,
+    }
+
+
+def campaign_progress(draw_count, evo_thc_count, viable_count, target):
+    return {
+        "draw_count": int(draw_count),
+        "evo_thc_count": int(evo_thc_count),
+        "viable_count": int(viable_count),
+        "target": int(target),
+    }
+
+
+def write_campaign_metadata_files(
+    runtag,
+    args,
+    status,
+    progress,
+    fingerprint,
+    resume_event=None,
+    fresh=False,
+):
+    metadata_paths = []
+    for role, scan_file in campaign_output_paths(runtag, args).items():
+        path = scan_metadata_path(scan_file)
+        if fresh:
+            payload = build_scan_metadata(args, runtag, scan_file, role)
+        else:
+            payload = load_json(path, f"{role} scan metadata")
+        payload.setdefault(
+            "initial_requested_points",
+            int(payload.get("requested_points", args.nrandom)),
+        )
+        payload.setdefault("initial_command_line", payload.get("command_line", []))
+        payload.setdefault("resume_history", [])
+        if resume_event is not None:
+            payload["resume_history"].append(_json_safe(resume_event))
+        payload["requested_points"] = int(args.nrandom)
+        payload.setdefault("options", {})["nrandom"] = int(args.nrandom)
+        payload["sampling_algorithm_version"] = SAMPLING_ALGORITHM_VERSION
+        payload["configuration_fingerprint"] = fingerprint
+        payload["output_columns"] = immutable_scan_configuration(args)[
+            "output_columns"
+        ]
+        payload["campaign_status"] = status
+        payload["campaign_progress"] = dict(progress)
+        payload["checkpoint_file"] = checkpoint_path(
+            campaign_output_paths(runtag, args)["main"]
+        ).name
+        payload["updated_utc"] = utc_now()
+        if status == "complete":
+            payload["completed_utc"] = utc_now()
+        write_scan_metadata_file(path, payload)
+        metadata_paths.append(path)
+    return metadata_paths
+
+
 ############################################################
 # Scan begins here
 ############################################################
@@ -1676,6 +2076,421 @@ def has_explicit_point(args):
     else:
         point_args = TRSM_POINT_ARGS
     return all(getattr(args, name) is not None for name in point_args)
+
+
+def _strict_saved_bool(value, column, row_number):
+    if value == "True":
+        return True
+    if value == "False":
+        return False
+    raise CampaignStateError(
+        f"Invalid {column} value on legacy row {row_number}: {value!r}"
+    )
+
+
+def _read_legacy_scan_rows(scan_path, expected_columns):
+    scan_path = Path(scan_path)
+    repair_incomplete_tsv_tail(scan_path)
+    try:
+        with scan_path.open(newline="", encoding="ascii") as stream:
+            reader = csv.DictReader(stream, delimiter="\t")
+            if reader.fieldnames != list(expected_columns):
+                raise CampaignStateError(
+                    "Legacy scan header does not match the current output schema.\n"
+                    f"Saved: {reader.fieldnames}\nExpected: {list(expected_columns)}"
+                )
+            rows = []
+            for row_number, row in enumerate(reader, start=2):
+                if None in row or any(value is None for value in row.values()):
+                    raise CampaignStateError(
+                        f"Malformed legacy scan row {row_number}: {scan_path}"
+                    )
+                if not _strict_saved_bool(row["evo"], "evo", row_number):
+                    raise CampaignStateError(
+                        f"Legacy row {row_number} is not evo-passing"
+                    )
+                if not _strict_saved_bool(row["thc"], "thc", row_number):
+                    raise CampaignStateError(
+                        f"Legacy row {row_number} is not thc-passing"
+                    )
+                rows.append(row)
+    except UnicodeError as error:
+        raise CampaignStateError(
+            f"Legacy scan is not a valid ASCII TSV: {scan_path}: {error}"
+        ) from error
+    if not rows:
+        raise CampaignStateError(
+            "A checkpoint-less scan with no stored evo/thc-passing rows cannot "
+            "be resumed exactly; restart it as a fresh checkpointed campaign."
+        )
+    return rows
+
+
+LEGACY_CANDIDATE_COLUMNS = {
+    "M2": "m2",
+    "M3": "m3",
+    "vs": "vs",
+    "a12": "a12",
+    "lX": "lX",
+    "lPhiX": "lPhiX",
+    "lSX": "lSX",
+    "K133": "K133",
+    "K233": "K233",
+}
+
+
+def _candidate_matches_legacy_row(candidate, row):
+    for column, key in LEGACY_CANDIDATE_COLUMNS.items():
+        try:
+            saved = float(row[column])
+            drawn = float(candidate[key])
+        except (KeyError, TypeError, ValueError) as error:
+            raise CampaignStateError(
+                f"Cannot compare legacy scan column {column}: {row.get(column)!r}"
+            ) from error
+        if not math.isfinite(saved) or not math.isfinite(drawn):
+            return False
+        if not math.isclose(saved, drawn, rel_tol=2e-11, abs_tol=1e-12):
+            return False
+    return True
+
+
+def _legacy_viable_count(rows):
+    columns = ("evo", "thc", "hb", "hs", "ewpo", "wmass", "dm")
+    count = 0
+    for row_number, row in enumerate(rows, start=2):
+        if all(
+            _strict_saved_bool(row[column], column, row_number)
+            for column in columns
+        ):
+            count += 1
+    return count
+
+
+def _assert_legacy_metadata_matches(metadata, args, scan_path):
+    current = build_scan_metadata(
+        args,
+        metadata["run_tag"],
+        scan_path,
+        "main",
+        command_line=metadata.get("command_line"),
+    )
+    comparisons = (
+        "seed",
+        "stopping_rule",
+        "output_selection",
+        "mass_sampling",
+        "portal_sampling",
+        "portal_convention",
+        "micromegas_model_convention",
+        "variable_ranges",
+        "fixed_parameters",
+    )
+    mismatches = [
+        key for key in comparisons if metadata.get(key) != current.get(key)
+    ]
+    saved_options = metadata.get("options", {})
+    current_options = current.get("options", {})
+    for key, saved_value in saved_options.items():
+        if key in RESUME_RUNTIME_DESTS:
+            continue
+        if current_options.get(key) != saved_value:
+            mismatches.append(f"options.{key}")
+    if mismatches:
+        raise CampaignStateError(
+            "The saved scan configuration does not match the current generator: "
+            + ", ".join(mismatches)
+        )
+
+
+def recover_legacy_campaign(scan_path, args, rng, expected_columns):
+    """Recover the exact accepted-prefix RNG boundary without provider calls."""
+    metadata = args.resume_metadata
+    if not getattr(args, "nrandom_count_evo_thc", False) or not getattr(
+        args, "write_evo_thc_points", False
+    ):
+        raise CampaignStateError(
+            "Checkpoint-less adoption is only exact for campaigns using both "
+            "--nrandom-count-evo-thc and --write-evo-thc-points."
+        )
+    _assert_legacy_metadata_matches(metadata, args, scan_path)
+    rows = _read_legacy_scan_rows(scan_path, expected_columns)
+    rng.seed(int(args.seed))
+    next_row = 0
+    draw_count = 0
+    maximum_draws = max(1_000_000, len(rows) * 10_000)
+    while next_row < len(rows):
+        draw_count += 1
+        candidate = draw_random_vxzero_candidate(args, rng=rng)
+        if _candidate_matches_legacy_row(candidate, rows[next_row]):
+            next_row += 1
+        if draw_count >= maximum_draws and next_row < len(rows):
+            raise CampaignStateError(
+                "Could not reproduce the checkpoint-less scan prefix within "
+                f"{maximum_draws} candidate draws; matched {next_row} of "
+                f"{len(rows)} stored rows. No output was appended."
+            )
+    return {
+        "draw_count": draw_count,
+        "evo_thc_count": len(rows),
+        "viable_count": _legacy_viable_count(rows),
+        "rng_state": rng.getstate(),
+        "legacy_rows": len(rows),
+    }
+
+
+def _running_legacy_generators(seed):
+    """Return same-host pre-lock generator processes for this seed."""
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,command="],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    matches = []
+    seed_text = str(seed)
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        pid_text, _, command = stripped.partition(" ")
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        if pid == os.getpid():
+            continue
+        words = command.split()
+        if (
+            any(Path(word).name == "generate_trsm_points.py" for word in words)
+            and seed_text in words
+        ):
+            matches.append((pid, command))
+    return matches
+
+
+def _checkpoint_payload(runtime, status):
+    return {
+        "schema": CHECKPOINT_SCHEMA,
+        "sampling_algorithm_version": SAMPLING_ALGORITHM_VERSION,
+        "created_utc": runtime["checkpoint_created_utc"],
+        "updated_utc": utc_now(),
+        "status": status,
+        "run_tag": runtime["run_tag"],
+        "scan_file": runtime["scan_path"].name,
+        "scan_path": str(runtime["scan_path"].resolve()),
+        "seed": int(runtime["args"].seed),
+        "target": int(runtime["args"].nrandom),
+        "count_evo_thc": bool(runtime["args"].nrandom_count_evo_thc),
+        "draw_count": int(runtime["draw_count"]),
+        "evo_thc_count": int(runtime["evo_thc_count"]),
+        "viable_count": int(runtime["viable_count"]),
+        "rng_state": encode_rng_state(runtime["stable_rng_state"]),
+        "configuration_fingerprint": runtime["fingerprint"],
+        "output_columns": list(runtime["expected_columns"]),
+        "outputs": runtime["output_records"],
+        "ewpt_workdir": _resolved_path_value(runtime["args"].ewpt_workdir),
+    }
+
+
+def save_runtime_state(runtime, status, resume_event=None, fresh_metadata=False):
+    atomic_write_json(
+        runtime["checkpoint_path"],
+        _checkpoint_payload(runtime, status),
+    )
+    progress = campaign_progress(
+        runtime["draw_count"],
+        runtime["evo_thc_count"],
+        runtime["viable_count"],
+        runtime["args"].nrandom,
+    )
+    write_campaign_metadata_files(
+        runtime["run_tag"],
+        runtime["args"],
+        status,
+        progress,
+        runtime["fingerprint"],
+        resume_event=resume_event,
+        fresh=fresh_metadata,
+    )
+
+
+def _validate_checkpoint(payload, args, runtime):
+    if payload.get("schema") != CHECKPOINT_SCHEMA:
+        raise CampaignStateError(
+            f"Unsupported checkpoint schema: {payload.get('schema')!r}"
+        )
+    checks = {
+        "sampling_algorithm_version": SAMPLING_ALGORITHM_VERSION,
+        "run_tag": runtime["run_tag"],
+        "scan_file": runtime["scan_path"].name,
+        "seed": int(args.seed),
+        "count_evo_thc": bool(args.nrandom_count_evo_thc),
+        "configuration_fingerprint": runtime["fingerprint"],
+        "output_columns": list(runtime["expected_columns"]),
+    }
+    mismatches = [
+        key for key, expected in checks.items() if payload.get(key) != expected
+    ]
+    if mismatches:
+        raise CampaignStateError(
+            "Checkpoint is incompatible with the requested campaign: "
+            + ", ".join(mismatches)
+        )
+    for key in ("draw_count", "evo_thc_count", "viable_count"):
+        value = payload.get(key)
+        if not isinstance(value, int) or value < 0:
+            raise CampaignStateError(f"Checkpoint has invalid {key}: {value!r}")
+    if payload["evo_thc_count"] > payload["draw_count"]:
+        raise CampaignStateError("Checkpoint evo/thc count exceeds draw count")
+    if payload["viable_count"] > payload["draw_count"]:
+        raise CampaignStateError("Checkpoint viable count exceeds draw count")
+
+
+def _completed_target_count(args, draw_count, evo_thc_count):
+    return evo_thc_count if args.nrandom_count_evo_thc else draw_count
+
+
+def prepare_campaign_runtime(runtag, args):
+    scan_path = Path(output_path(runtag)).expanduser().resolve()
+    output_paths = {
+        role: path.expanduser().resolve()
+        for role, path in campaign_output_paths(runtag, args).items()
+    }
+    configuration = immutable_scan_configuration(args)
+    fingerprint = configuration_fingerprint(configuration)
+    expected_columns = configuration["output_columns"]
+    rng = random.Random(int(args.seed))
+    runtime = {
+        "args": args,
+        "run_tag": runtag,
+        "scan_path": scan_path,
+        "output_paths": output_paths,
+        "checkpoint_path": checkpoint_path(scan_path),
+        "checkpoint_created_utc": utc_now(),
+        "fingerprint": fingerprint,
+        "expected_columns": expected_columns,
+        "rng": rng,
+        "stable_rng_state": rng.getstate(),
+        "draw_count": 0,
+        "evo_thc_count": 0,
+        "viable_count": 0,
+        "output_records": {},
+    }
+
+    if args.resume_from is None:
+        existing_state = [
+            path
+            for path in (
+                scan_path,
+                scan_metadata_path(scan_path),
+                runtime["checkpoint_path"],
+            )
+            if path.exists() and path.stat().st_size > 0
+        ]
+        if existing_state:
+            raise CampaignStateError(
+                "A campaign already exists for this run tag; use "
+                f"--resume-from {scan_path} instead of overwriting: "
+                + ", ".join(str(path) for path in existing_state)
+            )
+        reset_output(runtag)
+        runtime["output_records"] = output_records(output_paths)
+        save_runtime_state(runtime, "running", fresh_metadata=True)
+        return runtime
+
+    metadata = load_json(args.resume_metadata_path, "scan metadata")
+    if metadata.get("configuration_fingerprint") not in (None, fingerprint):
+        raise CampaignStateError(
+            "Current immutable scan configuration does not match the saved metadata"
+        )
+    if runtime["checkpoint_path"].exists():
+        payload = load_json(runtime["checkpoint_path"], "scan checkpoint")
+        _validate_checkpoint(payload, args, runtime)
+        checkpoint_completed = _completed_target_count(
+            args,
+            payload["draw_count"],
+            payload["evo_thc_count"],
+        )
+        if args.nrandom < checkpoint_completed:
+            raise CampaignStateError(
+                f"Requested total target {args.nrandom} is below the already "
+                f"completed count {checkpoint_completed}"
+            )
+        reconcile_outputs(output_paths, payload["outputs"])
+        runtime["output_records"] = payload["outputs"]
+        runtime["draw_count"] = payload["draw_count"]
+        runtime["evo_thc_count"] = payload["evo_thc_count"]
+        runtime["viable_count"] = payload["viable_count"]
+        try:
+            runtime["stable_rng_state"] = decode_rng_state(payload["rng_state"])
+            rng.setstate(runtime["stable_rng_state"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise CampaignStateError(
+                f"Checkpoint contains an unusable RNG state: {error}"
+            ) from error
+        runtime["checkpoint_created_utc"] = payload.get(
+            "created_utc", runtime["checkpoint_created_utc"]
+        )
+        resume_kind = "checkpoint"
+        previous_target = int(payload.get("target", metadata["requested_points"]))
+    else:
+        running = _running_legacy_generators(args.seed)
+        if running:
+            details = "; ".join(f"PID {pid}: {command}" for pid, command in running)
+            raise CampaignStateError(
+                "A checkpoint-less generator for this seed is still running. "
+                f"Stop it before the one-time adoption: {details}"
+            )
+        recovered = recover_legacy_campaign(
+            scan_path,
+            args,
+            rng,
+            expected_columns,
+        )
+        runtime["draw_count"] = recovered["draw_count"]
+        runtime["evo_thc_count"] = recovered["evo_thc_count"]
+        runtime["viable_count"] = recovered["viable_count"]
+        runtime["stable_rng_state"] = recovered["rng_state"]
+        runtime["output_records"] = output_records(output_paths)
+        resume_kind = "legacy_replay"
+        previous_target = int(metadata["requested_points"])
+
+    completed = _completed_target_count(
+        args,
+        runtime["draw_count"],
+        runtime["evo_thc_count"],
+    )
+    if args.nrandom < completed:
+        raise CampaignStateError(
+            f"Requested total target {args.nrandom} is below the already "
+            f"completed count {completed}"
+        )
+    if args.ewpt_workdir is not None:
+        quarantined = quarantine_uncheckpointed_point_dirs(
+            args.ewpt_workdir,
+            runtime["draw_count"],
+        )
+        for path in quarantined:
+            print("Quarantined uncheckpointed EWPT directory", path)
+
+    resume_event = {
+        "resumed_utc": utc_now(),
+        "resume_kind": resume_kind,
+        "previous_target": previous_target,
+        "new_total_target": int(args.nrandom),
+        "draw_count": runtime["draw_count"],
+        "evo_thc_count": runtime["evo_thc_count"],
+        "viable_count": runtime["viable_count"],
+        "command_line": list(ORIGINAL_COMMAND_LINE),
+        "hostname": socket.gethostname(),
+        "pid": os.getpid(),
+    }
+    save_runtime_state(runtime, "running", resume_event=resume_event)
+    return runtime
 
 
 def run_single_vxzero_point(args):
@@ -1708,95 +2523,68 @@ def run_single_vxzero_point(args):
     return evalpoint
 
 
-def run_random_vxzero_scan():
-    # SCAN:
-    passcounter = 0 # count number of passing points
-    evo_thc_counter = 0
-    drawcounter = 0
-    count_evo_thc = getattr(cli_args, "nrandom_count_evo_thc", False)
+def run_random_vxzero_scan(runtime=None):
+    args = cli_args if runtime is None else runtime["args"]
+    count_evo_thc = getattr(args, "nrandom_count_evo_thc", False)
+    target = nrandom if runtime is None else int(args.nrandom)
+    passcounter = 0 if runtime is None else runtime["viable_count"]
+    evo_thc_counter = 0 if runtime is None else runtime["evo_thc_count"]
+    drawcounter = 0 if runtime is None else runtime["draw_count"]
+    rng = random if runtime is None else runtime["rng"]
     print('Generating points randomly within ranges')
-    if getattr(cli_args, "independent_m3", False):
+    if getattr(args, "independent_m3", False):
         print(
             f'Sampling M3 independently in [{m3_min}, {m3_max}] GeV; '
             'the default M2 + mhiggs conditional endpoint is disabled'
         )
         print('Including h1/h2 -> h3 h3 invisible widths in HiggsTools inputs')
-    random.seed(ini_seed)
+    if runtime is None:
+        random.seed(ini_seed)
+    elif drawcounter:
+        print(
+            f"Resuming after {drawcounter} draws with "
+            f"{evo_thc_counter} evo/thc-passing and {passcounter} viable points"
+        )
 
-    # fixed parameters:
-    vx = 0
-    k3=0
-    a13 = 0
-    a23 = 0
+    def target_reached():
+        completed = evo_thc_counter if count_evo_thc else drawcounter
+        return completed >= target
 
-    def draw_indices_until_evo_thc_target():
-        i = 0
-        while evo_thc_counter < nrandom:
-            yield i
-            i += 1
-
-    draw_indices = (
-        draw_indices_until_evo_thc_target()
-        if count_evo_thc
-        else tqdm(range(0,nrandom))
-    )
-
-    for i in draw_indices:
-        drawcounter += 1
-        # scan over free parameters
-        k1=random.uniform(k1_min,k1_max)
-        m2, m3 = sample_random_masses(cli_args)
-        vs=random.uniform(vs_min, vs_max)
-        # free parameters for vx=0:
-        lX=random.uniform(lX_min, lX_max)
-        scan_k133_k233 = getattr(cli_args, "scan_k133_k233", False)
-        scan_k133_k233_log = getattr(cli_args, "scan_k133_k233_log", False)
-        if scan_k133_k233:
-            K133=random.uniform(K133_min, K133_max) * random.uniform(-1, 1)
-            K233=random.uniform(K233_min, K233_max) * random.uniform(-1, 1)
-            lPhiX=0
-            lSX=0
-        elif scan_k133_k233_log:
-            K133_pow=random.uniform(K133_pow_min, K133_pow_max) 
-            K233_pow=random.uniform(K233_pow_min, K233_pow_max)
-            K133 = 10**(K133_pow) * randsign()
-            K233 = 10**(K233_pow) * randsign()
-            lPhiX=0
-            lSX=0
-        else:
-            lPhiX=random.uniform(lPhiX_min, lPhiX_max) * random.uniform(-1, 1)
-            lSX=random.uniform(lSX_min, lSX_max) * random.uniform(-1, 1)
-
-        # dependent parameters
-        a12 = randsign() * np.arccos(k1)
-        k2=randsign() * np.sqrt(1-k1**2)
-
-        # optional (vx!=0), convert angles to k1, k2, k3:
-        #a12, a13, a23 = ks_to_angles(k1,k2,k3)
-
-        # round to 4 significant figures:
-        m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX = round_signif(m2, m3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, 4)
-        if scan_k133_k233 or scan_k133_k233_log:
-            K133=round_sig(K133, 4)
-            K233=round_sig(K233, 4)
-            lPhiX, lSX = k133_k233_to_lambdas(K133, K233, vs, a12)
-        if cli_args.resonantDM1 or cli_args.resonantDM2:
-            m3=round_sig(effective_m3(cli_args, m2), 4)
-
-        # evaluate: evalpoint is 1 if point passes, 0 if not
-        if vx != 0:
-                evalpoint = evaluate_trsm_point(ini_seed, m2, m3, vs, vx, a12, a13, a23,runmg5=RunMG5)
-        else:
-                # if point passes, file will be written with order: m2, m3, vs, a12, lX, lPhiX, lSX + any additional info to be determined
-                evalpoint = evaluate_trsm_point_vxzero(ini_seed, m2, m3, vs, a12, lX, lPhiX, lSX,runmg5=RunMG5, point_index=i + 1, return_status=count_evo_thc)
-        # count the passing points:
+    while not target_reached():
+        point_index = drawcounter + 1
+        candidate = draw_random_vxzero_candidate(args, rng=rng)
+        evalpoint = evaluate_trsm_point_vxzero(
+            ini_seed,
+            candidate["m2"],
+            candidate["m3"],
+            candidate["vs"],
+            candidate["a12"],
+            candidate["lX"],
+            candidate["lPhiX"],
+            candidate["lSX"],
+            runmg5=RunMG5,
+            point_index=point_index,
+            return_status=count_evo_thc,
+        )
+        drawcounter = point_index
         if count_evo_thc:
             passcounter = passcounter + evalpoint["viable"]
             if evalpoint["evo_thc"]:
                 evo_thc_counter = evo_thc_counter + 1
         else:
             passcounter = passcounter + evalpoint
-        if getattr(cli_args, "print_info", False):
+        if runtime is not None:
+            runtime["output_records"] = advance_output_records(
+                runtime["output_paths"],
+                runtime["output_records"],
+            )
+            runtime["draw_count"] = drawcounter
+            runtime["evo_thc_count"] = evo_thc_counter
+            runtime["viable_count"] = passcounter
+            runtime["stable_rng_state"] = rng.getstate()
+            if drawcounter % int(args.checkpoint_every) == 0:
+                save_runtime_state(runtime, "running")
+        if getattr(args, "print_info", False):
             print_scan_progress(
                 drawcounter,
                 passcounter,
@@ -1804,31 +2592,81 @@ def run_random_vxzero_scan():
                 evo_thc_counter=evo_thc_counter,
             )
 
+    if runtime is not None:
+        save_runtime_state(runtime, "complete")
     if count_evo_thc:
-        print('Generated', evo_thc_counter, 'evo/thc-passing points after', drawcounter, 'random draws, out of which', passcounter, 'are viable')
+        print(
+            'Generated',
+            evo_thc_counter,
+            'evo/thc-passing points after',
+            drawcounter,
+            'random draws, out of which',
+            passcounter,
+            'are viable',
+        )
     else:
-        print('Generated', nrandom,'points, out of which', passcounter, 'are viable')
+        print('Generated', drawcounter, 'points, out of which', passcounter, 'are viable')
     return passcounter
 
 
 def main():
-    global RunTag
+    global OutputDir, RunTag
 
     print('\nScanning TRSM parameter space')
-    RunTag = RunTag + '_vxzero'
+    if cli_args.resume_from is not None:
+        if has_explicit_point(cli_args):
+            raise CampaignStateError("Explicit-point evaluations cannot be resumed")
+        OutputDir = str(cli_args.resume_from.parent) + os.sep
+        RunTag = cli_args.resume_metadata["run_tag"]
+        if Path(output_path(RunTag)).resolve() != cli_args.resume_from:
+            raise CampaignStateError(
+                "Saved run_tag does not resolve to the requested scan path"
+            )
+    else:
+        RunTag = RunTag + '_vxzero'
     if has_explicit_point(cli_args):
         RunTag = RunTag + '_manual'
-
-    # reset the output file?
-    if ResetOutput is True:
-        reset_output(RunTag)
-
-    for metadata_file in write_scan_metadata_files(RunTag, cli_args):
-        print('Wrote scan metadata to', metadata_file)
-
-    if has_explicit_point(cli_args):
+        if ResetOutput is True:
+            reset_output(RunTag)
+        for metadata_file in write_scan_metadata_files(RunTag, cli_args):
+            print('Wrote scan metadata to', metadata_file)
         return run_single_vxzero_point(cli_args)
-    return run_random_vxzero_scan()
+
+    scan_path = Path(output_path(RunTag)).expanduser().resolve()
+    with CampaignLock(scan_path, ORIGINAL_COMMAND_LINE) as campaign_lock:
+        if campaign_lock.archived_stale_lock is not None:
+            print("Archived stale campaign lock", campaign_lock.archived_stale_lock)
+        if cli_args.resume_from is None:
+            running = _running_legacy_generators(cli_args.seed)
+            if running:
+                details = "; ".join(
+                    f"PID {pid}: {command}" for pid, command in running
+                )
+                raise CampaignStateError(
+                    "Another generator for this seed is already running: "
+                    + details
+                )
+        runtime = prepare_campaign_runtime(RunTag, cli_args)
+        previous_sigterm = signal.getsignal(signal.SIGTERM)
+
+        def interrupt_on_sigterm(signum, frame):
+            raise KeyboardInterrupt("received SIGTERM")
+
+        signal.signal(signal.SIGTERM, interrupt_on_sigterm)
+        try:
+            return run_random_vxzero_scan(runtime)
+        except KeyboardInterrupt:
+            save_runtime_state(runtime, "interrupted")
+            print(
+                "\nScan interrupted; checkpoint retained at",
+                runtime["checkpoint_path"],
+            )
+            raise
+        except BaseException:
+            save_runtime_state(runtime, "failed")
+            raise
+        finally:
+            signal.signal(signal.SIGTERM, previous_sigterm)
 
 
 if __name__ == "__main__":

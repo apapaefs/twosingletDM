@@ -72,6 +72,7 @@ def install_stub_modules():
 
     scan_output = types.ModuleType("scan_output")
     scan_output.write_valid_point = lambda *args, **kwargs: None
+    scan_output.output_columns = lambda *args, **kwargs: []
     stubs["scan_output"] = scan_output
 
     test_trsm_dm = types.ModuleType("test_trsm_DM")
@@ -501,7 +502,10 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertEqual((m2, m3), (604.0, 300.0))
         self.assertLessEqual(abs(m2 - 2.0 * m3), 10.0)
-        self.assertEqual(uniform_calls, [(8, 505.0), (590.0, 610.0)])
+        self.assertEqual(
+            uniform_calls,
+            [(generator.m3_min, 505.0), (590.0, 610.0)],
+        )
 
         uniform_calls.clear()
         samples = iter([300.0, 62.0])
@@ -751,14 +755,14 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
     def test_k133_k233_linear_and_log_ranges_are_separate(self):
         generator = load_generator_module()
 
-        self.assertEqual(generator.K133_min, 1e-4)
+        self.assertEqual(generator.K133_min, 1e-5)
         self.assertEqual(generator.K133_max, 8.0)
         self.assertEqual(generator.K233_min, 1e-4)
         self.assertEqual(generator.K233_max, 8.0)
-        self.assertEqual(generator.K133_pow_min, -3)
+        self.assertEqual(generator.K133_pow_min, -4)
         self.assertEqual(generator.K133_pow_max, 3)
         self.assertEqual(generator.K233_pow_min, -3)
-        self.assertEqual(generator.K233_pow_max, 3)
+        self.assertEqual(generator.K233_pow_max, 5)
 
     def test_scan_metadata_records_independent_log_scan_ranges(self):
         generator = load_generator_module(
@@ -804,7 +808,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             (ranges["K133"]["effective_min"], ranges["K133"]["effective_max"]),
             (-1000.0, 1000.0),
         )
-        self.assertIn("|K133| in [0.001, 1000]", ranges["K133"]["note"])
+        self.assertIn("|K133| in [0.0001, 1000]", ranges["K133"]["note"])
 
     def test_main_writes_scan_metadata_sidecar_atomically(self):
         generator = load_generator_module(["888", "--nrandom", "0", "--independent-m3"])
@@ -814,7 +818,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             generator.OutputDir = str(output_dir) + "/"
             generator.RunTag = "metadata-test"
             generator.ResetOutput = True
-            generator.run_random_vxzero_scan = lambda: 0
+            generator.run_random_vxzero_scan = lambda runtime=None: 0
 
             result = generator.main()
 
