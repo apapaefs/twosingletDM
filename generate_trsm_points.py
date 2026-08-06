@@ -1696,8 +1696,8 @@ def randsign(rng=None):
 m2_min=4
 m2_max=1000
 
-m3_min=65
-m3_max=1000
+m3_min=4
+m3_max=65
 
 # ranges of vevs
 vs_min=50
