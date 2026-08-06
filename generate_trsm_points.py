@@ -1379,7 +1379,7 @@ def randsign(rng=None):
 m2_min=4
 m2_max=1000
 
-m3_min=4
+m3_min=65
 m3_max=1000
 
 # ranges of vevs
@@ -1409,7 +1409,7 @@ lSX_min = 0.0
 lSX_max = 0.002
 
 # ranges of physical dimensionful couplings if --scan-k133-k233 is used [GeV]
-K133_min = 1E-5
+K133_min = 1E-6
 K133_max = 8.0
 
 K233_min = 1E-4

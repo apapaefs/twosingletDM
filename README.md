@@ -443,8 +443,8 @@ the constraint suite from the repository root:
 ```
 
 The command above uses the Python installation tested on `manto`. With the
-defaults, the suite writes PNG and PDF versions of up to 36 standalone figures
-and five combined dashboards, together with `constraint_summary.tsv`, under
+defaults, the suite writes PNG and PDF versions of up to 42 standalone figures
+and six combined dashboards, together with `constraint_summary.tsv`, under
 `plots/trsm_points_NEW_constraints/`. It also writes a self-contained
 `index.html` with dashboard and individual-plot previews, links to every
 generated PNG/PDF, skipped-plot notices, and the constraint-summary table. Open
@@ -533,6 +533,54 @@ newer files additionally use `ewpt_status`, `ewpt_global_phase_path`,
 `ewpt_has_x_broken`, and `ewpt_ew_step_index`. Detailed transition
 temperatures remain in the per-point `ewpt_result.json` files and are not
 reconstructed by the scan-table plot suite.
+
+When the scan stores `k2`, `w2`, and `h2_h3h3_br` and contains at least one
+full-viable point with an open `h2 -> h3 h3` decay, plots 37--42 and a sixth
+dashboard are added automatically. They show:
+
+- the `(M2,M3)` plane colored by
+  `(sigma_ggF + sigma_VBF) * BR(h2 -> h3 h3)`;
+- separate ggF and VBF signal rates versus `M2`, including YR4 production-rate
+  uncertainty intervals and a secondary raw-event axis for 3/ab;
+- the dominant ggF+VBF rate versus the dark-matter mass `M3`;
+- `k2^2` versus `BR(h2 -> h3 h3)`, colored by the signal rate;
+- `Gamma2/M2` versus the signal rate, with 1% and 10% width guides; and
+- the signal rate versus the direct-detection ratio, colored by the relic
+  density ratio.
+
+Only points passing theory, experimental, and aggregate DM constraints are
+used in these signal plots. Production rates are calculated as
+
+```text
+sigma_P(pp -> h2 -> h3 h3)
+  = k2^2 * sigma_P^YR4(M2) * BR(h2 -> h3 h3),  P = ggF, VBF.
+```
+
+The tracked table
+`datafiles/lhchxswg_yr4_bsm_13p6tev_ggf_vbf.tsv` is extracted from the official
+[LHCHXSWG cross-section repository](https://gitlab.cern.ch/LHCHIGGSXS/LHCHXSWG1/crosssections),
+workbook `YR4/Higgs_XSBR_YR4.xlsx`, sheet `YR4 BSM 13.6 TeV`, at repository
+commit `aad67de39778537fa36fa0692abf66fd43f660a4`. The central ggF and VBF
+cross sections cover 10--3000 GeV. The suite interpolates their logarithms
+linearly in mass and never extrapolates. It interpolates the separate scale and
+PDF+alpha_s percentages linearly, then combines those two components in
+quadrature for each displayed uncertainty interval. Cite
+[CERN Yellow Report 4](https://arxiv.org/abs/1610.07922) when using these
+predictions.
+
+These YR4 BSM cross sections assume the narrow-width approximation and do not
+include electroweak corrections. Marker shapes therefore distinguish
+`Gamma2/M2 < 1%`, `1% <= Gamma2/M2 < 10%`, and `Gamma2/M2 >= 10%`; the last
+category is retained for diagnosis but the factorized NWA rate should not be
+used quantitatively there. The plotted rates are inclusive production proxies,
+not fiducial search predictions. In particular, an invisible ggF analysis
+needs a recoil object such as an ISR jet, while VBF provides an experimentally
+direct invisible-Higgs topology. The 3/ab event axis is before acceptance,
+triggering, reconstruction, and backgrounds. The HTML index and
+`constraint_summary.tsv` record these assumptions, the source provenance, the
+available signal-point count, and the width-category counts. Legacy scans
+without the required columns remain supported and receive an explicit
+signal-section omission notice.
 
 For scans made with `--independent-m3`, the dashed
 `M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the
