@@ -48,6 +48,25 @@ RESONANCE_CMAP = LinearSegmentedColormap.from_list(
     ("#0072B2", "#171717", "#D55E00"),
 )
 SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
+HL_LHC_LUMINOSITY_FB = 3000.0
+YR4_SIGNAL_TABLE_NAME = "lhchxswg_yr4_bsm_13p6tev_ggf_vbf.tsv"
+YR4_SIGNAL_SOURCE_URL = (
+    "https://gitlab.cern.ch/LHCHIGGSXS/LHCHXSWG1/crosssections"
+)
+YR4_SIGNAL_CITATION_URL = "https://arxiv.org/abs/1610.07922"
+YR4_SIGNAL_REPOSITORY_COMMIT = "aad67de39778537fa36fa0692abf66fd43f660a4"
+YR4_SIGNAL_COLUMNS = (
+    "mass_gev",
+    "ggf_pb",
+    "ggf_scale_up_pct",
+    "ggf_scale_down_pct",
+    "ggf_pdfalphas_pct",
+    "vbf_pb",
+    "vbf_scale_up_pct",
+    "vbf_scale_down_pct",
+    "vbf_pdfalphas_pct",
+)
+SIGNAL_REQUIRED_COLUMNS = ("k2", "w2", "h2_h3h3_br")
 
 BOOLEAN_COLUMNS = (
     "evo",
@@ -158,6 +177,7 @@ class ScanData:
     metadata: dict[str, object] | None = None
     metadata_source: Path | None = None
     metadata_error: str | None = None
+    signal_error: str | None = None
 
     def __len__(self) -> int:
         return len(self.floats["M2"])
@@ -207,6 +227,20 @@ class PlotSpec:
     selection: str | None = None
     requires_bsmpt: bool = False
     required_columns: tuple[str, ...] = ()
+    requires_signal: bool = False
+
+
+@dataclass(frozen=True)
+class YR4CrossSectionGrid:
+    mass_gev: np.ndarray
+    ggf_pb: np.ndarray
+    ggf_scale_up_pct: np.ndarray
+    ggf_scale_down_pct: np.ndarray
+    ggf_pdfalphas_pct: np.ndarray
+    vbf_pb: np.ndarray
+    vbf_scale_up_pct: np.ndarray
+    vbf_scale_down_pct: np.ndarray
+    vbf_pdfalphas_pct: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -437,6 +471,50 @@ BINARY_COLORS = {
     "relic_pass": "#0072B2",
     "direct_pass": "#0072B2",
 }
+
+SIGNAL_WIDTH_STYLES = OrderedDict(
+    [
+        (
+            "narrow",
+            CategoryStyle(
+                r"$\Gamma_2/M_2<1\%$",
+                "#009E73",
+                "o",
+                28.0,
+                0.88,
+                2.0,
+                "#202020",
+                0.25,
+            ),
+        ),
+        (
+            "intermediate",
+            CategoryStyle(
+                r"$1\%\leq\Gamma_2/M_2<10\%$",
+                "#E69F00",
+                "^",
+                38.0,
+                0.9,
+                3.0,
+                "#202020",
+                0.3,
+            ),
+        ),
+        (
+            "broad",
+            CategoryStyle(
+                r"$\Gamma_2/M_2\geq10\%$ (NWA unreliable)",
+                "#D55E00",
+                "X",
+                46.0,
+                0.94,
+                4.0,
+                "#202020",
+                0.35,
+            ),
+        ),
+    ]
+)
 
 
 PLOT_SPECS = (
@@ -1033,6 +1111,49 @@ PLOT_SPECS = (
         selection="non_dm_viability",
         required_columns=("mono_z_xsec_pb",),
     ),
+    PlotSpec(
+        "64_signal_rate_m2_m3",
+        r"Full-viable $h_2\to h_3h_3$ signal rate",
+        "signal_mass",
+        value="signal_dominant_rate_fb",
+        norm_kind="log",
+        cmap="viridis",
+        colorbar_label=(
+            r"$[\sigma_{\rm ggF}+\sigma_{\rm VBF}]"
+            r"\,\mathrm{BR}(h_2\to h_3h_3)$ [fb]"
+        ),
+        requires_signal=True,
+    ),
+    PlotSpec(
+        "65_signal_rates_vs_m2",
+        r"$h_2\to h_3h_3$ production rates versus $M_2$",
+        "signal_rates_m2",
+        requires_signal=True,
+    ),
+    PlotSpec(
+        "66_signal_rate_vs_m3",
+        r"Dominant invisible rate versus dark-matter mass",
+        "signal_rate_m3",
+        requires_signal=True,
+    ),
+    PlotSpec(
+        "67_signal_k2sq_vs_br",
+        r"Production coupling versus invisible branching fraction",
+        "signal_k2sq_br",
+        requires_signal=True,
+    ),
+    PlotSpec(
+        "68_signal_width_fraction_vs_rate",
+        r"Finite-width diagnostic for the invisible signal",
+        "signal_width_rate",
+        requires_signal=True,
+    ),
+    PlotSpec(
+        "69_signal_rate_vs_direct_detection",
+        r"Collider and dark-matter complementarity",
+        "signal_dm_complementarity",
+        requires_signal=True,
+    ),
 )
 
 PLOT_BY_STEM = {spec.stem: spec for spec in PLOT_SPECS}
@@ -1148,6 +1269,17 @@ DASHBOARDS = OrderedDict(
                 "63_mono_z_xsec_no_dm_vs_m3",
             ),
         ),
+        (
+            "dashboard_signal_summary",
+            (
+                "64_signal_rate_m2_m3",
+                "65_signal_rates_vs_m2",
+                "66_signal_rate_vs_m3",
+                "67_signal_k2sq_vs_br",
+                "68_signal_width_fraction_vs_rate",
+                "69_signal_rate_vs_direct_detection",
+            ),
+        ),
     ]
 )
 
@@ -1177,9 +1309,13 @@ DASHBOARD_TITLES = {
     "dashboard_mg5_mono_rates_no_dm": (
         "TRSM MadGraph mono-Higgs and mono-Z rates without the DM selection"
     ),
+    "dashboard_signal_summary": (
+        r"Full-viable $h_2\to h_3h_3$ collider-signal summary"
+    ),
 }
 
 BSMPT_DASHBOARDS = frozenset({"dashboard_bsmpt_summary"})
+SIGNAL_DASHBOARDS = frozenset({"dashboard_signal_summary"})
 
 
 def strict_bool(value: str, column: str = "value", row_number: int | None = None) -> bool:
@@ -1251,6 +1387,217 @@ def normalize_optional_text(value: object) -> str:
     if not text or text.lower() == "nan":
         return ""
     return text
+
+
+def default_yr4_signal_table_path() -> Path:
+    return Path(__file__).resolve().parent / "datafiles" / YR4_SIGNAL_TABLE_NAME
+
+
+def load_yr4_cross_section_grid(
+    path: Path | str | None = None,
+) -> YR4CrossSectionGrid:
+    """Load and strictly validate the tracked YR4 13.6 TeV ggF/VBF grid."""
+    path = Path(path) if path is not None else default_yr4_signal_table_path()
+    with path.open(encoding="utf-8", newline="") as stream:
+        reader = csv.DictReader(
+            (line for line in stream if not line.startswith("#")),
+            delimiter="\t",
+        )
+        if tuple(reader.fieldnames or ()) != YR4_SIGNAL_COLUMNS:
+            raise ValueError(
+                f"Unexpected YR4 signal-table columns in {path}: "
+                f"{reader.fieldnames!r}; expected {YR4_SIGNAL_COLUMNS!r}."
+            )
+        buffers = {column: [] for column in YR4_SIGNAL_COLUMNS}
+        for row_number, row in enumerate(reader, start=2):
+            for column in YR4_SIGNAL_COLUMNS:
+                try:
+                    value = float(row[column])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid YR4 value for {column} on data row "
+                        f"{row_number}: {row.get(column)!r}."
+                    ) from exc
+                if not math.isfinite(value):
+                    raise ValueError(
+                        f"Non-finite YR4 value for {column} on data row "
+                        f"{row_number}: {value!r}."
+                    )
+                buffers[column].append(value)
+
+    if not buffers["mass_gev"]:
+        raise ValueError(f"YR4 signal table has no data rows: {path}")
+    arrays = {
+        column: np.asarray(values, dtype=float)
+        for column, values in buffers.items()
+    }
+    mass = arrays["mass_gev"]
+    if np.any(np.diff(mass) <= 0.0):
+        raise ValueError(f"YR4 mass grid is not strictly increasing: {path}")
+    for column in ("ggf_pb", "vbf_pb"):
+        if np.any(arrays[column] <= 0.0):
+            raise ValueError(f"YR4 {column} values must all be positive: {path}")
+    for prefix in ("ggf", "vbf"):
+        if np.any(arrays[f"{prefix}_scale_up_pct"] < 0.0):
+            raise ValueError(f"YR4 {prefix} scale-up uncertainties must be nonnegative")
+        if np.any(arrays[f"{prefix}_scale_down_pct"] > 0.0):
+            raise ValueError(f"YR4 {prefix} scale-down uncertainties must be nonpositive")
+        if np.any(arrays[f"{prefix}_pdfalphas_pct"] < 0.0):
+            raise ValueError(f"YR4 {prefix} PDF+alpha_s uncertainties must be nonnegative")
+    return YR4CrossSectionGrid(**arrays)
+
+
+def interpolate_no_extrapolation(
+    x: np.ndarray,
+    grid_x: np.ndarray,
+    grid_y: np.ndarray,
+    *,
+    log_y: bool = False,
+) -> np.ndarray:
+    """Interpolate a one-dimensional grid and return NaN outside its support."""
+    x = np.asarray(x, dtype=float)
+    grid_x = np.asarray(grid_x, dtype=float)
+    grid_y = np.asarray(grid_y, dtype=float)
+    result = np.full(x.shape, np.nan, dtype=float)
+    valid = (
+        np.isfinite(x)
+        & (x >= grid_x[0])
+        & (x <= grid_x[-1])
+    )
+    if not np.any(valid):
+        return result
+    if log_y:
+        if np.any(grid_y <= 0.0):
+            raise ValueError("Log interpolation requires a positive grid")
+        interpolated = np.exp(
+            np.interp(x[valid], grid_x, np.log(grid_y))
+        )
+    else:
+        interpolated = np.interp(x[valid], grid_x, grid_y)
+    result[valid] = interpolated
+    return result
+
+
+def interpolate_yr4_cross_sections(
+    mass_gev: np.ndarray,
+    grid: YR4CrossSectionGrid,
+) -> dict[str, np.ndarray]:
+    """Interpolate YR4 central rates logarithmically and uncertainties linearly."""
+    result = {}
+    for column in YR4_SIGNAL_COLUMNS[1:]:
+        result[column] = interpolate_no_extrapolation(
+            mass_gev,
+            grid.mass_gev,
+            getattr(grid, column),
+            log_y=column.endswith("_pb"),
+        )
+    return result
+
+
+def derive_signal_observables(
+    m2: np.ndarray,
+    m3: np.ndarray,
+    k2: np.ndarray,
+    w2: np.ndarray,
+    h2_h3h3_br: np.ndarray,
+    full_viability: np.ndarray,
+    grid: YR4CrossSectionGrid,
+) -> dict[str, np.ndarray]:
+    """Build NWA signal-rate proxies from YR4 production cross sections."""
+    m2, m3, k2, w2, h2_h3h3_br = np.broadcast_arrays(
+        np.asarray(m2, dtype=float),
+        np.asarray(m3, dtype=float),
+        np.asarray(k2, dtype=float),
+        np.asarray(w2, dtype=float),
+        np.asarray(h2_h3h3_br, dtype=float),
+    )
+    full_viability = np.asarray(full_viability, dtype=bool)
+    if full_viability.shape != m2.shape:
+        raise ValueError("Signal input arrays must have identical shapes")
+
+    interpolated = interpolate_yr4_cross_sections(m2, grid)
+    k2_sq = np.square(k2)
+    width_fraction = safe_ratio(w2, m2)
+    physical_inputs = (
+        finite_mask(m2, m3, k2, w2, h2_h3h3_br)
+        & (m2 > 0.0)
+        & (m3 >= 0.0)
+        & (w2 >= 0.0)
+        & (h2_h3h3_br >= 0.0)
+        & (h2_h3h3_br <= 1.0)
+    )
+    decay_open = m2 > 2.0 * m3
+    grid_available = finite_mask(
+        interpolated["ggf_pb"],
+        interpolated["vbf_pb"],
+    )
+
+    rates = {}
+    for mode in ("ggf", "vbf"):
+        central = (
+            1000.0
+            * interpolated[f"{mode}_pb"]
+            * k2_sq
+            * h2_h3h3_br
+        )
+        scale_up = interpolated[f"{mode}_scale_up_pct"]
+        scale_down = np.abs(interpolated[f"{mode}_scale_down_pct"])
+        pdfalphas = interpolated[f"{mode}_pdfalphas_pct"]
+        rel_up = np.hypot(scale_up, pdfalphas) / 100.0
+        rel_down = np.hypot(scale_down, pdfalphas) / 100.0
+        rates[f"signal_{mode}_rate_fb"] = central
+        rates[f"signal_{mode}_rate_low_fb"] = np.maximum(
+            central * (1.0 - rel_down), 0.0
+        )
+        rates[f"signal_{mode}_rate_high_fb"] = central * (1.0 + rel_up)
+        rates[f"signal_{mode}_relative_up"] = rel_up
+        rates[f"signal_{mode}_relative_down"] = rel_down
+
+    dominant = rates["signal_ggf_rate_fb"] + rates["signal_vbf_rate_fb"]
+    dominant_low = (
+        rates["signal_ggf_rate_low_fb"]
+        + rates["signal_vbf_rate_low_fb"]
+    )
+    dominant_high = (
+        rates["signal_ggf_rate_high_fb"]
+        + rates["signal_vbf_rate_high_fb"]
+    )
+    signal_available = (
+        physical_inputs
+        & decay_open
+        & (h2_h3h3_br > 0.0)
+        & grid_available
+        & np.isfinite(dominant)
+        & (dominant > 0.0)
+    )
+    viable_open = full_viability & signal_available
+
+    width_category = np.full(m2.shape, "unavailable", dtype=object)
+    width_valid = np.isfinite(width_fraction) & (width_fraction >= 0.0)
+    width_category[width_valid & (width_fraction < 0.01)] = "narrow"
+    width_category[
+        width_valid
+        & (width_fraction >= 0.01)
+        & (width_fraction < 0.10)
+    ] = "intermediate"
+    width_category[width_valid & (width_fraction >= 0.10)] = "broad"
+
+    return {
+        **interpolated,
+        **rates,
+        "k2_sq": k2_sq,
+        "h2_width_fraction": width_fraction,
+        "h2_h3h3_kinematically_open": decay_open,
+        "signal_yr4_grid_available": grid_available,
+        "signal_inputs_physical": physical_inputs,
+        "signal_rate_available": signal_available,
+        "signal_viable_open": viable_open,
+        "signal_width_category": width_category,
+        "signal_dominant_rate_fb": dominant,
+        "signal_dominant_rate_low_fb": dominant_low,
+        "signal_dominant_rate_high_fb": dominant_high,
+        "signal_raw_hllhc_events": dominant * HL_LHC_LUMINOSITY_FB,
+    }
 
 
 def derive_bsmpt_results(
@@ -1377,6 +1724,30 @@ def derive_bsmpt_results(
 
 def has_bsmpt_results(data: ScanData) -> bool:
     return bool(np.any(data.b("bsmpt_attempted")))
+
+
+def signal_availability_reason(data: ScanData) -> str | None:
+    if data.signal_error is not None:
+        return data.signal_error
+    missing = [column for column in SIGNAL_REQUIRED_COLUMNS if column not in data.floats]
+    if missing:
+        return (
+            "Signal plots require stored "
+            + ", ".join(missing)
+            + " columns."
+        )
+    if "signal_viable_open" not in data.derived:
+        return "Signal observables could not be derived."
+    if not np.any(data.b("signal_viable_open")):
+        return (
+            "No full-viable point has a positive, YR4-supported "
+            "h2 -> h3 h3 signal rate."
+        )
+    return None
+
+
+def has_signal_results(data: ScanData) -> bool:
+    return signal_availability_reason(data) is None
 
 
 def four_way_categories(dm: np.ndarray, experimental: np.ndarray) -> np.ndarray:
@@ -1720,6 +2091,32 @@ def load_scan(
             * (1.0 - br)
         )
     derived.update(bsmpt_results)
+    signal_error = None
+    missing_signal_columns = [
+        column for column in SIGNAL_REQUIRED_COLUMNS if column not in floats
+    ]
+    if missing_signal_columns:
+        signal_error = (
+            "Signal plots require stored "
+            + ", ".join(missing_signal_columns)
+            + " columns."
+        )
+    else:
+        try:
+            signal_grid = load_yr4_cross_section_grid()
+            derived.update(
+                derive_signal_observables(
+                    floats["M2"],
+                    floats["M3"],
+                    floats["k2"],
+                    floats["w2"],
+                    floats["h2_h3h3_br"],
+                    full_viability,
+                    signal_grid,
+                )
+            )
+        except (OSError, ValueError) as exc:
+            signal_error = f"Could not load/derive YR4 signal rates: {exc}"
 
     metadata, metadata_source, metadata_error = load_scan_metadata(
         path, metadata_path
@@ -1737,6 +2134,7 @@ def load_scan(
         metadata=metadata,
         metadata_source=metadata_source,
         metadata_error=metadata_error,
+        signal_error=signal_error,
     )
 
 
@@ -3041,9 +3439,456 @@ def render_bars(ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> No
     )
 
 
+def require_signal_mask(data: ScanData) -> np.ndarray:
+    reason = signal_availability_reason(data)
+    if reason is not None:
+        raise PlotUnavailable(reason)
+    return data.b("signal_viable_open")
+
+
+def signal_width_legend_handles(
+    data: ScanData,
+    valid: np.ndarray,
+) -> list[Line2D]:
+    return category_legend_handles(
+        data.derived["signal_width_category"][valid],
+        SIGNAL_WIDTH_STYLES,
+        int(np.count_nonzero(valid)),
+        neutral_colors=True,
+        include_empty=False,
+    )
+
+
+def render_signal_mass(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    signal = require_signal_mask(data)
+    m2 = data.f("M2")
+    m3 = data.f("M3")
+    rate = data.f("signal_dominant_rate_fb")
+    valid = signal & finite_mask(m2, m3, rate) & (rate > 0.0)
+    if not np.any(valid):
+        raise PlotUnavailable("no finite positive full-viable signal rates")
+
+    full = data.b("full_viability")
+    context = finite_mask(m2, m3) & full & ~valid
+    if np.any(context):
+        ax.scatter(
+            m2[context],
+            m3[context],
+            s=11.0 if compact else 14.0,
+            facecolors="none",
+            edgecolors="#9E9E9E",
+            linewidths=0.45,
+            marker="o",
+            alpha=0.5,
+            rasterized=True,
+            zorder=0.8,
+        )
+
+    norm = robust_log_norm(rate[valid])
+    cmap = plt.get_cmap(spec.cmap)
+    categories = data.derived["signal_width_category"]
+    for key, style in SIGNAL_WIDTH_STYLES.items():
+        mask = valid & (categories == key)
+        if not np.any(mask):
+            continue
+        order = np.argsort(rate[mask], kind="stable")
+        indices = np.flatnonzero(mask)[order]
+        ax.scatter(
+            m2[indices],
+            m3[indices],
+            c=rate[indices],
+            norm=norm,
+            cmap=cmap,
+            s=style.size * (0.78 if compact else 1.0),
+            marker=style.marker,
+            alpha=style.alpha,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
+            rasterized=True,
+            zorder=style.zorder,
+        )
+
+    style_mass_axis(ax, data)
+    ax.set_title(
+        spec.title
+        + "\n"
+        + r"YR4 13.6 TeV NWA: $(\sigma_{\rm ggF}+\sigma_{\rm VBF})"
+        + r"\,k_2^2\,\mathrm{BR}_{33}$",
+        fontsize=8.4 if compact else 11.2,
+    )
+    scalar_mappable = ScalarMappable(norm=norm, cmap=cmap)
+    scalar_mappable.set_array([])
+    colorbar = fig.colorbar(
+        scalar_mappable,
+        ax=ax,
+        extend="both",
+        fraction=0.048 if compact else 0.046,
+        pad=0.025,
+    )
+    colorbar.set_label(spec.colorbar_label, fontsize=7.5 if compact else 9.2)
+    colorbar.ax.tick_params(labelsize=6.7 if compact else 8.0)
+
+    handles = []
+    if np.any(context):
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                linestyle="None",
+                marker="o",
+                markersize=5.0,
+                markerfacecolor="none",
+                markeredgecolor="#8F8F8F",
+                markeredgewidth=0.6,
+                label=(
+                    "Full viable, closed/unsupported: "
+                    f"{int(np.count_nonzero(context)):,}"
+                ),
+            )
+        )
+    handles.extend(signal_width_legend_handles(data, valid))
+    ax.legend(
+        handles=handles,
+        loc="best",
+        frameon=True,
+        framealpha=0.82,
+        edgecolor="none",
+        fontsize=5.7 if compact else 6.9,
+        handletextpad=0.4,
+        borderpad=0.4,
+    )
+
+
+def render_signal_rates_m2(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    signal = require_signal_mask(data)
+    m2 = data.f("M2")
+    categories = data.derived["signal_width_category"]
+    modes = (
+        ("ggf", "ggF", "#D55E00"),
+        ("vbf", "VBF", "#0072B2"),
+    )
+    valid_any = np.zeros(len(data), dtype=bool)
+    for mode, _label, color in modes:
+        central = data.f(f"signal_{mode}_rate_fb")
+        low = data.f(f"signal_{mode}_rate_low_fb")
+        high = data.f(f"signal_{mode}_rate_high_fb")
+        valid = (
+            signal
+            & finite_mask(m2, central, low, high)
+            & (central > 0.0)
+            & (low > 0.0)
+            & (high > 0.0)
+        )
+        valid_any |= valid
+        if np.any(valid):
+            ax.errorbar(
+                m2[valid],
+                central[valid],
+                yerr=np.vstack(
+                    (
+                        central[valid] - low[valid],
+                        high[valid] - central[valid],
+                    )
+                ),
+                fmt="none",
+                ecolor=color,
+                elinewidth=0.8 if compact else 1.0,
+                capsize=1.5 if compact else 2.2,
+                capthick=0.7 if compact else 0.9,
+                alpha=0.48,
+                rasterized=True,
+                zorder=0.8,
+            )
+        for key, style in SIGNAL_WIDTH_STYLES.items():
+            mask = valid & (categories == key)
+            if not np.any(mask):
+                continue
+            ax.scatter(
+                m2[mask],
+                central[mask],
+                s=style.size * (0.72 if compact else 0.9),
+                c=color,
+                marker=style.marker,
+                alpha=style.alpha,
+                edgecolors=style.edgecolor,
+                linewidths=style.linewidth,
+                rasterized=True,
+                zorder=style.zorder,
+            )
+    if not np.any(valid_any):
+        raise PlotUnavailable("no finite positive ggF/VBF signal rates")
+
+    ax.set_yscale("log")
+    ax.set_xlabel(r"$M_2$ [GeV]")
+    ax.set_ylabel(r"$\sigma\,\mathrm{BR}(h_2\to h_3h_3)$ [fb]")
+    ax.set_title(
+        spec.title
+        + "\n"
+        + r"Vertical intervals: YR4 scale $\oplus$ PDF+$\alpha_s$",
+        fontsize=8.4 if compact else 11.2,
+    )
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    event_axis = ax.secondary_yaxis(
+        "right",
+        functions=(
+            lambda rate_fb: rate_fb * HL_LHC_LUMINOSITY_FB,
+            lambda events: events / HL_LHC_LUMINOSITY_FB,
+        ),
+    )
+    event_axis.set_ylabel(
+        r"Raw $h_3h_3$ events at $3\,\mathrm{ab}^{-1}$"
+        + "\n(before acceptance)",
+        fontsize=7.0 if compact else 8.6,
+    )
+    event_axis.tick_params(labelsize=6.5 if compact else 7.5)
+
+    mode_handles = [
+        Line2D(
+            [0],
+            [0],
+            color=color,
+            marker="o",
+            linestyle="None",
+            markersize=5.0,
+            label=label,
+        )
+        for _mode, label, color in modes
+    ]
+    width_handles = signal_width_legend_handles(data, valid_any)
+    ax.legend(
+        handles=mode_handles + width_handles,
+        loc="best",
+        frameon=True,
+        framealpha=0.82,
+        edgecolor="none",
+        fontsize=5.5 if compact else 6.8,
+        handletextpad=0.4,
+        borderpad=0.4,
+    )
+
+
+def render_signal_colored_xy(
+    fig,
+    ax,
+    data: ScanData,
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    color_values: np.ndarray,
+    xlabel: str,
+    ylabel: str,
+    colorbar_label: str,
+    title: str,
+    cmap_name: str,
+    color_log: bool,
+    x_log: bool,
+    y_log: bool,
+    compact: bool,
+) -> np.ndarray:
+    signal = require_signal_mask(data)
+    valid = signal & finite_mask(x, y, color_values)
+    if x_log:
+        valid &= x > 0.0
+    if y_log:
+        valid &= y > 0.0
+    if color_log:
+        valid &= color_values > 0.0
+    if not np.any(valid):
+        raise PlotUnavailable("signal observable has no finite plottable values")
+
+    norm = (
+        robust_log_norm_to_one(color_values[valid])
+        if color_log
+        else robust_linear_norm(color_values[valid])
+    )
+    cmap = plt.get_cmap(cmap_name)
+    categories = data.derived["signal_width_category"]
+    for key, style in SIGNAL_WIDTH_STYLES.items():
+        mask = valid & (categories == key)
+        if not np.any(mask):
+            continue
+        order = np.argsort(color_values[mask], kind="stable")
+        indices = np.flatnonzero(mask)[order]
+        ax.scatter(
+            x[indices],
+            y[indices],
+            c=color_values[indices],
+            norm=norm,
+            cmap=cmap,
+            s=style.size * (0.78 if compact else 1.0),
+            marker=style.marker,
+            alpha=style.alpha,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
+            rasterized=True,
+            zorder=style.zorder,
+        )
+    if x_log:
+        ax.set_xscale("log")
+    if y_log:
+        ax.set_yscale("log")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=8.4 if compact else 11.2)
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+
+    scalar_mappable = ScalarMappable(norm=norm, cmap=cmap)
+    scalar_mappable.set_array([])
+    colorbar = fig.colorbar(
+        scalar_mappable,
+        ax=ax,
+        extend="both",
+        fraction=0.048 if compact else 0.046,
+        pad=0.025,
+    )
+    colorbar.set_label(colorbar_label, fontsize=7.5 if compact else 9.2)
+    colorbar.ax.tick_params(labelsize=6.7 if compact else 8.0)
+    ax.legend(
+        handles=signal_width_legend_handles(data, valid),
+        loc="best",
+        frameon=True,
+        framealpha=0.82,
+        edgecolor="none",
+        fontsize=5.7 if compact else 6.9,
+        handletextpad=0.4,
+        borderpad=0.4,
+    )
+    return valid
+
+
+def render_signal_rate_m3(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    render_signal_colored_xy(
+        fig,
+        ax,
+        data,
+        x=data.f("M3"),
+        y=data.f("signal_dominant_rate_fb"),
+        color_values=data.f("M2"),
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=(
+            r"$[\sigma_{\rm ggF}+\sigma_{\rm VBF}]"
+            r"\,\mathrm{BR}_{33}$ [fb]"
+        ),
+        colorbar_label=r"$M_2$ [GeV]",
+        title=spec.title + "\nYR4 13.6 TeV NWA; full viability only",
+        cmap_name="viridis",
+        color_log=False,
+        x_log=False,
+        y_log=True,
+        compact=compact,
+    )
+
+
+def render_signal_k2sq_br(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    render_signal_colored_xy(
+        fig,
+        ax,
+        data,
+        x=data.f("k2_sq"),
+        y=data.f("h2_h3h3_br"),
+        color_values=data.f("signal_dominant_rate_fb"),
+        xlabel=r"$k_2^2$",
+        ylabel=r"$\mathrm{BR}(h_2\to h_3h_3)$",
+        colorbar_label=(
+            r"$[\sigma_{\rm ggF}+\sigma_{\rm VBF}]"
+            r"\,\mathrm{BR}_{33}$ [fb]"
+        ),
+        title=spec.title + "\nRate is proportional to $k_2^2\\,\\mathrm{BR}_{33}$",
+        cmap_name="viridis",
+        color_log=True,
+        x_log=True,
+        y_log=True,
+        compact=compact,
+    )
+
+
+def render_signal_width_rate(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    render_signal_colored_xy(
+        fig,
+        ax,
+        data,
+        x=data.f("h2_width_fraction"),
+        y=data.f("signal_dominant_rate_fb"),
+        color_values=data.f("M2"),
+        xlabel=r"$\Gamma_2/M_2$",
+        ylabel=(
+            r"$[\sigma_{\rm ggF}+\sigma_{\rm VBF}]"
+            r"\,\mathrm{BR}_{33}$ [fb]"
+        ),
+        colorbar_label=r"$M_2$ [GeV]",
+        title=spec.title + "\nYR4 production input assumes the NWA",
+        cmap_name="viridis",
+        color_log=False,
+        x_log=True,
+        y_log=True,
+        compact=compact,
+    )
+    ax.axvline(
+        0.01,
+        color="#E69F00",
+        linestyle="--",
+        linewidth=0.9,
+        alpha=0.8,
+        zorder=0.5,
+    )
+    ax.axvline(
+        0.10,
+        color="#D55E00",
+        linestyle="-.",
+        linewidth=1.0,
+        alpha=0.85,
+        zorder=0.5,
+    )
+
+
+def render_signal_dm_complementarity(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    render_signal_colored_xy(
+        fig,
+        ax,
+        data,
+        x=data.f("direct_ratio"),
+        y=data.f("signal_dominant_rate_fb"),
+        color_values=data.f("relic_ratio"),
+        xlabel=r"$\sigma_{\rm SI}/\sigma_{\rm limit}$",
+        ylabel=(
+            r"$[\sigma_{\rm ggF}+\sigma_{\rm VBF}]"
+            r"\,\mathrm{BR}_{33}$ [fb]"
+        ),
+        colorbar_label=r"$\Omega/\Omega_{\max}$",
+        title=spec.title + "\nFull viability only; unit line is the DD limit",
+        cmap_name="viridis",
+        color_log=True,
+        x_log=True,
+        y_log=True,
+        compact=compact,
+    )
+    ax.axvline(
+        1.0,
+        color="#222222",
+        linestyle="--",
+        linewidth=1.0,
+        alpha=0.85,
+        zorder=0.5,
+    )
+
+
 def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> None:
     if spec.requires_bsmpt and not has_bsmpt_results(data):
         raise PlotUnavailable("BSMPT was not run for any stored scan row")
+    if spec.requires_signal and not has_signal_results(data):
+        raise PlotUnavailable(signal_availability_reason(data) or "signal unavailable")
     if spec.kind == "categorical_mass":
         render_categorical_mass(ax, data, spec, compact=compact)
     elif spec.kind == "continuous_mass":
@@ -3066,6 +3911,18 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         render_bars(ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_bars":
         render_bsmpt_bars(ax, data, spec, compact=compact)
+    elif spec.kind == "signal_mass":
+        render_signal_mass(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "signal_rates_m2":
+        render_signal_rates_m2(ax, data, spec, compact=compact)
+    elif spec.kind == "signal_rate_m3":
+        render_signal_rate_m3(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "signal_k2sq_br":
+        render_signal_k2sq_br(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "signal_width_rate":
+        render_signal_width_rate(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "signal_dm_complementarity":
+        render_signal_dm_complementarity(fig, ax, data, spec, compact=compact)
     else:
         raise ValueError(f"Unknown plot kind: {spec.kind}")
 
@@ -3092,6 +3949,8 @@ def has_observable(data: ScanData, name: str) -> bool:
 def spec_unavailable_reason(data: ScanData, spec: PlotSpec) -> str | None:
     if spec.requires_bsmpt and not has_bsmpt_results(data):
         return "BSMPT was not run for any stored scan row"
+    if spec.requires_signal and not has_signal_results(data):
+        return signal_availability_reason(data) or "Signal results unavailable"
     missing = [
         column for column in spec.required_columns if not has_observable(data, column)
     ]
@@ -3550,6 +4409,96 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         )
     )
 
+    full_viable = data.b("full_viability")
+    n_full_viable = int(np.count_nonzero(full_viable))
+    if "signal_viable_open" in data.derived:
+        signal_viable = data.b("signal_viable_open")
+        n_signal = int(np.count_nonzero(signal_viable))
+        full_open = full_viable & data.b("h2_h3h3_kinematically_open")
+        supported = full_open & data.b("signal_yr4_grid_available")
+        rates = data.f("signal_dominant_rate_fb")[signal_viable]
+        rate_note = (
+            "YR4 13.6 TeV NWA ggF+VBF proxy; "
+            "sigma = k2^2 * sigma_YR4(M2) * BR(h2 -> h3 h3)"
+        )
+        if rates.size:
+            rate_note += (
+                f"; range {float(np.min(rates)):.6g}--"
+                f"{float(np.max(rates)):.6g} fb, "
+                f"median {float(np.median(rates)):.6g} fb"
+            )
+        rows.extend(
+            [
+                SummaryRow(
+                    "signal_full_viable_h2_to_h3h3_open",
+                    int(np.count_nonzero(full_open)),
+                    n_full_viable,
+                    "Full-viable points above the h2 -> h3 h3 threshold",
+                ),
+                SummaryRow(
+                    "signal_full_viable_yr4_supported",
+                    int(np.count_nonzero(supported)),
+                    int(np.count_nonzero(full_open)),
+                    "Open full-viable points with M2 inside the 10--3000 GeV YR4 grid",
+                ),
+                SummaryRow(
+                    "signal_full_viable_rate_available",
+                    n_signal,
+                    n_full_viable,
+                    rate_note,
+                ),
+            ]
+        )
+        for category, label in (
+            ("narrow", "Gamma2/M2 < 1%; NWA-compatible diagnostic region"),
+            (
+                "intermediate",
+                "1% <= Gamma2/M2 < 10%; inspect finite-width effects",
+            ),
+            (
+                "broad",
+                "Gamma2/M2 >= 10%; YR4 NWA factorization is not reliable",
+            ),
+        ):
+            rows.append(
+                SummaryRow(
+                    f"signal_width_{category}",
+                    int(
+                        np.count_nonzero(
+                            signal_viable
+                            & (
+                                data.derived["signal_width_category"]
+                                == category
+                            )
+                        )
+                    ),
+                    n_signal,
+                    label,
+                )
+            )
+        yr4_rows = len(load_yr4_cross_section_grid().mass_gev)
+        rows.append(
+            SummaryRow(
+                "yr4_signal_table_rows",
+                yr4_rows,
+                yr4_rows,
+                (
+                    "Tracked LHCHXSWG YR4 BSM 13.6 TeV ggF/VBF grid; "
+                    f"source {YR4_SIGNAL_SOURCE_URL}; commit "
+                    f"{YR4_SIGNAL_REPOSITORY_COMMIT}; NWA, no EW corrections"
+                ),
+            )
+        )
+    else:
+        rows.append(
+            SummaryRow(
+                "signal_full_viable_rate_available",
+                0,
+                n_full_viable,
+                signal_availability_reason(data) or "Signal observables unavailable",
+            )
+        )
+
     component_dm = (
         ~data.bools["dm_relic_excluded"]
         & ~data.bools["dm_direct_detection_excluded"]
@@ -3851,11 +4800,13 @@ def write_plot_index(
         plot_card(stem, DASHBOARD_TITLES[stem])
         for stem in DASHBOARDS
         if stem not in BSMPT_DASHBOARDS
+        and stem not in SIGNAL_DASHBOARDS
     )
     standalone_cards = "\n".join(
         plot_card(spec.stem, spec.title)
         for spec in PLOT_SPECS
         if not spec.requires_bsmpt
+        and not spec.requires_signal
     )
     bsmpt_attempted = int(np.count_nonzero(data.b("bsmpt_attempted")))
     if bsmpt_attempted:
@@ -3886,6 +4837,52 @@ def write_plot_index(
             "a BSMPT status, selected EWPT strength, phase history, or EW-entry "
             "step.</div></section>"
         )
+    signal_cards = [
+        plot_card(stem, DASHBOARD_TITLES[stem])
+        for stem in DASHBOARDS
+        if stem in SIGNAL_DASHBOARDS
+    ]
+    signal_cards.extend(
+        plot_card(spec.stem, spec.title)
+        for spec in PLOT_SPECS
+        if spec.requires_signal
+    )
+    signal_reason = signal_availability_reason(data)
+    signal_count = (
+        int(np.count_nonzero(data.b("signal_viable_open")))
+        if "signal_viable_open" in data.derived
+        else 0
+    )
+    if signal_reason is None:
+        signal_intro = (
+            f"<p>The suite finds {signal_count:,} full-viable points with a "
+            "positive <code>h2 -&gt; h3 h3</code> rate inside the 10--3000 GeV "
+            "YR4 grid. It evaluates "
+            "<code>sigma_P = k2^2 * sigma_P^YR4(M2) * BR(h2 -&gt; h3 h3)</code> "
+            "for ggF and VBF at 13.6 TeV. Central cross sections are interpolated "
+            "logarithmically in mass without extrapolation; scale and "
+            "PDF+alpha_s components are combined in quadrature for the displayed "
+            "intervals.</p>"
+            "<p>The YR4 BSM inputs use the narrow-width approximation and omit "
+            "electroweak corrections. Points with "
+            "<code>Gamma2/M2 &gt;= 10%</code> are retained but marked as a region "
+            "where this factorized rate is unreliable. Raw 3 ab<sup>-1</sup> "
+            "event counts are before acceptance, triggering, reconstruction, "
+            "and backgrounds. "
+            f'<a href="{escaped(YR4_SIGNAL_SOURCE_URL)}" target="_blank">'
+            "Official LHCHXSWG table</a> &middot; "
+            f'<a href="{escaped(YR4_SIGNAL_CITATION_URL)}" target="_blank">'
+            "YR4 citation</a>.</p>"
+        )
+    else:
+        signal_intro = (
+            '<div class="notice warning"><strong>Signal plots unavailable.</strong> '
+            f"{escaped(signal_reason)}</div>"
+        )
+    signal_section = (
+        '<section id="signal"><h2>Full-viability collider signal plots</h2>'
+        f"{signal_intro}<div class=\"grid\">{''.join(signal_cards)}</div></section>"
+    )
     scan_information = scan_information_html(data)
     summary_table_rows = []
     for row in summary_rows:
@@ -3949,11 +4946,12 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <main>
 <header>
 <h1>TRSM constraint plot suite</h1>
-<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; non-DM viable {non_dm_viable:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
-<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
+<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; non-DM viable {non_dm_viable:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; signal points {signal_count:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
+<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#signal">Signals</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>
 {scan_information}
 <section id="dashboards"><h2>Dashboards</h2><div class="grid">{dashboard_cards}</div></section>
+{signal_section}
 {bsmpt_section}
 <section id="standalone"><h2>Individual plots</h2><div class="grid">{standalone_cards}</div></section>
 <section id="summary"><h2>Constraint summary</h2><p><a href="constraint_summary.tsv">Download constraint_summary.tsv</a></p>
@@ -4052,6 +5050,11 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             skipped.append((spec.stem, reason))
             print(f"Skipped {spec.stem}: {reason}")
             continue
+        if spec.requires_signal and not has_signal_results(data):
+            reason = signal_availability_reason(data) or "Signal results unavailable"
+            skipped.append((spec.stem, reason))
+            print(f"Skipped {spec.stem}: {reason}")
+            continue
         try:
             paths.extend(
                 render_standalone(data, spec, output_dir, args.format, args.dpi)
@@ -4064,6 +5067,11 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
     for dashboard_stem, plot_stems in DASHBOARDS.items():
         if not dashboard_available(data, plot_stems):
             reason = "none of the dashboard observables are available"
+            skipped.append((dashboard_stem, reason))
+            print(f"Skipped {dashboard_stem}: {reason}")
+            continue
+        if dashboard_stem in SIGNAL_DASHBOARDS and not has_signal_results(data):
+            reason = signal_availability_reason(data) or "Signal results unavailable"
             skipped.append((dashboard_stem, reason))
             print(f"Skipped {dashboard_stem}: {reason}")
             continue

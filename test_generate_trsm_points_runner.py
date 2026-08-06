@@ -697,18 +697,21 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         uniform_calls.clear()
-        samples = iter([300.0, 62.0])
+        samples = iter([300.0, 66.0])
         generator.random.random = lambda: 0.75
 
         m2, m3 = generator.sample_approximate_resonant_masses(10.0)
 
-        self.assertEqual((m2, m3), (300.0, 62.0))
+        self.assertEqual((m2, m3), (300.0, 66.0))
         self.assertLessEqual(abs(2.0 * m3 - 125.09), 10.0)
         self.assertEqual(
             uniform_calls,
             [
                 (generator.m2_min, generator.m2_max),
-                ((125.09 - 10.0) / 2.0, (125.09 + 10.0) / 2.0),
+                (
+                    max(generator.m3_min, (125.09 - 10.0) / 2.0),
+                    (125.09 + 10.0) / 2.0,
+                ),
             ],
         )
 
@@ -960,7 +963,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
     def test_k133_k233_linear_and_log_ranges_are_separate(self):
         generator = load_generator_module()
 
-        self.assertEqual(generator.K133_min, 1e-5)
+        self.assertEqual(generator.K133_min, 1e-6)
         self.assertEqual(generator.K133_max, 8.0)
         self.assertEqual(generator.K233_min, 1e-4)
         self.assertEqual(generator.K233_max, 8.0)

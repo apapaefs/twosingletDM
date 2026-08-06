@@ -100,6 +100,10 @@ def rate_fixture_rows():
     return rows
 
 
+SIGNAL_EXTRA_HEADER = ["k2", "h2_h3h3_br"]
+SIGNAL_HEADER = HEADER + SIGNAL_EXTRA_HEADER
+
+
 def bsmpt_fixture_rows():
     payloads = [
         ("nan", "nan", "nan", "nan", "nan"),
@@ -117,6 +121,29 @@ def bsmpt_fixture_rows():
         row = list(original)
         row[HEADER.index("ewpt_ew_true_over_T")] = strength
         row.extend([status, phase_path, has_x_broken, ew_step])
+        rows.append(row)
+    return rows
+
+
+def signal_fixture_rows():
+    specifications = [
+        (200.0, 50.0, 0.20, 0.10, 1.0),
+        (500.0, 100.0, -0.10, 0.50, 20.0),
+        (900.0, 300.0, 0.05, 0.80, 135.0),
+    ]
+    rows = []
+    for m2, m3, k2, branching_ratio, width in specifications:
+        row = list(ROWS[-1])
+        row[HEADER.index("M2")] = m2
+        row[HEADER.index("M3")] = m3
+        row[HEADER.index("w2")] = width
+        for column in ("evo", "thc", "hb", "hs", "ewpo", "wmass", "dm"):
+            row[HEADER.index(column)] = True
+        row[HEADER.index("dm_relic_excluded")] = False
+        row[HEADER.index("dm_direct_detection_excluded")] = False
+        row[HEADER.index("dm_indirect_available")] = True
+        row[HEADER.index("dm_indirect_detection_excluded")] = False
+        row.extend([k2, branching_ratio])
         rows.append(row)
     return rows
 
@@ -149,6 +176,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
     def load_rate_fixture(self, directory):
         path = Path(directory) / "points_rates.tsv"
         write_fixture(path, RATE_HEADER, rate_fixture_rows())
+        return self.plotter.load_scan(path)
+
+    def load_signal_fixture(self, directory):
+        path = Path(directory) / "points_signal.tsv"
+        write_fixture(path, SIGNAL_HEADER, signal_fixture_rows())
         return self.plotter.load_scan(path)
 
     def test_strict_bool_accepts_only_canonical_tokens(self):
@@ -594,6 +626,103 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         np.testing.assert_allclose(logs[:3], [-1.0, 0.0, 1.0])
         self.assertTrue(np.all(np.isnan(logs[3:])))
 
+    def test_yr4_signal_grid_and_interpolation(self):
+        grid = self.plotter.load_yr4_cross_section_grid()
+        self.assertEqual(len(grid.mass_gev), 114)
+        self.assertEqual((grid.mass_gev[0], grid.mass_gev[-1]), (10.0, 3000.0))
+        index_125 = int(np.flatnonzero(grid.mass_gev == 125.0)[0])
+        index_500 = int(np.flatnonzero(grid.mass_gev == 500.0)[0])
+        self.assertAlmostEqual(grid.ggf_pb[index_125], 45.142)
+        self.assertAlmostEqual(grid.vbf_pb[index_125], 4.237)
+        self.assertAlmostEqual(grid.ggf_pb[index_500], 5.0558)
+        self.assertAlmostEqual(grid.vbf_pb[index_500], 0.54126)
+
+        interpolated = self.plotter.interpolate_yr4_cross_sections(
+            np.array([5.0, 125.0, 500.0, 3001.0]),
+            grid,
+        )
+        self.assertTrue(np.isnan(interpolated["ggf_pb"][0]))
+        self.assertAlmostEqual(interpolated["ggf_pb"][1], 45.142)
+        self.assertAlmostEqual(interpolated["vbf_pb"][2], 0.54126)
+        self.assertTrue(np.isnan(interpolated["vbf_pb"][3]))
+
+        midpoint = self.plotter.interpolate_no_extrapolation(
+            np.array([15.0]),
+            np.array([10.0, 20.0]),
+            np.array([100.0, 25.0]),
+            log_y=True,
+        )
+        self.assertAlmostEqual(midpoint[0], 50.0)
+
+    def test_signal_observables_use_k2_squared_and_strict_thresholds(self):
+        grid = self.plotter.load_yr4_cross_section_grid()
+        result = self.plotter.derive_signal_observables(
+            np.array([500.0, 500.0, 200.0, 5.0]),
+            np.array([100.0, 100.0, 100.0, 1.0]),
+            np.array([0.2, -0.2, 0.2, 0.2]),
+            np.array([5.0, 5.0, 1.0, 1.0]),
+            np.array([0.5, 0.5, 0.5, 0.5]),
+            np.array([True, True, True, True]),
+            grid,
+        )
+        expected_ggf = 1000.0 * 5.0558 * 0.2**2 * 0.5
+        expected_vbf = 1000.0 * 0.54126 * 0.2**2 * 0.5
+        self.assertAlmostEqual(result["signal_ggf_rate_fb"][0], expected_ggf)
+        self.assertAlmostEqual(result["signal_vbf_rate_fb"][0], expected_vbf)
+        self.assertAlmostEqual(
+            result["signal_dominant_rate_fb"][0],
+            expected_ggf + expected_vbf,
+        )
+        self.assertAlmostEqual(
+            result["signal_dominant_rate_fb"][0],
+            result["signal_dominant_rate_fb"][1],
+        )
+        self.assertEqual(
+            result["signal_width_category"].tolist(),
+            ["intermediate", "intermediate", "narrow", "broad"],
+        )
+        self.assertTrue(result["signal_viable_open"][0])
+        self.assertTrue(result["signal_viable_open"][1])
+        self.assertFalse(result["h2_h3h3_kinematically_open"][2])
+        self.assertFalse(result["signal_viable_open"][2])
+        self.assertFalse(result["signal_yr4_grid_available"][3])
+        self.assertFalse(result["signal_viable_open"][3])
+        self.assertLess(
+            result["signal_ggf_rate_low_fb"][0],
+            result["signal_ggf_rate_fb"][0],
+        )
+        self.assertGreater(
+            result["signal_ggf_rate_high_fb"][0],
+            result["signal_ggf_rate_fb"][0],
+        )
+
+    def test_signal_fixture_derives_full_viable_rates_and_width_categories(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_signal_fixture(tmpdir)
+
+        self.assertTrue(self.plotter.has_signal_results(data))
+        self.assertIsNone(self.plotter.signal_availability_reason(data))
+        self.assertEqual(np.count_nonzero(data.b("signal_viable_open")), 3)
+        self.assertEqual(
+            data.derived["signal_width_category"].tolist(),
+            ["narrow", "intermediate", "broad"],
+        )
+        self.assertTrue(np.all(data.f("signal_dominant_rate_fb") > 0.0))
+        np.testing.assert_allclose(
+            data.f("signal_raw_hllhc_events"),
+            data.f("signal_dominant_rate_fb")
+            * self.plotter.HL_LHC_LUMINOSITY_FB,
+        )
+
+    def test_legacy_fixture_explains_signal_plot_omission(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_fixture(tmpdir)
+
+        self.assertFalse(self.plotter.has_signal_results(data))
+        reason = self.plotter.signal_availability_reason(data)
+        self.assertIn("k2", reason)
+        self.assertIn("h2_h3h3_br", reason)
+
     def test_fixture_ratios_match_expected_values(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_fixture(tmpdir)
@@ -960,12 +1089,13 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
     def test_registry_and_expected_paths_are_unique(self):
-        self.assertEqual(len(self.plotter.PLOT_SPECS), 63)
-        self.assertEqual(len(self.plotter.DASHBOARDS), 11)
+        self.assertEqual(len(self.plotter.PLOT_SPECS), 69)
+        self.assertEqual(len(self.plotter.DASHBOARDS), 12)
         stems = self.plotter.all_figure_stems()
-        self.assertEqual(len(stems), 74)
-        self.assertEqual(len(set(stems)), 74)
+        self.assertEqual(len(stems), 81)
+        self.assertEqual(len(set(stems)), 81)
         self.assertTrue(any("bsmpt" in stem for stem in stems))
+        self.assertTrue(any("signal" in stem for stem in stems))
         self.assertEqual(
             [spec.stem for spec in self.plotter.PLOT_SPECS],
             [
@@ -1032,6 +1162,12 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "61_mono_higgs_xsec_no_dm_vs_m3",
                 "62_mono_z_xsec_no_dm_vs_m2",
                 "63_mono_z_xsec_no_dm_vs_m3",
+                "64_signal_rate_m2_m3",
+                "65_signal_rates_vs_m2",
+                "66_signal_rate_vs_m3",
+                "67_signal_k2sq_vs_br",
+                "68_signal_width_fraction_vs_rate",
+                "69_signal_rate_vs_direct_detection",
             ],
         )
         self.assertEqual(
@@ -1113,6 +1249,14 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     "62_mono_z_xsec_no_dm_vs_m2",
                     "63_mono_z_xsec_no_dm_vs_m3",
                 ),
+                "dashboard_signal_summary": (
+                    "64_signal_rate_m2_m3",
+                    "65_signal_rates_vs_m2",
+                    "66_signal_rate_vs_m3",
+                    "67_signal_k2sq_vs_br",
+                    "68_signal_width_fraction_vs_rate",
+                    "69_signal_rate_vs_direct_detection",
+                ),
             },
         )
         indirect = self.plotter.PLOT_BY_STEM["14_indirect_ratio_m2_m3"]
@@ -1160,6 +1304,9 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             "60_mono_higgs_xsec_no_dm_vs_m2"
         ]
         self.assertEqual(mono_higgs_no_dm.selection, "non_dm_viability")
+        signal_rate = self.plotter.PLOT_BY_STEM["64_signal_rate_m2_m3"]
+        self.assertTrue(signal_rate.requires_signal)
+        self.assertEqual(signal_rate.value, "signal_dominant_rate_fb")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_fixture(tmpdir)
@@ -1171,10 +1318,10 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertNotEqual(binary_styles["fail"].marker, binary_styles["pass"].marker)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both")
-        self.assertEqual(len(paths), 148)
-        self.assertEqual(len(set(paths)), 148)
-        self.assertEqual(sum(path.suffix == ".png" for path in paths), 74)
-        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 74)
+        self.assertEqual(len(paths), 162)
+        self.assertEqual(len(set(paths)), 162)
+        self.assertEqual(sum(path.suffix == ".png" for path in paths), 81)
+        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 81)
 
         legacy_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=data
@@ -1189,6 +1336,16 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         )
         self.assertEqual(len(bsmpt_paths), 108)
         self.assertTrue(any(path.stem == "dashboard_bsmpt_summary" for path in bsmpt_paths))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            signal_data = self.load_signal_fixture(tmpdir)
+        signal_paths = self.plotter.expected_figure_paths(
+            Path("plots"), "both", data=signal_data
+        )
+        self.assertEqual(len(signal_paths), 106)
+        self.assertTrue(
+            any(path.stem == "dashboard_signal_summary" for path in signal_paths)
+        )
 
     def test_summary_contains_categories_omissions_and_high_mass_tail(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1290,6 +1447,37 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertIn(
             "not an additional scan constraint",
             by_metric["bsmpt_selected_strong_fopt"].note,
+        )
+
+    def test_signal_summary_records_rates_widths_and_yr4_provenance(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_signal_fixture(tmpdir)
+            by_metric = {
+                row.metric: row for row in self.plotter.build_summary(data)
+            }
+
+        self.assertEqual(
+            (
+                by_metric["signal_full_viable_h2_to_h3h3_open"].count,
+                by_metric["signal_full_viable_h2_to_h3h3_open"].denominator,
+            ),
+            (3, 3),
+        )
+        self.assertEqual(
+            by_metric["signal_full_viable_rate_available"].count,
+            3,
+        )
+        self.assertEqual(by_metric["signal_width_narrow"].count, 1)
+        self.assertEqual(by_metric["signal_width_intermediate"].count, 1)
+        self.assertEqual(by_metric["signal_width_broad"].count, 1)
+        self.assertEqual(by_metric["yr4_signal_table_rows"].count, 114)
+        self.assertIn(
+            self.plotter.YR4_SIGNAL_REPOSITORY_COMMIT,
+            by_metric["yr4_signal_table_rows"].note,
+        )
+        self.assertIn(
+            "range",
+            by_metric["signal_full_viable_rate_available"].note,
         )
 
     def test_mass_guide_summary_uses_strict_regions(self):
@@ -1524,6 +1712,30 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertIn("No finite values &lt; threshold", text)
             self.assertIn("skipped_figure_14_indirect_ratio_m2_m3", text)
 
+    def test_plot_index_includes_signal_definition_and_provenance(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            data = self.load_signal_fixture(tmpdir)
+            preview = tmpdir / "dashboard_signal_summary.png"
+            preview.write_bytes(b"png")
+            summary = self.plotter.build_summary(data)
+            index_path = tmpdir / "index.html"
+            self.plotter.write_plot_index(
+                index_path,
+                data,
+                [preview],
+                summary,
+            )
+
+            text = index_path.read_text(encoding="utf-8")
+            self.assertIn("Full-viability collider signal plots", text)
+            self.assertIn("k2^2 * sigma_P^YR4", text)
+            self.assertIn("10--3000 GeV", text)
+            self.assertIn(self.plotter.YR4_SIGNAL_SOURCE_URL, text)
+            self.assertIn('src="dashboard_signal_summary.png"', text)
+            self.assertIn("NWA", text)
+            self.assertIn("before acceptance", text)
+
     def test_headline_png_smoke(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
@@ -1560,6 +1772,25 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertEqual(paths, [tmpdir / f"{spec.stem}.png"])
             self.assertTrue(paths[0].exists())
             self.assertGreater(paths[0].stat().st_size, 1024)
+            self.assertEqual(paths[0].read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_signal_dashboard_png_smoke(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            data = self.load_signal_fixture(tmpdir)
+            stem = "dashboard_signal_summary"
+            paths = self.plotter.render_dashboard(
+                data,
+                stem,
+                self.plotter.DASHBOARDS[stem],
+                tmpdir,
+                plot_format="png",
+                dpi=72,
+            )
+
+            self.assertEqual(paths, [tmpdir / f"{stem}.png"])
+            self.assertTrue(paths[0].exists())
+            self.assertGreater(paths[0].stat().st_size, 4096)
             self.assertEqual(paths[0].read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
 
     def test_bsmpt_dashboard_png_smoke(self):
