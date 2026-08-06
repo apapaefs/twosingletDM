@@ -27,7 +27,13 @@ matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
-from matplotlib.colors import LogNorm, Normalize, SymLogNorm, TwoSlopeNorm
+from matplotlib.colors import (
+    LinearSegmentedColormap,
+    LogNorm,
+    Normalize,
+    SymLogNorm,
+    TwoSlopeNorm,
+)
 from matplotlib.lines import Line2D
 
 
@@ -37,6 +43,10 @@ SM_LIKE_HIGGS_MASS_GEV = 125.09
 BSMPT_STRONG_EWPT_THRESHOLD = 1.0
 M2_EQ_2M3_GUIDE_COLOR = "#CC79A7"
 M3_EQ_2M2_GUIDE_COLOR = "#0072B2"
+RESONANCE_CMAP = LinearSegmentedColormap.from_list(
+    "trsm_resonance",
+    ("#0072B2", "#171717", "#D55E00"),
+)
 SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
 
 BOOLEAN_COLUMNS = (
@@ -98,6 +108,20 @@ OPTIONAL_NUMERIC_COLUMNS = (
     "k1",
     "k2",
     "k3",
+    "h1_h2h2_width",
+    "h1_h2h2_br",
+    "h2_h1h1_width",
+    "h2_h1h1_br",
+    "h1_h3h3_br",
+    "h2_h3h3_br",
+    "xs136_lo_h1_pb",
+    "xs136_lo_h2_pb",
+    "xsec_h2_h1h1_one_h1_invisible_pb",
+    "xsec_h1_h2h2_one_h2_invisible_pb",
+    "mg5_xsec_gg_heta0_pb",
+    "mg5_xsec_pp_eta0Z_pb",
+    "mono_higgs_xsec_pb",
+    "mono_z_xsec_pb",
 )
 
 OBSERVED_PARAMETER_COLUMNS = (
@@ -180,7 +204,9 @@ class PlotSpec:
     xlabel: str | None = None
     ylabel: str | None = None
     colorbar_label: str | None = None
+    selection: str | None = None
     requires_bsmpt: bool = False
+    required_columns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -697,6 +723,316 @@ PLOT_SPECS = (
         "bsmpt_bars",
         requires_bsmpt=True,
     ),
+    PlotSpec(
+        "37_k133_vs_m3_all_resonance",
+        r"$K_{133}$ versus $M_3$: all stored points",
+        "resonance_xy",
+        x="M3",
+        y="K133",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{133}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="all",
+    ),
+    PlotSpec(
+        "38_k133_vs_m3_experimental_resonance",
+        r"$K_{133}$ versus $M_3$: experimental pass",
+        "resonance_xy",
+        x="M3",
+        y="K133",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{133}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="experimental",
+    ),
+    PlotSpec(
+        "39_k133_vs_m3_relic_pass_resonance",
+        r"$K_{133}$ versus $M_3$: relic-density pass",
+        "resonance_xy",
+        x="M3",
+        y="K133",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{133}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="relic_pass",
+    ),
+    PlotSpec(
+        "40_k233_vs_m3_all_resonance",
+        r"$K_{233}$ versus $M_3$: all stored points",
+        "resonance_xy",
+        x="M3",
+        y="K233",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{233}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="all",
+    ),
+    PlotSpec(
+        "41_k233_vs_m3_experimental_resonance",
+        r"$K_{233}$ versus $M_3$: experimental pass",
+        "resonance_xy",
+        x="M3",
+        y="K233",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{233}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="experimental",
+    ),
+    PlotSpec(
+        "42_k233_vs_m3_relic_pass_resonance",
+        r"$K_{233}$ versus $M_3$: relic-density pass",
+        "resonance_xy",
+        x="M3",
+        y="K233",
+        value="m2_minus_2m3",
+        norm_kind="signed",
+        cmap="trsm_resonance",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$K_{233}$ [GeV]",
+        colorbar_label=r"$M_2-2M_3$ [GeV]",
+        selection="relic_pass",
+    ),
+    PlotSpec(
+        "43_k133_experimental_m2_m3",
+        r"$K_{133}$ for experimentally allowed points",
+        "selected_continuous_mass",
+        value="K133",
+        norm_kind="signed",
+        cmap="coolwarm",
+        colorbar_label=r"$K_{133}$ [GeV]",
+        selection="experimental",
+    ),
+    PlotSpec(
+        "44_k133_dm_m2_m3",
+        r"$K_{133}$ for aggregate-DM-passing points",
+        "selected_continuous_mass",
+        value="K133",
+        norm_kind="signed",
+        cmap="coolwarm",
+        colorbar_label=r"$K_{133}$ [GeV]",
+        selection="dm",
+    ),
+    PlotSpec(
+        "45_k233_experimental_m2_m3",
+        r"$K_{233}$ for experimentally allowed points",
+        "selected_continuous_mass",
+        value="K233",
+        norm_kind="signed",
+        cmap="coolwarm",
+        colorbar_label=r"$K_{233}$ [GeV]",
+        selection="experimental",
+    ),
+    PlotSpec(
+        "46_k233_dm_m2_m3",
+        r"$K_{233}$ for aggregate-DM-passing points",
+        "selected_continuous_mass",
+        value="K233",
+        norm_kind="signed",
+        cmap="coolwarm",
+        colorbar_label=r"$K_{233}$ [GeV]",
+        selection="dm",
+    ),
+    PlotSpec(
+        "47_m2_vs_a12",
+        r"Signed $H_1$--$H_2$ mixing angle versus $M_2$",
+        "categorical_xy",
+        scheme="fourway",
+        x="M2",
+        y="a12",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$a_{12}$ [rad]",
+    ),
+    PlotSpec(
+        "48_h2_h1h1_one_h1_invisible_xsec_vs_m2",
+        r"$H_2\to H_1H_1$ with exactly one invisible $H_1$",
+        "rate_xy",
+        x="M2",
+        y="xsec_h2_h1h1_one_h1_invisible_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="full_viability",
+        required_columns=("xsec_h2_h1h1_one_h1_invisible_pb",),
+    ),
+    PlotSpec(
+        "49_h2_h1h1_one_h1_invisible_xsec_vs_m3",
+        r"$H_2\to H_1H_1$ with exactly one invisible $H_1$",
+        "rate_xy",
+        x="M3",
+        y="xsec_h2_h1h1_one_h1_invisible_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="full_viability",
+        required_columns=("xsec_h2_h1h1_one_h1_invisible_pb",),
+    ),
+    PlotSpec(
+        "50_h1_h2h2_one_h2_invisible_xsec_vs_m2",
+        r"$H_1\to H_2H_2$ with exactly one invisible $H_2$",
+        "rate_xy",
+        x="M2",
+        y="xsec_h1_h2h2_one_h2_invisible_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="full_viability",
+        required_columns=("xsec_h1_h2h2_one_h2_invisible_pb",),
+    ),
+    PlotSpec(
+        "51_h1_h2h2_one_h2_invisible_xsec_vs_m3",
+        r"$H_1\to H_2H_2$ with exactly one invisible $H_2$",
+        "rate_xy",
+        x="M3",
+        y="xsec_h1_h2h2_one_h2_invisible_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="full_viability",
+        required_columns=("xsec_h1_h2h2_one_h2_invisible_pb",),
+    ),
+    PlotSpec(
+        "52_mono_higgs_xsec_vs_m2",
+        r"Mono-Higgs: $gg\to H_1H_2$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M2",
+        y="mono_higgs_xsec_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma(gg\to H_1H_2)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="full_viability",
+        required_columns=("mono_higgs_xsec_pb",),
+    ),
+    PlotSpec(
+        "53_mono_higgs_xsec_vs_m3",
+        r"Mono-Higgs: $gg\to H_1H_2$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M3",
+        y="mono_higgs_xsec_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma(gg\to H_1H_2)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="full_viability",
+        required_columns=("mono_higgs_xsec_pb",),
+    ),
+    PlotSpec(
+        "54_mono_z_xsec_vs_m2",
+        r"Mono-$Z$: $pp\to H_2Z$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M2",
+        y="mono_z_xsec_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma(pp\to H_2Z)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="full_viability",
+        required_columns=("mono_z_xsec_pb",),
+    ),
+    PlotSpec(
+        "55_mono_z_xsec_vs_m3",
+        r"Mono-$Z$: $pp\to H_2Z$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M3",
+        y="mono_z_xsec_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma(pp\to H_2Z)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="full_viability",
+        required_columns=("mono_z_xsec_pb",),
+    ),
+    PlotSpec(
+        "56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2",
+        r"$H_2\to H_1H_1$ with exactly one invisible $H_1$",
+        "rate_xy",
+        x="M2",
+        y="xsec_h2_h1h1_one_h1_invisible_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("xsec_h2_h1h1_one_h1_invisible_pb",),
+    ),
+    PlotSpec(
+        "57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3",
+        r"$H_2\to H_1H_1$ with exactly one invisible $H_1$",
+        "rate_xy",
+        x="M3",
+        y="xsec_h2_h1h1_one_h1_invisible_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("xsec_h2_h1h1_one_h1_invisible_pb",),
+    ),
+    PlotSpec(
+        "58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2",
+        r"$H_1\to H_2H_2$ with exactly one invisible $H_2$",
+        "rate_xy",
+        x="M2",
+        y="xsec_h1_h2h2_one_h2_invisible_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("xsec_h1_h2h2_one_h2_invisible_pb",),
+    ),
+    PlotSpec(
+        "59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3",
+        r"$H_1\to H_2H_2$ with exactly one invisible $H_2$",
+        "rate_xy",
+        x="M3",
+        y="xsec_h1_h2h2_one_h2_invisible_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma_{\rm excl}$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("xsec_h1_h2h2_one_h2_invisible_pb",),
+    ),
+    PlotSpec(
+        "60_mono_higgs_xsec_no_dm_vs_m2",
+        r"Mono-Higgs: $gg\to H_1H_2$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M2",
+        y="mono_higgs_xsec_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma(gg\to H_1H_2)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("mono_higgs_xsec_pb",),
+    ),
+    PlotSpec(
+        "61_mono_higgs_xsec_no_dm_vs_m3",
+        r"Mono-Higgs: $gg\to H_1H_2$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M3",
+        y="mono_higgs_xsec_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma(gg\to H_1H_2)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("mono_higgs_xsec_pb",),
+    ),
+    PlotSpec(
+        "62_mono_z_xsec_no_dm_vs_m2",
+        r"Mono-$Z$: $pp\to H_2Z$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M2",
+        y="mono_z_xsec_pb",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\sigma(pp\to H_2Z)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("mono_z_xsec_pb",),
+    ),
+    PlotSpec(
+        "63_mono_z_xsec_no_dm_vs_m3",
+        r"Mono-$Z$: $pp\to H_2Z$, $H_2\to H_3H_3$",
+        "rate_xy",
+        x="M3",
+        y="mono_z_xsec_pb",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\sigma(pp\to H_2Z)\,\mathrm{BR}(H_2\to H_3H_3)$ [pb]",
+        selection="non_dm_viability",
+        required_columns=("mono_z_xsec_pb",),
+    ),
 )
 
 PLOT_BY_STEM = {spec.stem: spec for spec in PLOT_SPECS}
@@ -756,6 +1092,62 @@ DASHBOARDS = OrderedDict(
                 "36_bsmpt_counts",
             ),
         ),
+        (
+            "dashboard_portal_resonance_summary",
+            (
+                "37_k133_vs_m3_all_resonance",
+                "38_k133_vs_m3_experimental_resonance",
+                "39_k133_vs_m3_relic_pass_resonance",
+                "40_k233_vs_m3_all_resonance",
+                "41_k233_vs_m3_experimental_resonance",
+                "42_k233_vs_m3_relic_pass_resonance",
+            ),
+        ),
+        (
+            "dashboard_portal_mass_plane_summary",
+            (
+                "43_k133_experimental_m2_m3",
+                "44_k133_dm_m2_m3",
+                "45_k233_experimental_m2_m3",
+                "46_k233_dm_m2_m3",
+            ),
+        ),
+        (
+            "dashboard_scalar_cascade_rates",
+            (
+                "48_h2_h1h1_one_h1_invisible_xsec_vs_m2",
+                "49_h2_h1h1_one_h1_invisible_xsec_vs_m3",
+                "50_h1_h2h2_one_h2_invisible_xsec_vs_m2",
+                "51_h1_h2h2_one_h2_invisible_xsec_vs_m3",
+            ),
+        ),
+        (
+            "dashboard_mg5_mono_rates",
+            (
+                "52_mono_higgs_xsec_vs_m2",
+                "53_mono_higgs_xsec_vs_m3",
+                "54_mono_z_xsec_vs_m2",
+                "55_mono_z_xsec_vs_m3",
+            ),
+        ),
+        (
+            "dashboard_scalar_cascade_rates_no_dm",
+            (
+                "56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2",
+                "57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3",
+                "58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2",
+                "59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3",
+            ),
+        ),
+        (
+            "dashboard_mg5_mono_rates_no_dm",
+            (
+                "60_mono_higgs_xsec_no_dm_vs_m2",
+                "61_mono_higgs_xsec_no_dm_vs_m3",
+                "62_mono_z_xsec_no_dm_vs_m2",
+                "63_mono_z_xsec_no_dm_vs_m3",
+            ),
+        ),
     ]
 )
 
@@ -767,6 +1159,24 @@ DASHBOARD_TITLES = {
         "TRSM cumulative constraint-survival diagnostics"
     ),
     "dashboard_bsmpt_summary": "TRSM BSMPT electroweak phase-transition summary",
+    "dashboard_portal_resonance_summary": (
+        r"TRSM portal trilinears and the $M_2=2M_3$ resonance"
+    ),
+    "dashboard_portal_mass_plane_summary": (
+        "TRSM portal trilinears on the mass plane"
+    ),
+    "dashboard_scalar_cascade_rates": (
+        "TRSM exclusive one-invisible scalar-cascade rates at 13.6 TeV"
+    ),
+    "dashboard_mg5_mono_rates": (
+        "TRSM MadGraph mono-Higgs and mono-Z rates at 13.6 TeV"
+    ),
+    "dashboard_scalar_cascade_rates_no_dm": (
+        "TRSM scalar-cascade rates without the DM selection at 13.6 TeV"
+    ),
+    "dashboard_mg5_mono_rates_no_dm": (
+        "TRSM MadGraph mono-Higgs and mono-Z rates without the DM selection"
+    ),
 }
 
 BSMPT_DASHBOARDS = frozenset({"dashboard_bsmpt_summary"})
@@ -1199,6 +1609,7 @@ def load_scan(
 
     theory = bools["evo"] & bools["thc"]
     experimental = bools["hb"] & bools["hs"] & bools["ewpo"] & bools["wmass"]
+    non_dm_viability = theory & experimental
     full_viability = theory & experimental & bools["dm"]
     relic_available = nullable_available["dm_relic_excluded"]
     direct_available = nullable_available["dm_direct_detection_excluded"]
@@ -1233,6 +1644,7 @@ def load_scan(
     derived = {
         "theory": theory,
         "experimental": experimental,
+        "non_dm_viability": non_dm_viability,
         "full_viability": full_viability,
         "relic_pass": relic_pass,
         "direct_pass": direct_pass,
@@ -1259,7 +1671,54 @@ def load_scan(
         "log10_indirect_ratio": positive_log10(indirect_ratio),
         "abs_a12": np.abs(floats["a12"]),
         "abs_K233": np.abs(floats["K233"]),
+        "m2_minus_2m3": floats["M2"] - 2.0 * floats["M3"],
     }
+    if (
+        "mono_higgs_xsec_pb" not in floats
+        and "mg5_xsec_gg_heta0_pb" in floats
+        and "h2_h3h3_br" in floats
+    ):
+        derived["mono_higgs_xsec_pb"] = (
+            floats["mg5_xsec_gg_heta0_pb"] * floats["h2_h3h3_br"]
+        )
+    if (
+        "mono_z_xsec_pb" not in floats
+        and "mg5_xsec_pp_eta0Z_pb" in floats
+        and "h2_h3h3_br" in floats
+    ):
+        derived["mono_z_xsec_pb"] = (
+            floats["mg5_xsec_pp_eta0Z_pb"] * floats["h2_h3h3_br"]
+        )
+    if (
+        "xsec_h2_h1h1_one_h1_invisible_pb" not in floats
+        and all(
+            column in floats
+            for column in ("xs136_lo_h2_pb", "h2_h1h1_br", "h1_h3h3_br")
+        )
+    ):
+        br = floats["h1_h3h3_br"]
+        derived["xsec_h2_h1h1_one_h1_invisible_pb"] = (
+            floats["xs136_lo_h2_pb"]
+            * floats["h2_h1h1_br"]
+            * 2.0
+            * br
+            * (1.0 - br)
+        )
+    if (
+        "xsec_h1_h2h2_one_h2_invisible_pb" not in floats
+        and all(
+            column in floats
+            for column in ("xs136_lo_h1_pb", "h1_h2h2_br", "h2_h3h3_br")
+        )
+    ):
+        br = floats["h2_h3h3_br"]
+        derived["xsec_h1_h2h2_one_h2_invisible_pb"] = (
+            floats["xs136_lo_h1_pb"]
+            * floats["h1_h2h2_br"]
+            * 2.0
+            * br
+            * (1.0 - br)
+        )
     derived.update(bsmpt_results)
 
     metadata, metadata_source, metadata_error = load_scan_metadata(
@@ -1401,6 +1860,44 @@ def norm_for(spec: PlotSpec, values: np.ndarray):
     if spec.norm_kind == "log_to_one":
         return robust_log_norm_to_one(values)
     return robust_linear_norm(values)
+
+
+def plot_colormap(name: str):
+    if name == "trsm_resonance":
+        return RESONANCE_CMAP
+    return plt.get_cmap(name)
+
+
+SELECTION_LABELS = {
+    "all": "All stored points",
+    "experimental": (
+        r"Experimental pass: HB $\wedge$ HS $\wedge$ EWPO $\wedge$ $M_W$"
+    ),
+    "relic_pass": "Relic-density pass",
+    "dm": "Aggregate DM pass",
+    "non_dm_viability": (
+        r"All non-DM constraints: evolution $\wedge$ theory $\wedge$ experimental"
+    ),
+    "full_viability": (
+        r"Full viability: evolution $\wedge$ theory $\wedge$ experimental $\wedge$ DM"
+    ),
+}
+
+
+def selection_mask(data: ScanData, selection: str | None) -> np.ndarray:
+    if selection in {None, "all"}:
+        return np.ones(len(data), dtype=bool)
+    try:
+        return np.asarray(data.b(selection), dtype=bool)
+    except KeyError as exc:
+        raise ValueError(f"Unknown point selection: {selection}") from exc
+
+
+def selection_label(selection: str | None) -> str:
+    try:
+        return SELECTION_LABELS["all" if selection is None else selection]
+    except KeyError as exc:
+        raise ValueError(f"Unknown point selection: {selection}") from exc
 
 
 def category_styles(data: ScanData, scheme: str):
@@ -1733,7 +2230,7 @@ def render_continuous_mass(
         raise PlotUnavailable(f"{spec.value} has no finite values")
 
     norm = norm_for(spec, values[valid])
-    cmap = plt.get_cmap(spec.cmap)
+    cmap = plot_colormap(spec.cmap)
     marker_scheme = spec.scheme or "fourway"
     categories, marker_styles = category_styles(data, marker_scheme)
     for key, style in marker_styles.items():
@@ -1836,6 +2333,167 @@ def render_continuous_mass(
     )
 
 
+def add_continuous_colorbar(
+    fig,
+    ax,
+    spec: PlotSpec,
+    norm,
+    cmap,
+    compact: bool = False,
+) -> None:
+    scalar_mappable = ScalarMappable(norm=norm, cmap=cmap)
+    scalar_mappable.set_array([])
+    colorbar = fig.colorbar(
+        scalar_mappable,
+        ax=ax,
+        extend="both",
+        fraction=0.048 if compact else 0.046,
+        pad=0.025,
+    )
+    colorbar.set_label(spec.colorbar_label, fontsize=8.0 if compact else 9.5)
+    colorbar.ax.tick_params(labelsize=7.0 if compact else 8.0)
+    if spec.norm_kind == "signed":
+        colorbar.set_ticks(sparse_symlog_ticks(norm))
+
+
+def render_resonance_xy(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    x = data.f(spec.x)
+    y = data.f(spec.y)
+    values = data.f(spec.value)
+    selected = selection_mask(data, spec.selection)
+    reference = finite_mask(x, y, values)
+    valid = selected & reference
+    if not np.any(valid):
+        raise PlotUnavailable(
+            f"{selection_label(spec.selection)} has no finite "
+            f"{spec.x}, {spec.y}, and {spec.value} values"
+        )
+
+    # Fix the axes and color normalization from the complete finite scan so
+    # the all/experimental/relic variants remain directly comparable.
+    norm = norm_for(spec, values[reference])
+    cmap = plot_colormap(spec.cmap)
+    # Draw points farthest from resonance first so the M2 = 2*M3 region is
+    # not hidden by a denser off-resonance population.
+    order = np.argsort(np.abs(values[valid]), kind="stable")[::-1]
+    indices = np.flatnonzero(valid)[order]
+    ax.scatter(
+        x[indices],
+        y[indices],
+        c=values[indices],
+        norm=norm,
+        cmap=cmap,
+        s=9.0 if compact else 14.0,
+        marker="o",
+        alpha=0.82,
+        edgecolors="none",
+        rasterized=True,
+        zorder=2.0,
+    )
+
+    xspan = max(float(np.max(x[reference]) - np.min(x[reference])), 1.0)
+    ax.set_xlim(
+        float(np.min(x[reference]) - 0.035 * xspan),
+        float(np.max(x[reference]) + 0.035 * xspan),
+    )
+    y_linthresh, _ = robust_symlog_parameters(y[reference])
+    y_max = max(float(np.max(np.abs(y[reference]))), 1.0e-12)
+    ax.set_yscale("symlog", linthresh=y_linthresh)
+    ax.set_ylim(-1.08 * y_max, 1.08 * y_max)
+    ax.axhline(0.0, color="#666666", linewidth=0.7, alpha=0.55, zorder=0.1)
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    ax.set_title(
+        spec.title
+        + "\n"
+        + selection_label(spec.selection)
+        + rf"; $M_2-2M_3=0$ is resonant; $N={int(np.count_nonzero(valid)):,}$",
+        fontsize=8.4 if compact else 11.2,
+    )
+    ax.grid(True, alpha=0.18, linewidth=0.6)
+    add_continuous_colorbar(fig, ax, spec, norm, cmap, compact=compact)
+
+
+def render_selected_continuous_mass(
+    fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    values = data.f(spec.value)
+    m2 = data.f("M2")
+    m3 = data.f("M3")
+    mass_valid = finite_mask(m2, m3)
+    selected = selection_mask(data, spec.selection)
+    colored = mass_valid & selected & np.isfinite(values)
+    if not np.any(colored):
+        raise PlotUnavailable(
+            f"{selection_label(spec.selection)} has no finite {spec.value} values"
+        )
+
+    ax.scatter(
+        m2[mass_valid],
+        m3[mass_valid],
+        s=5.0 if compact else 8.0,
+        c="#BDBDBD",
+        marker="o",
+        alpha=0.18,
+        edgecolors="none",
+        rasterized=True,
+        zorder=0.7,
+    )
+    value_reference = mass_valid & np.isfinite(values)
+    # Experimental and DM variants of a given coupling use the same scale,
+    # fixed by all finite stored rows rather than by the selected subset.
+    norm = norm_for(spec, values[value_reference])
+    cmap = plot_colormap(spec.cmap)
+    # Keep small-magnitude portal couplings visible in dense regions.
+    order = np.argsort(np.abs(values[colored]), kind="stable")[::-1]
+    indices = np.flatnonzero(colored)[order]
+    ax.scatter(
+        m2[indices],
+        m3[indices],
+        c=values[indices],
+        norm=norm,
+        cmap=cmap,
+        s=10.0 if compact else 16.0,
+        marker="o",
+        alpha=0.9,
+        edgecolors="#4D4D4D",
+        linewidths=0.08 if compact else 0.12,
+        rasterized=True,
+        zorder=3.0,
+    )
+
+    style_mass_axis(ax, data)
+    ax.set_title(
+        spec.title
+        + "\nColored: "
+        + selection_label(spec.selection)
+        + "; gray: all stored points",
+        fontsize=8.4 if compact else 11.2,
+    )
+    ax.text(
+        0.985,
+        0.018,
+        (
+            f"colored N = {int(np.count_nonzero(colored)):,}; "
+            f"stored N = {int(np.count_nonzero(mass_valid)):,}"
+        ),
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=6.7 if compact else 7.6,
+        bbox={
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": 0.72,
+            "pad": 1.5,
+        },
+        zorder=10,
+    )
+    add_continuous_colorbar(fig, ax, spec, norm, cmap, compact=compact)
+
+
 def render_categorical_xy(
     ax, data: ScanData, spec: PlotSpec, compact: bool = False
 ) -> None:
@@ -1884,6 +2542,82 @@ def render_categorical_xy(
         framealpha=0.82,
         edgecolor="none",
         fontsize=6.8 if compact else 8.0,
+    )
+
+
+def render_rate_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    """Render a positive cross section versus one scalar mass on a log axis."""
+    try:
+        x = data.f(spec.x)
+        rate = data.f(spec.y)
+    except KeyError as exc:
+        raise PlotUnavailable(f"{exc.args[0]} column is unavailable") from exc
+    selected = selection_mask(data, spec.selection)
+    finite = finite_mask(x, rate)
+    valid = selected & finite & (rate > 0.0)
+    if not np.any(valid):
+        raise PlotUnavailable(
+            f"{selection_label(spec.selection)} has no finite positive {spec.y} values"
+        )
+
+    indices = np.flatnonzero(valid)[np.argsort(rate[valid], kind="stable")]
+    color = "#009E73" if spec.selection == "full_viability" else "#0072B2"
+    ax.scatter(
+        x[indices],
+        rate[indices],
+        s=13.0 if compact else 21.0,
+        c=color,
+        marker="o",
+        alpha=0.78,
+        edgecolors="#202020",
+        linewidths=0.18,
+        rasterized=True,
+        zorder=2.0,
+    )
+    xspan = max(float(np.max(x[valid]) - np.min(x[valid])), 1.0)
+    ax.set_xlim(
+        float(np.min(x[valid]) - 0.035 * xspan),
+        float(np.max(x[valid]) + 0.035 * xspan),
+    )
+    ymin = float(np.min(rate[valid]))
+    ymax = float(np.max(rate[valid]))
+    if math.isclose(ymin, ymax):
+        ymin *= 0.5
+        ymax *= 2.0
+    else:
+        ymin /= 1.35
+        ymax *= 1.35
+    ax.set_yscale("log")
+    ax.set_ylim(max(ymin, np.finfo(float).tiny), ymax)
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    ax.set_title(
+        spec.title + "\n" + selection_label(spec.selection),
+        fontsize=8.4 if compact else 11.2,
+    )
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    selected_finite = selected & finite
+    zero_count = int(np.count_nonzero(selected_finite & (rate == 0.0)))
+    ax.text(
+        0.985,
+        0.018,
+        (
+            f"positive-rate N = {int(np.count_nonzero(valid)):,}; "
+            f"zero-rate N = {zero_count:,}"
+        ),
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=6.7 if compact else 7.6,
+        bbox={
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": 0.76,
+            "pad": 1.5,
+        },
+        zorder=10,
     )
 
 
@@ -2149,6 +2883,12 @@ def constraint_bar_metrics(data: ScanData):
         (r"$W$ mass pass", int(np.count_nonzero(data.b("wmass"))), "#E69F00", ""),
         ("Experimental pass", int(np.count_nonzero(data.b("experimental"))), "#E69F00", ""),
         (
+            "All non-DM constraints",
+            int(np.count_nonzero(data.b("non_dm_viability"))),
+            "#D55E00",
+            "",
+        ),
+        (
             "DM evaluation available",
             int(np.count_nonzero(data.b("dm_result_available"))),
             "#56B4E9",
@@ -2308,8 +3048,14 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         render_categorical_mass(ax, data, spec, compact=compact)
     elif spec.kind == "continuous_mass":
         render_continuous_mass(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "selected_continuous_mass":
+        render_selected_continuous_mass(fig, ax, data, spec, compact=compact)
+    elif spec.kind == "resonance_xy":
+        render_resonance_xy(fig, ax, data, spec, compact=compact)
     elif spec.kind == "categorical_xy":
         render_categorical_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "rate_xy":
+        render_rate_xy(ax, data, spec, compact=compact)
     elif spec.kind == "cumulative_xy":
         render_cumulative_xy(ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_strength_xy":
@@ -2334,17 +3080,59 @@ def all_figure_stems() -> tuple[str, ...]:
     return tuple(spec.stem for spec in PLOT_SPECS) + tuple(DASHBOARDS)
 
 
+def has_observable(data: ScanData, name: str) -> bool:
+    return (
+        name in data.floats
+        or name in data.bools
+        or name in data.strings
+        or name in data.derived
+    )
+
+
+def spec_unavailable_reason(data: ScanData, spec: PlotSpec) -> str | None:
+    if spec.requires_bsmpt and not has_bsmpt_results(data):
+        return "BSMPT was not run for any stored scan row"
+    missing = [
+        column for column in spec.required_columns if not has_observable(data, column)
+    ]
+    if missing:
+        return "missing scan column(s): " + ", ".join(missing)
+    if spec.kind == "rate_xy":
+        try:
+            x = data.f(spec.x)
+            rate = data.f(spec.y)
+        except KeyError as exc:
+            return f"missing scan column: {exc.args[0]}"
+        valid = (
+            selection_mask(data, spec.selection)
+            & finite_mask(x, rate)
+            & (rate > 0.0)
+        )
+        if not np.any(valid):
+            return (
+                f"{selection_label(spec.selection)} has no finite positive "
+                f"{spec.y} values"
+            )
+    return None
+
+
+def dashboard_available(data: ScanData, plot_stems: Sequence[str]) -> bool:
+    return any(
+        spec_unavailable_reason(data, PLOT_BY_STEM[plot_stem]) is None
+        for plot_stem in plot_stems
+    )
+
+
 def figure_stems_for_data(data: ScanData) -> tuple[str, ...]:
-    include_bsmpt = has_bsmpt_results(data)
     plot_stems = tuple(
         spec.stem
         for spec in PLOT_SPECS
-        if include_bsmpt or not spec.requires_bsmpt
+        if spec_unavailable_reason(data, spec) is None
     )
     dashboard_stems = tuple(
         stem
-        for stem in DASHBOARDS
-        if include_bsmpt or stem not in BSMPT_DASHBOARDS
+        for stem, panels in DASHBOARDS.items()
+        if dashboard_available(data, panels)
     )
     return plot_stems + dashboard_stems
 
@@ -2452,6 +3240,7 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         ("wmass", "W-mass pass"),
         ("theory", "evo & thc"),
         ("experimental", "hb & hs & ewpo & wmass"),
+        ("non_dm_viability", "theory & experimental; DM not required"),
         ("dm", "Stored aggregate DM pass"),
         ("full_viability", "theory & experimental & dm"),
     ):
@@ -3112,6 +3901,7 @@ def write_plot_index(
         )
 
     experimental = int(np.count_nonzero(data.b("experimental")))
+    non_dm_viable = int(np.count_nonzero(data.b("non_dm_viability")))
     dm_pass = int(np.count_nonzero(data.b("dm")))
     full = int(np.count_nonzero(data.b("full_viability")))
     document = f"""<!doctype html>
@@ -3159,7 +3949,7 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <main>
 <header>
 <h1>TRSM constraint plot suite</h1>
-<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
+<p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; non-DM viable {non_dm_viable:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
 <nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>
 {scan_information}
@@ -3249,6 +4039,7 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
     print(
         "Selections: "
         f"experimental={np.count_nonzero(data.b('experimental')):,} "
+        f"non_dm_viable={np.count_nonzero(data.b('non_dm_viability')):,} "
         f"dm={np.count_nonzero(data.b('dm')):,} "
         f"full={np.count_nonzero(data.b('full_viability')):,}"
     )
@@ -3256,8 +4047,8 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
     paths: list[Path] = []
     skipped: list[tuple[str, str]] = []
     for spec in PLOT_SPECS:
-        if spec.requires_bsmpt and not has_bsmpt_results(data):
-            reason = "BSMPT was not run for any stored scan row"
+        reason = spec_unavailable_reason(data, spec)
+        if reason is not None:
             skipped.append((spec.stem, reason))
             print(f"Skipped {spec.stem}: {reason}")
             continue
@@ -3271,8 +4062,8 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             print(f"Skipped {spec.stem}: {reason}")
 
     for dashboard_stem, plot_stems in DASHBOARDS.items():
-        if dashboard_stem in BSMPT_DASHBOARDS and not has_bsmpt_results(data):
-            reason = "BSMPT was not run for any stored scan row"
+        if not dashboard_available(data, plot_stems):
+            reason = "none of the dashboard observables are available"
             skipped.append((dashboard_stem, reason))
             print(f"Skipped {dashboard_stem}: {reason}")
             continue

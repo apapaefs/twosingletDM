@@ -35,6 +35,8 @@ def run_mg5_processes(
     w3,
     energy,
     *,
+    w1=None,
+    k233=None,
     get_xsec=get_mg5_xsec,
     proc_location=None,
 ):
@@ -46,6 +48,11 @@ def run_mg5_processes(
     mg5xsecs = {}
     for process in selected_mg5_processes(processes_to_run, proc_location=proc_location):
         print("Running MG5 process", process)
+        optional_parameters = {}
+        if w1 is not None:
+            optional_parameters["w1"] = w1
+        if k233 is not None:
+            optional_parameters["k233"] = k233
         mg5xsecs[process] = get_xsec(
             process,
             run_tag,
@@ -58,6 +65,7 @@ def run_mg5_processes(
             m3,
             w3,
             ecm=energy,
+            **optional_parameters,
         )
         print("MG5", process, "xsec [pb] =", mg5xsecs[process])
     return mg5xsecs

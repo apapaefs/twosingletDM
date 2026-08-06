@@ -68,6 +68,37 @@ BSMPT_EXTRA_HEADER = [
 ]
 BSMPT_HEADER = HEADER + BSMPT_EXTRA_HEADER
 
+RATE_EXTRA_HEADER = [
+    "xs136_lo_h1_pb",
+    "xs136_lo_h2_pb",
+    "h1_h2h2_br",
+    "h2_h1h1_br",
+    "h1_h3h3_br",
+    "h2_h3h3_br",
+    "mg5_xsec_gg_heta0_pb",
+    "mg5_xsec_pp_eta0Z_pb",
+]
+RATE_HEADER = HEADER + RATE_EXTRA_HEADER
+
+
+def rate_fixture_rows():
+    rows = []
+    for index, original in enumerate(ROWS, start=1):
+        rows.append(
+            list(original)
+            + [
+                20.0 / index,
+                1.0 / index,
+                0.02 * index,
+                0.03 * index,
+                0.04,
+                0.05,
+                0.2 / index,
+                0.1 / index,
+            ]
+        )
+    return rows
+
 
 def bsmpt_fixture_rows():
     payloads = [
@@ -115,6 +146,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         write_fixture(path, BSMPT_HEADER, bsmpt_fixture_rows())
         return self.plotter.load_scan(path)
 
+    def load_rate_fixture(self, directory):
+        path = Path(directory) / "points_rates.tsv"
+        write_fixture(path, RATE_HEADER, rate_fixture_rows())
+        return self.plotter.load_scan(path)
+
     def test_strict_bool_accepts_only_canonical_tokens(self):
         self.assertIs(self.plotter.strict_bool("True"), True)
         self.assertIs(self.plotter.strict_bool("False"), False)
@@ -152,6 +188,64 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             write_fixture(invalid_path, HEADER, invalid_rows)
             with self.assertRaisesRegex(ValueError, "dm on row 2"):
                 self.plotter.load_scan(invalid_path)
+
+    def test_rate_columns_are_derived_and_rendered_on_log_scale(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_rate_fixture(tmpdir)
+
+        np.testing.assert_allclose(
+            data.f("mono_higgs_xsec_pb"),
+            data.f("mg5_xsec_gg_heta0_pb") * data.f("h2_h3h3_br"),
+        )
+        expected_cascade = (
+            data.f("xs136_lo_h2_pb")
+            * data.f("h2_h1h1_br")
+            * 2.0
+            * data.f("h1_h3h3_br")
+            * (1.0 - data.f("h1_h3h3_br"))
+        )
+        np.testing.assert_allclose(
+            data.f("xsec_h2_h1h1_one_h1_invisible_pb"), expected_cascade
+        )
+        spec = self.plotter.PLOT_BY_STEM["52_mono_higgs_xsec_vs_m2"]
+        self.assertIsNone(self.plotter.spec_unavailable_reason(data, spec))
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_rate_xy(ax, data, spec)
+            self.assertEqual(ax.get_yscale(), "log")
+            self.assertGreater(len(ax.collections), 0)
+        finally:
+            self.plotter.plt.close(fig)
+
+        no_dm_spec = self.plotter.PLOT_BY_STEM[
+            "60_mono_higgs_xsec_no_dm_vs_m2"
+        ]
+        self.assertIsNone(
+            self.plotter.spec_unavailable_reason(data, no_dm_spec)
+        )
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_rate_xy(ax, data, no_dm_spec)
+            self.assertEqual(ax.get_yscale(), "log")
+            self.assertIn("All non-DM constraints", ax.get_title())
+        finally:
+            self.plotter.plt.close(fig)
+
+        paths = self.plotter.expected_figure_paths(Path("plots"), "both", data=data)
+        self.assertEqual(len(paths), 132)
+        self.assertTrue(
+            any(path.stem == "dashboard_scalar_cascade_rates" for path in paths)
+        )
+        self.assertTrue(any(path.stem == "dashboard_mg5_mono_rates" for path in paths))
+        self.assertTrue(
+            any(
+                path.stem == "dashboard_scalar_cascade_rates_no_dm"
+                for path in paths
+            )
+        )
+        self.assertTrue(
+            any(path.stem == "dashboard_mg5_mono_rates_no_dm" for path in paths)
+        )
 
     def test_scan_metadata_is_loaded_and_rendered_with_configured_ranges(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -257,6 +351,10 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         )
         np.testing.assert_array_equal(
             data.b("dm"), [False, True, False, True, False, True, False, True]
+        )
+        np.testing.assert_array_equal(
+            data.b("non_dm_viability"),
+            [False, False, True, True, False, False, True, True],
         )
         np.testing.assert_array_equal(
             data.b("full_viability"),
@@ -613,6 +711,102 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         finally:
             self.plotter.plt.close(fig)
 
+    def test_resonance_plots_apply_requested_selections_and_center_zero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_fixture(tmpdir)
+
+        cases = (
+            (
+                "38_k133_vs_m3_experimental_resonance",
+                "experimental",
+                4,
+            ),
+            (
+                "39_k133_vs_m3_relic_pass_resonance",
+                "relic_pass",
+                5,
+            ),
+            (
+                "40_k233_vs_m3_all_resonance",
+                "all",
+                8,
+            ),
+        )
+        norm_bounds = []
+        axis_bounds = []
+        for stem, selection, expected_count in cases:
+            with self.subTest(stem=stem):
+                spec = self.plotter.PLOT_BY_STEM[stem]
+                fig, ax = self.plotter.plt.subplots()
+                try:
+                    self.plotter.render_resonance_xy(fig, ax, data, spec)
+                    self.assertEqual(len(ax.collections), 1)
+                    points = ax.collections[0]
+                    self.assertEqual(len(points.get_offsets()), expected_count)
+                    self.assertIsInstance(points.norm, self.plotter.SymLogNorm)
+                    self.assertLess(points.norm.vmin, 0.0)
+                    self.assertGreater(points.norm.vmax, 0.0)
+                    self.assertLess(
+                        sum(points.cmap(points.norm(0.0))[:3]), 0.5
+                    )
+                    self.assertEqual(ax.get_yscale(), "symlog")
+                    norm_bounds.append((points.norm.vmin, points.norm.vmax))
+                    axis_bounds.append((ax.get_xlim(), ax.get_ylim()))
+                    mask = self.plotter.selection_mask(data, selection)
+                    np.testing.assert_allclose(
+                        np.sort(np.asarray(points.get_array(), dtype=float)),
+                        np.sort(data.f("m2_minus_2m3")[mask]),
+                    )
+                    self.assertIn(f"N={expected_count}", ax.get_title())
+                finally:
+                    self.plotter.plt.close(fig)
+        self.assertTrue(all(bounds == norm_bounds[0] for bounds in norm_bounds))
+        self.assertTrue(
+            all(
+                np.allclose(xlimits, axis_bounds[0][0])
+                and np.allclose(ylimits, axis_bounds[0][1])
+                for xlimits, ylimits in axis_bounds
+            )
+        )
+
+    def test_portal_mass_maps_color_only_selected_points(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = self.load_fixture(tmpdir)
+
+        cases = (
+            ("43_k133_experimental_m2_m3", "experimental", "K133", 4),
+            ("44_k133_dm_m2_m3", "dm", "K133", 4),
+            ("45_k233_experimental_m2_m3", "experimental", "K233", 4),
+            ("46_k233_dm_m2_m3", "dm", "K233", 4),
+        )
+        norm_bounds = {}
+        for stem, selection, value_name, expected_count in cases:
+            with self.subTest(stem=stem):
+                spec = self.plotter.PLOT_BY_STEM[stem]
+                fig, ax = self.plotter.plt.subplots()
+                try:
+                    self.plotter.render_selected_continuous_mass(
+                        fig, ax, data, spec
+                    )
+                    self.assertEqual(len(ax.collections), 2)
+                    background, colored = ax.collections
+                    self.assertEqual(len(background.get_offsets()), len(data))
+                    self.assertEqual(len(colored.get_offsets()), expected_count)
+                    self.assertIsInstance(colored.norm, self.plotter.SymLogNorm)
+                    norm_bounds.setdefault(value_name, []).append(
+                        (colored.norm.vmin, colored.norm.vmax)
+                    )
+                    mask = self.plotter.selection_mask(data, selection)
+                    np.testing.assert_allclose(
+                        np.sort(np.asarray(colored.get_array(), dtype=float)),
+                        np.sort(data.f(value_name)[mask]),
+                    )
+                    self.assertIn("gray: all stored points", ax.get_title())
+                finally:
+                    self.plotter.plt.close(fig)
+        for bounds in norm_bounds.values():
+            self.assertEqual(bounds[0], bounds[1])
+
     def test_bsmpt_status_strength_and_phase_renderers(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_bsmpt_fixture(tmpdir)
@@ -766,11 +960,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
     def test_registry_and_expected_paths_are_unique(self):
-        self.assertEqual(len(self.plotter.PLOT_SPECS), 36)
-        self.assertEqual(len(self.plotter.DASHBOARDS), 5)
+        self.assertEqual(len(self.plotter.PLOT_SPECS), 63)
+        self.assertEqual(len(self.plotter.DASHBOARDS), 11)
         stems = self.plotter.all_figure_stems()
-        self.assertEqual(len(stems), 41)
-        self.assertEqual(len(set(stems)), 41)
+        self.assertEqual(len(stems), 74)
+        self.assertEqual(len(set(stems)), 74)
         self.assertTrue(any("bsmpt" in stem for stem in stems))
         self.assertEqual(
             [spec.stem for spec in self.plotter.PLOT_SPECS],
@@ -811,6 +1005,33 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "34_bsmpt_strength_vs_m2",
                 "35_bsmpt_strength_vs_m3",
                 "36_bsmpt_counts",
+                "37_k133_vs_m3_all_resonance",
+                "38_k133_vs_m3_experimental_resonance",
+                "39_k133_vs_m3_relic_pass_resonance",
+                "40_k233_vs_m3_all_resonance",
+                "41_k233_vs_m3_experimental_resonance",
+                "42_k233_vs_m3_relic_pass_resonance",
+                "43_k133_experimental_m2_m3",
+                "44_k133_dm_m2_m3",
+                "45_k233_experimental_m2_m3",
+                "46_k233_dm_m2_m3",
+                "47_m2_vs_a12",
+                "48_h2_h1h1_one_h1_invisible_xsec_vs_m2",
+                "49_h2_h1h1_one_h1_invisible_xsec_vs_m3",
+                "50_h1_h2h2_one_h2_invisible_xsec_vs_m2",
+                "51_h1_h2h2_one_h2_invisible_xsec_vs_m3",
+                "52_mono_higgs_xsec_vs_m2",
+                "53_mono_higgs_xsec_vs_m3",
+                "54_mono_z_xsec_vs_m2",
+                "55_mono_z_xsec_vs_m3",
+                "56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2",
+                "57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3",
+                "58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2",
+                "59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3",
+                "60_mono_higgs_xsec_no_dm_vs_m2",
+                "61_mono_higgs_xsec_no_dm_vs_m3",
+                "62_mono_z_xsec_no_dm_vs_m2",
+                "63_mono_z_xsec_no_dm_vs_m3",
             ],
         )
         self.assertEqual(
@@ -854,6 +1075,44 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     "34_bsmpt_strength_vs_m2",
                     "36_bsmpt_counts",
                 ),
+                "dashboard_portal_resonance_summary": (
+                    "37_k133_vs_m3_all_resonance",
+                    "38_k133_vs_m3_experimental_resonance",
+                    "39_k133_vs_m3_relic_pass_resonance",
+                    "40_k233_vs_m3_all_resonance",
+                    "41_k233_vs_m3_experimental_resonance",
+                    "42_k233_vs_m3_relic_pass_resonance",
+                ),
+                "dashboard_portal_mass_plane_summary": (
+                    "43_k133_experimental_m2_m3",
+                    "44_k133_dm_m2_m3",
+                    "45_k233_experimental_m2_m3",
+                    "46_k233_dm_m2_m3",
+                ),
+                "dashboard_scalar_cascade_rates": (
+                    "48_h2_h1h1_one_h1_invisible_xsec_vs_m2",
+                    "49_h2_h1h1_one_h1_invisible_xsec_vs_m3",
+                    "50_h1_h2h2_one_h2_invisible_xsec_vs_m2",
+                    "51_h1_h2h2_one_h2_invisible_xsec_vs_m3",
+                ),
+                "dashboard_mg5_mono_rates": (
+                    "52_mono_higgs_xsec_vs_m2",
+                    "53_mono_higgs_xsec_vs_m3",
+                    "54_mono_z_xsec_vs_m2",
+                    "55_mono_z_xsec_vs_m3",
+                ),
+                "dashboard_scalar_cascade_rates_no_dm": (
+                    "56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2",
+                    "57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3",
+                    "58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2",
+                    "59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3",
+                ),
+                "dashboard_mg5_mono_rates_no_dm": (
+                    "60_mono_higgs_xsec_no_dm_vs_m2",
+                    "61_mono_higgs_xsec_no_dm_vs_m3",
+                    "62_mono_z_xsec_no_dm_vs_m2",
+                    "63_mono_z_xsec_no_dm_vs_m3",
+                ),
             },
         )
         indirect = self.plotter.PLOT_BY_STEM["14_indirect_ratio_m2_m3"]
@@ -872,23 +1131,55 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         ]
         self.assertTrue(bsmpt_strength.requires_bsmpt)
         self.assertEqual(bsmpt_strength.norm_kind, "threshold1")
+        resonance = self.plotter.PLOT_BY_STEM[
+            "38_k133_vs_m3_experimental_resonance"
+        ]
+        self.assertEqual(resonance.kind, "resonance_xy")
+        self.assertEqual(resonance.selection, "experimental")
+        self.assertEqual(resonance.value, "m2_minus_2m3")
+        self.assertEqual(resonance.cmap, "trsm_resonance")
+        portal_mass = self.plotter.PLOT_BY_STEM[
+            "46_k233_dm_m2_m3"
+        ]
+        self.assertEqual(portal_mass.kind, "selected_continuous_mass")
+        self.assertEqual(portal_mass.selection, "dm")
+        self.assertEqual(portal_mass.value, "K233")
+        signed_mixing = self.plotter.PLOT_BY_STEM["47_m2_vs_a12"]
+        self.assertEqual(signed_mixing.x, "M2")
+        self.assertEqual(signed_mixing.y, "a12")
+        scalar_cascade = self.plotter.PLOT_BY_STEM[
+            "48_h2_h1h1_one_h1_invisible_xsec_vs_m2"
+        ]
+        self.assertEqual(scalar_cascade.kind, "rate_xy")
+        self.assertEqual(scalar_cascade.selection, "full_viability")
+        mono_higgs = self.plotter.PLOT_BY_STEM["52_mono_higgs_xsec_vs_m2"]
+        self.assertEqual(mono_higgs.kind, "rate_xy")
+        self.assertEqual(mono_higgs.selection, "full_viability")
+        self.assertEqual(mono_higgs.y, "mono_higgs_xsec_pb")
+        mono_higgs_no_dm = self.plotter.PLOT_BY_STEM[
+            "60_mono_higgs_xsec_no_dm_vs_m2"
+        ]
+        self.assertEqual(mono_higgs_no_dm.selection, "non_dm_viability")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_fixture(tmpdir)
         np.testing.assert_allclose(data.f("abs_K233"), np.abs(data.f("K233")))
+        np.testing.assert_allclose(
+            data.f("m2_minus_2m3"), data.f("M2") - 2.0 * data.f("M3")
+        )
         _categories, binary_styles = self.plotter.category_styles(data, "dm")
         self.assertNotEqual(binary_styles["fail"].marker, binary_styles["pass"].marker)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both")
-        self.assertEqual(len(paths), 82)
-        self.assertEqual(len(set(paths)), 82)
-        self.assertEqual(sum(path.suffix == ".png" for path in paths), 41)
-        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 41)
+        self.assertEqual(len(paths), 148)
+        self.assertEqual(len(set(paths)), 148)
+        self.assertEqual(sum(path.suffix == ".png" for path in paths), 74)
+        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 74)
 
         legacy_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=data
         )
-        self.assertEqual(len(legacy_paths), 66)
+        self.assertEqual(len(legacy_paths), 92)
         self.assertFalse(any("bsmpt" in path.stem for path in legacy_paths))
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -896,7 +1187,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         bsmpt_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=bsmpt_data
         )
-        self.assertEqual(len(bsmpt_paths), 82)
+        self.assertEqual(len(bsmpt_paths), 108)
         self.assertTrue(any(path.stem == "dashboard_bsmpt_summary" for path in bsmpt_paths))
 
     def test_summary_contains_categories_omissions_and_high_mass_tail(self):
@@ -907,6 +1198,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
 
             self.assertEqual(by_metric["total_rows"].count, 8)
             self.assertEqual(by_metric["experimental"].count, 4)
+            self.assertEqual(by_metric["non_dm_viability"].count, 4)
             self.assertEqual(by_metric["dm"].count, 4)
             self.assertEqual(by_metric["full_viability"].count, 2)
             self.assertEqual(by_metric["cumulative_selection_all"].count, 8)
@@ -1119,8 +1411,8 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(len(paths), 66)
-            self.assertEqual(len(set(paths)), 66)
+            self.assertEqual(len(paths), 92)
+            self.assertEqual(len(set(paths)), 92)
             self.assertTrue((output_dir / "constraint_summary.tsv").exists())
             index_path = output_dir / "index.html"
             self.assertTrue(index_path.exists())
@@ -1190,7 +1482,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(len(paths), 82)
+            self.assertEqual(len(paths), 108)
             self.assertTrue(
                 (output_dir / "dashboard_bsmpt_summary.png").exists()
             )

@@ -35,21 +35,32 @@ def install_stub_modules():
             0.5 * (lphix * v * s12 + lsx * vs * c12),
         )
 
-    def vxzero_invisible_decay_info(m1, m2, m3, k133, k233, base_w1, base_w2):
+    def vxzero_invisible_decay_info(
+        m1, m2, m3, k133, k233, base_w1, base_w2, K122=0.0
+    ):
         gamma1 = scalar_to_identical_scalar_width(m3, m1, k133)
         gamma2 = scalar_to_identical_scalar_width(m3, m2, k233)
-        w1 = base_w1 + gamma1
+        gamma1_h2h2 = scalar_to_identical_scalar_width(m2, m1, K122)
+        w1 = base_w1 + gamma1 + gamma1_h2h2
         w2 = base_w2 + gamma2
         return {
             "h1_h3h3_width": gamma1,
             "h1_h3h3_br": gamma1 / w1 if w1 else 0.0,
+            "h1_h2h2_width": gamma1_h2h2,
+            "h1_h2h2_br": gamma1_h2h2 / w1 if w1 else 0.0,
             "h2_h3h3_width": gamma2,
             "h2_h3h3_br": gamma2 / w2 if w2 else 0.0,
             "w1": w1,
             "w2": w2,
         }
 
+    def exclusive_one_invisible_cascade_xsec(parent_xsec, parent_br, invisible_br):
+        return parent_xsec * parent_br * 2.0 * invisible_br * (1.0 - invisible_br)
+
     generate_trsm_info.scalar_to_identical_scalar_width = scalar_to_identical_scalar_width
+    generate_trsm_info.exclusive_one_invisible_cascade_xsec = (
+        exclusive_one_invisible_cascade_xsec
+    )
     generate_trsm_info.vxzero_portal_couplings = vxzero_portal_couplings
     generate_trsm_info.vxzero_invisible_decay_info = vxzero_invisible_decay_info
     stubs["generate_trsm_info"] = generate_trsm_info
@@ -147,6 +158,7 @@ def ewpt_args(**overrides):
         "write_all_points": False,
         "write_evo_thc_points": False,
         "print_info": False,
+        "mg5_without_dm": False,
         "higgstools_details": False,
         "higgstools_top": 5,
         "save_higgstools_details": True,
@@ -308,6 +320,183 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertFalse(args.print_info)
         self.assertTrue(args.save_higgstools_details)
         self.assertFalse(args.independent_m3)
+        self.assertFalse(args.run_mg5)
+        self.assertFalse(args.mg5_without_dm)
+        self.assertIsNone(args.mg5_processes)
+
+    def test_parse_args_accepts_mg5_process_selection(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(
+            ["--run-mg5", "--mg5-process", "gg_heta0", "--mg5-process", "pp_eta0Z"]
+        )
+
+        self.assertTrue(args.run_mg5)
+        self.assertFalse(args.mg5_without_dm)
+        self.assertEqual(args.mg5_processes, ["gg_heta0", "pp_eta0Z"])
+
+    def test_mg5_selection_requires_all_constraints_and_dm_by_default(self):
+        generator = load_generator_module()
+
+        passing = (True, True, True, True, True, True, True)
+        self.assertTrue(generator.mg5_point_eligible(*passing))
+        for index in range(len(passing)):
+            values = list(passing)
+            values[index] = False
+            self.assertFalse(generator.mg5_point_eligible(*values))
+
+    def test_mg5_selection_can_drop_only_the_dm_requirement(self):
+        generator = load_generator_module()
+
+        self.assertTrue(
+            generator.mg5_point_eligible(
+                True,
+                True,
+                True,
+                True,
+                True,
+                True,
+                False,
+                require_dm=False,
+            )
+        )
+        self.assertFalse(
+            generator.mg5_point_eligible(
+                True,
+                True,
+                False,
+                True,
+                True,
+                True,
+                True,
+                require_dm=False,
+            )
+        )
+
+    def test_parse_args_accepts_mg5_without_dm_only_with_mg5(self):
+        generator = load_generator_module()
+
+        args = generator.parse_args(["--run-mg5", "--mg5-without-dm"])
+        self.assertTrue(args.run_mg5)
+        self.assertTrue(args.mg5_without_dm)
+
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--mg5-without-dm"])
+
+    def test_vxzero_mg5_execution_uses_full_or_non_dm_viability_gate(self):
+        def run_case(*, hb, dm, without_dm):
+            generator = load_generator_module()
+            rows = []
+            mg5_calls = []
+            generator.cli_args = ewpt_args(
+                run_ewpt=False,
+                mg5_without_dm=without_dm,
+            )
+            generator.RunTag = "unit"
+            generator.OutputDir = "output/"
+            generator.MG5ProcessesToRun = ["gg_heta0"]
+            generator.write_valid_point_file = (
+                lambda path, point_info, mg5xsecs=None: rows.append(
+                    (dict(point_info), dict(mg5xsecs or {}))
+                )
+            )
+            generator.np = SimpleNamespace(sin=lambda value: value)
+            for name in [
+                "Mz",
+                "Mw",
+                "Delta_S_central_wU",
+                "Delta_T_central_wU",
+                "Delta_U_central_wU",
+                "errS_wU",
+                "errT_wU",
+                "errU_wU",
+                "covST_wU",
+                "covSU_wU",
+                "covTU_wU",
+                "pred",
+                "H1",
+                "H2",
+                "H3",
+            ]:
+                setattr(generator, name, 0)
+            generator.generate_lams = lambda *args, **kwargs: (
+                200.0,
+                0.0,
+                380.0,
+                500.0,
+                -0.15,
+                0.0,
+                0.0,
+                1.0,
+                2.0,
+                0.0,
+                11.0,
+                12.0,
+                13.0,
+                123.0,
+                122.0,
+                1111.0,
+                1112.0,
+                1113.0,
+                133.0,
+                0.99,
+                -0.1,
+                0.0,
+                {},
+                {},
+                {},
+                0.5,
+                0.25,
+                0.0,
+            )
+            generator.check_EWPO_wU = lambda *args, **kwargs: True
+            generator.check_wmass_tania = lambda *args, **kwargs: True
+            generator.analyze_parampoint = lambda *args, **kwargs: (hb, True)
+            generator.theory_constraints_vxzero = lambda *args, **kwargs: True
+            generator.test_evo_vxzero = lambda *args, **kwargs: True
+            generator.test_dm = lambda *args, **kwargs: (
+                dm,
+                {},
+                {"dm_mdm": 500.0, "dm_relic_excluded": not dm},
+            )
+            generator.run_ewpt_if_requested = lambda *args, **kwargs: None
+            generator.print_info_vxzero = lambda *args, **kwargs: None
+            generator.print_constraints = lambda *args, **kwargs: None
+
+            def fake_run_mg5(*args, **kwargs):
+                mg5_calls.append((args, kwargs))
+                return {"gg_heta0": 2.0}
+
+            generator.run_mg5_processes = fake_run_mg5
+            result = generator.evaluate_trsm_point_vxzero(
+                123,
+                380.0,
+                500.0,
+                200.0,
+                -0.15,
+                0.10,
+                0.05,
+                0.15,
+                runmg5=True,
+                point_index=4,
+            )
+            return result, rows, mg5_calls
+
+        result, rows, calls = run_case(hb=False, dm=True, without_dm=False)
+        self.assertEqual((result, rows, calls), (0, [], []))
+
+        result, rows, calls = run_case(hb=True, dm=True, without_dm=False)
+        self.assertEqual(result, 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(calls), 1)
+
+        result, rows, calls = run_case(hb=True, dm=False, without_dm=False)
+        self.assertEqual((result, rows, calls), (0, [], []))
+
+        result, rows, calls = run_case(hb=True, dm=False, without_dm=True)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(calls), 1)
 
     def test_parse_args_accepts_ewpt_options(self):
         generator = load_generator_module()
@@ -689,6 +878,22 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
         self.assertEqual(point_info["h1_h3h3_width"], 0.0)
         self.assertEqual(point_info["h2_h3h3_width"], 0.0)
+
+    def test_mg5_signal_rates_multiply_h2_invisible_branching_ratio(self):
+        generator = load_generator_module()
+        point_info = {
+            "h2_h3h3_br": 0.25,
+            "mono_higgs_xsec_pb": math.nan,
+            "mono_z_xsec_pb": math.nan,
+        }
+
+        generator.add_mg5_signal_rates(
+            point_info,
+            {"gg_heta0": 0.8, "pp_eta0Z": 0.12},
+        )
+
+        self.assertAlmostEqual(point_info["mono_higgs_xsec_pb"], 0.2)
+        self.assertAlmostEqual(point_info["mono_z_xsec_pb"], 0.03)
 
     def test_parse_args_accepts_write_all_points(self):
         generator = load_generator_module()
@@ -1822,6 +2027,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                     "return_details": True,
                     "h1_direct_invisible_width": 0.0,
                     "h2_direct_invisible_width": 0.0,
+                    "h1_h2h2_width": 0.0,
                 }
             ],
         )

@@ -67,6 +67,8 @@ HIGGSTOOLS_COLUMNS = (
 PROVENANCE_COLUMNS = (
     "h1_h3h3_width",
     "h1_h3h3_br",
+    "h1_h2h2_width",
+    "h1_h2h2_br",
     "h2_h3h3_width",
     "h2_h3h3_br",
     "higgs_invisible_widths_included",
@@ -105,6 +107,8 @@ FINITE_RESULT_COLUMNS = (
     "w3",
     "h1_h3h3_width",
     "h1_h3h3_br",
+    "h1_h2h2_width",
+    "h1_h2h2_br",
     "h2_h3h3_width",
     "h2_h3h3_br",
     "dm_mdm",
@@ -169,16 +173,17 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
             raise ReEvaluationError(f"row {row_number} result {column!r} is not positive")
     if float(updates["w3"]) < 0.0:
         raise ReEvaluationError(f"row {row_number} result 'w3' is negative")
-    for column in ("h1_h3h3_width", "h2_h3h3_width"):
+    for column in ("h1_h3h3_width", "h1_h2h2_width", "h2_h3h3_width"):
         if float(updates[column]) < 0.0:
             raise ReEvaluationError(f"row {row_number} result {column!r} is negative")
-    for column in ("h1_h3h3_br", "h2_h3h3_br"):
+    for column in ("h1_h3h3_br", "h1_h2h2_br", "h2_h3h3_br"):
         if not 0.0 <= float(updates[column]) <= 1.0:
             raise ReEvaluationError(
                 f"row {row_number} result {column!r} is outside [0, 1]"
             )
     for width_column, br_column, total_column in (
         ("h1_h3h3_width", "h1_h3h3_br", "w1"),
+        ("h1_h2h2_width", "h1_h2h2_br", "w1"),
         ("h2_h3h3_width", "h2_h3h3_br", "w2"),
     ):
         expected_br = float(updates[width_column]) / float(updates[total_column])
@@ -336,7 +341,7 @@ class CoreEvaluator:
             _k112,
             _k113,
             _k123,
-            _k122,
+            k122,
             _k1111,
             _k1112,
             _k1113,
@@ -367,9 +372,11 @@ class CoreEvaluator:
             k233,
             h1_brs[-1],
             h2_brs[-1],
+            K122=k122,
         )
         gamma1 = invisible["h1_h3h3_width"]
         gamma2 = invisible["h2_h3h3_width"]
+        gamma1_h2h2 = invisible["h1_h2h2_width"]
         expected_w1 = invisible["w1"]
         expected_w2 = invisible["w2"]
         if not math.isclose(float(w1), expected_w1, rel_tol=1.0e-10, abs_tol=1.0e-12):
@@ -397,6 +404,7 @@ class CoreEvaluator:
             h3_brs,
             h1_direct_invisible_width=gamma1,
             h2_direct_invisible_width=gamma2,
+            h1_h2h2_width=gamma1_h2h2,
             return_details=True,
         )
         if len(higgs_result) < 3:
@@ -453,6 +461,8 @@ class CoreEvaluator:
             ),
             "h1_h3h3_width": gamma1,
             "h1_h3h3_br": invisible["h1_h3h3_br"],
+            "h1_h2h2_width": gamma1_h2h2,
+            "h1_h2h2_br": invisible["h1_h2h2_br"],
             "h2_h3h3_width": gamma2,
             "h2_h3h3_br": invisible["h2_h3h3_br"],
             "higgs_invisible_widths_included": True,

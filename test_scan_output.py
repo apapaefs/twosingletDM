@@ -23,8 +23,18 @@ class TestScanOutput(unittest.TestCase):
             "w3": 2.2,
             "h1_h3h3_width": 0.001,
             "h1_h3h3_br": 0.2,
+            "h1_h2h2_width": 0.002,
+            "h1_h2h2_br": 0.3,
             "h2_h3h3_width": 0.3,
             "h2_h3h3_br": 0.214,
+            "h2_h1h1_width": 0.4,
+            "h2_h1h1_br": 0.286,
+            "xs136_lo_h1_pb": 20.0,
+            "xs136_lo_h2_pb": 0.5,
+            "xsec_h2_h1h1_one_h1_invisible_pb": 0.04576,
+            "xsec_h1_h2h2_one_h2_invisible_pb": 2.018,
+            "mono_higgs_xsec_pb": 0.0214,
+            "mono_z_xsec_pb": 0.00428,
             "higgs_invisible_widths_included": True,
             "portal_convention": "trsm_vxzero_canonical_v1",
             "micromegas_model_convention": "trsm_vxzero_canonical_v1",
@@ -76,6 +86,10 @@ class TestScanOutput(unittest.TestCase):
         self.assertEqual(row[header.index("hs")], "False")
         self.assertEqual(row[header.index("K233")], "10.0")
         self.assertEqual(row[header.index("h1_h3h3_width")], "0.001")
+        self.assertEqual(row[header.index("h1_h2h2_br")], "0.3")
+        self.assertEqual(row[header.index("h2_h1h1_br")], "0.286")
+        self.assertEqual(row[header.index("xs136_lo_h2_pb")], "0.5")
+        self.assertEqual(row[header.index("mono_higgs_xsec_pb")], "0.0214")
         self.assertEqual(row[header.index("higgs_invisible_widths_included")], "True")
         self.assertEqual(
             row[header.index("portal_convention")],

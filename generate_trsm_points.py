@@ -153,6 +153,10 @@ def _hydrate_resume_args(parser, args, argv):
     return args
 
 
+MG5_PROCESS_KEYS = ("hh", "hhh", "gg_heta0", "pp_eta0Z")
+DEFAULT_MG5_PROCESSES = ("gg_heta0", "pp_eta0Z")
+
+
 def parse_args(argv=None):
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
@@ -320,6 +324,35 @@ def parse_args(argv=None):
         help="Disable per-point diagnostic printing, including on resume.",
     )
     parser.add_argument(
+        "--run-mg5",
+        action="store_true",
+        help=(
+            "Run the selected MadGraph processes for vx=0 points passing "
+            "all evolution, theory, experimental, and aggregate-DM constraints."
+        ),
+    )
+    parser.add_argument(
+        "--mg5-without-dm",
+        action="store_true",
+        help=(
+            "With --run-mg5, drop only the aggregate-DM requirement from the "
+            "MadGraph execution gate; all evolution, theory, and experimental "
+            "constraints must still pass."
+        ),
+    )
+    parser.add_argument(
+        "--mg5-process",
+        action="append",
+        dest="mg5_processes",
+        choices=MG5_PROCESS_KEYS,
+        metavar="NAME",
+        help=(
+            "MadGraph process key to run; repeat for multiple processes. "
+            "With --run-mg5 and no explicit selection, defaults to "
+            "gg_heta0 and pp_eta0Z."
+        ),
+    )
+    parser.add_argument(
         "--run-ewpt",
         action="store_true",
         help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
@@ -425,6 +458,8 @@ def parse_args(argv=None):
         parser.error("--delta-res must be non-negative")
     if args.write_all_points and args.write_evo_thc_points:
         parser.error("--write-all-points and --write-evo-thc-points are mutually exclusive")
+    if args.mg5_without_dm and not args.run_mg5:
+        parser.error("--mg5-without-dm requires --run-mg5")
     resonance_enabled = args.resonantDM1 or args.resonantDM2
     required_point_args = [
         name
@@ -449,6 +484,7 @@ ini_seed = cli_args.seed
 from generate_trsm_info import * # TRSM info generator (branching ratios, mixing matrices, etc.)
 from generate_trsm_info import (
     PORTAL_CONVENTION_ID,
+    exclusive_one_invisible_cascade_xsec,
     scalar_to_identical_scalar_width,
     vxzero_invisible_decay_info,
     vxzero_portal_couplings,
@@ -473,12 +509,12 @@ from singlet_EWPO import * # Electroweak Precision Observables
 # print debug?
 debug = False
 
-# run MG5 on points that pass constraints?
-RunMG5 = False
+# Run MG5 on fully viable points (or all non-DM-viable points when requested).
+RunMG5 = cli_args.run_mg5
 
 # MG5 processes to run when RunMG5 is True.
 # Available process names are defined by ProcLocation in generate_mg5_trsm_xsecs.py.
-MG5ProcessesToRun = [] # e.g. ['hh', 'hhh']
+MG5ProcessesToRun = list(cli_args.mg5_processes or DEFAULT_MG5_PROCESSES)
 
 # for random scan within ranges, how many points to run
 nrandom=cli_args.nrandom
@@ -496,6 +532,8 @@ mhiggs = 125.
 
 # TAG for RUN output
 RunTag = str(Energy) + '-' + str(date.today()).replace('-','') + '-' + str(ini_seed) + '-' + str(RunMG5)
+if RunMG5 and cli_args.mg5_without_dm:
+    RunTag += '-noDM'
 
 # Directory for output:
 OutputDir = 'output/'
@@ -640,7 +678,7 @@ def write_valid_point_xsec(runtag, m2, m3, vs, vx, a12, a13, a23, xsec, resfrac)
     filestream.write(str(m2) + '\t' + str(m3) + '\t' + str(vs) + '\t' + str(vx) + '\t' + str(a12) + '\t' + str(a13) + '\t' + str(a23) + '\t' + str(xsec) + '\t' + str(resfrac) + '\n')
     filestream.close()
 
-def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, ewpo, wmass, dm=None, dm_exclusion_info=None, invisible_decay_info=None):
+def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, ewpo, wmass, dm=None, dm_exclusion_info=None, invisible_decay_info=None, xs136_lo_h1=None, xs136_lo_h2=None):
     point_info = {
         "M2": M2,
         "M3": M3,
@@ -676,8 +714,18 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         "dm": dm,
         "h1_h3h3_width": 0.0,
         "h1_h3h3_br": 0.0,
+        "h1_h2h2_width": 0.0,
+        "h1_h2h2_br": 0.0,
         "h2_h3h3_width": 0.0,
         "h2_h3h3_br": 0.0,
+        "h2_h1h1_width": 0.0,
+        "h2_h1h1_br": 0.0,
+        "xs136_lo_h1_pb": math.nan,
+        "xs136_lo_h2_pb": math.nan,
+        "xsec_h2_h1h1_one_h1_invisible_pb": math.nan,
+        "xsec_h1_h2h2_one_h2_invisible_pb": math.nan,
+        "mono_higgs_xsec_pb": math.nan,
+        "mono_z_xsec_pb": math.nan,
         "higgs_invisible_widths_included": False,
         "portal_convention": None,
         "micromegas_model_convention": None,
@@ -688,40 +736,98 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         if invisible_decay_info is None:
             gamma1 = scalar_to_identical_scalar_width(M3, 125.09, K133)
             gamma2 = scalar_to_identical_scalar_width(M3, M2, point_info["K233"])
+            gamma1_h2h2 = scalar_to_identical_scalar_width(M2, 125.09, K122)
             invisible_decay_info = {
                 "h1_h3h3_width": gamma1,
                 "h1_h3h3_br": gamma1 / w1 if w1 > 0.0 else 0.0,
+                "h1_h2h2_width": gamma1_h2h2,
+                "h1_h2h2_br": gamma1_h2h2 / w1 if w1 > 0.0 else 0.0,
                 "h2_h3h3_width": gamma2,
                 "h2_h3h3_br": gamma2 / w2 if w2 > 0.0 else 0.0,
+                "h2_h1h1_width": 0.0,
+                "h2_h1h1_br": 0.0,
             }
         for column in (
             "h1_h3h3_width",
             "h1_h3h3_br",
+            "h1_h2h2_width",
+            "h1_h2h2_br",
             "h2_h3h3_width",
             "h2_h3h3_br",
+            "h2_h1h1_width",
+            "h2_h1h1_br",
         ):
-            point_info[column] = invisible_decay_info[column]
+            point_info[column] = invisible_decay_info.get(column, 0.0)
+        point_info["w1"] = invisible_decay_info.get("w1", w1)
+        point_info["w2"] = invisible_decay_info.get("w2", w2)
         point_info["higgs_invisible_widths_included"] = True
         point_info["portal_convention"] = PORTAL_CONVENTION_ID
         point_info["micromegas_model_convention"] = PORTAL_CONVENTION_ID
+        if xs136_lo_h1 is not None and math.isfinite(float(xs136_lo_h1)):
+            point_info["xs136_lo_h1_pb"] = float(xs136_lo_h1)
+            point_info["xsec_h1_h2h2_one_h2_invisible_pb"] = (
+                exclusive_one_invisible_cascade_xsec(
+                    xs136_lo_h1,
+                    point_info["h1_h2h2_br"],
+                    point_info["h2_h3h3_br"],
+                )
+            )
+        if xs136_lo_h2 is not None and math.isfinite(float(xs136_lo_h2)):
+            point_info["xs136_lo_h2_pb"] = float(xs136_lo_h2)
+            point_info["xsec_h2_h1h1_one_h1_invisible_pb"] = (
+                exclusive_one_invisible_cascade_xsec(
+                    xs136_lo_h2,
+                    point_info["h2_h1h1_br"],
+                    point_info["h1_h3h3_br"],
+                )
+            )
     if dm_exclusion_info is not None:
         point_info.update(dm_exclusion_info)
     return point_info
 
 
-def generated_vxzero_invisible_decay_info(M1, M2, M3, K133, K233, w1, w2, h1_BRs, h2_BRs):
+def generated_vxzero_invisible_decay_info(M1, M2, M3, K133, K233, w1, w2, h1_BRs, h2_BRs, K122=0.0):
     """Build decay metadata from generated base BR arrays without changing their contents."""
     gamma1 = scalar_to_identical_scalar_width(M3, M1, K133)
     gamma2 = scalar_to_identical_scalar_width(M3, M2, K233)
+    gamma1_h2h2 = scalar_to_identical_scalar_width(M2, M1, K122)
     try:
         base_w1 = float(h1_BRs[-1])
         base_w2 = float(h2_BRs[-1])
+        h2_h1h1_width = base_w2 * float(h2_BRs[11])
     except (IndexError, KeyError, TypeError, ValueError):
         # Test doubles and older callers may not retain the base arrays.  Since
         # generate_lams now returns physical totals, reconstruct the bases.
-        base_w1 = max(0.0, float(w1) - gamma1)
+        base_w1 = max(0.0, float(w1) - gamma1 - gamma1_h2h2)
         base_w2 = max(0.0, float(w2) - gamma2)
-    return vxzero_invisible_decay_info(M1, M2, M3, K133, K233, base_w1, base_w2)
+        h2_h1h1_width = 0.0
+    info = vxzero_invisible_decay_info(
+        M1,
+        M2,
+        M3,
+        K133,
+        K233,
+        base_w1,
+        base_w2,
+        K122=K122,
+    )
+    info["h2_h1h1_width"] = h2_h1h1_width
+    info["h2_h1h1_br"] = (
+        h2_h1h1_width / info["w2"] if info["w2"] > 0.0 else 0.0
+    )
+    return info
+
+
+def add_mg5_signal_rates(point_info, mg5xsecs):
+    """Add mono-Higgs/mono-Z rates from production xsecs and H2 invisible BR."""
+    invisible_br = float(point_info.get("h2_h3h3_br", 0.0))
+    for process, column in (
+        ("gg_heta0", "mono_higgs_xsec_pb"),
+        ("pp_eta0Z", "mono_z_xsec_pb"),
+    ):
+        value = mg5xsecs.get(process)
+        if value is not None and math.isfinite(float(value)):
+            point_info[column] = float(value) * invisible_br
 
 
 # write the full accepted point record
@@ -1121,6 +1227,24 @@ def evaluation_result(passed, evo=False, thc=False, return_status=False):
     return viable
 
 
+def mg5_point_eligible(
+    evo,
+    thc,
+    hb,
+    hs,
+    ewpo,
+    wmass,
+    dm,
+    *,
+    require_dm=True,
+):
+    """Return whether a vx=0 point passes the configured MG5 selection."""
+    all_non_dm_constraints = all(
+        value is True for value in (evo, thc, hb, hs, ewpo, wmass)
+    )
+    return all_non_dm_constraints and (dm is True or require_dm is False)
+
+
 def print_scan_progress(drawcounter, passcounter, count_evo_thc=False, evo_thc_counter=0):
     if count_evo_thc:
         print(
@@ -1197,7 +1321,20 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         MG5xsecs = {}
         if runmg5 is True:
             print('All constraints passed, running selected MG5 processes, please wait!')
-            MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
+            MG5xsecs = run_mg5_processes(
+                MG5ProcessesToRun,
+                'SCAN' + str(Energy),
+                Lambdas,
+                k1,
+                k2,
+                k3,
+                M2,
+                w2,
+                M3,
+                w3,
+                Energy,
+                w1=w1,
+            )
             print('MG5 cross sections [pb] =', MG5xsecs)
         point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, None, None, None, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass)
         add_higgstools_info(point_info, higgstools_details)
@@ -1210,6 +1347,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     write_all_points = write_all or getattr(cli_args, "write_all_points", False)
     write_evo_thc_points = getattr(cli_args, "write_evo_thc_points", False)
     write_dm_failed_to_main = getattr(cli_args, "write_dm_failed_to_main", False)
+    mg5_without_dm = getattr(cli_args, "mg5_without_dm", False)
     force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
     print_info_enabled = getattr(cli_args, "print_info", False)
     short_circuit_failures = (
@@ -1236,8 +1374,9 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         w2,
         h1_BRs,
         h2_BRs,
+        K122=K122,
     )
-    Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
+    Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133,K233]
     if debug is True or report is True or print_info_enabled is True:
         print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
 
@@ -1270,6 +1409,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         h3_BRs,
         h1_direct_invisible_width=invisible_decay_info["h1_h3h3_width"],
         h2_direct_invisible_width=invisible_decay_info["h2_h3h3_width"],
+        h1_h2h2_width=invisible_decay_info["h1_h2h2_width"],
         **higgstools_analysis_kwargs(),
     ))
     if short_circuit_failures:
@@ -1298,7 +1438,54 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
     pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
-    point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2], invisible_decay_info=invisible_decay_info)
+    mg5_eligible = runmg5 is True and mg5_point_eligible(
+        evo,
+        thc,
+        hb,
+        hs,
+        EWPO_cur,
+        wmass,
+        dm[0],
+        require_dm=not mg5_without_dm,
+    )
+    point_info = valid_point_info(
+        M2,
+        M3,
+        vs,
+        vx,
+        a12,
+        a13,
+        a23,
+        lX,
+        lPhiX,
+        lSX,
+        invisible_decay_info["w1"],
+        invisible_decay_info["w2"],
+        w3,
+        K111,
+        K112,
+        K113,
+        K123,
+        K122,
+        K1111,
+        K1112,
+        K1113,
+        K133,
+        k1,
+        k2,
+        k3,
+        evo,
+        thc,
+        hb,
+        hs,
+        EWPO_cur,
+        wmass,
+        dm[0],
+        dm[2],
+        invisible_decay_info=invisible_decay_info,
+        xs136_lo_h1=xs136_lo_h1,
+        xs136_lo_h2=xs136_lo_h2,
+    )
     add_higgstools_info(point_info, higgstools_details)
     dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
     if dm_failed_but_otherwise_allowed:
@@ -1317,28 +1504,67 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
             write_dm_failed_point(RunTag, point_info)
             print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
-        if write_dm_failed_to_main and write_all_points is False and write_evo_thc_points is False:
-            write_valid_point(RunTag, point_info)
+        if (
+            write_dm_failed_to_main
+            and write_all_points is False
+            and write_evo_thc_points is False
+            and mg5_eligible is False
+        ):
+            mg5_placeholders = (
+                {process: math.nan for process in MG5ProcessesToRun}
+                if runmg5 is True
+                else {}
+            )
+            write_valid_point(RunTag, point_info, mg5_placeholders)
             print('Point passes non-DM constraints but fails DM; written to', output_path(RunTag))
         if ewpt_error is not None:
             raise ewpt_error
     if short_circuit_failures:
-        if dm[0] is False:
+        if dm[0] is False and mg5_eligible is False:
             return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
     passed = pre_dm_passed and dm[0] is True
-    write_main_point = passed or write_all_points is True or (write_evo_thc_points and evo_thc_passed)
+    write_main_point = (
+        passed
+        or write_all_points is True
+        or (write_evo_thc_points and evo_thc_passed)
+        or mg5_eligible
+    )
     if write_main_point:
         if debug is False and report is False and print_info_enabled is False:
             print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
             print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
             print_dm_info(dm[1])
-        MG5xsecs = {}
-        if passed and runmg5 is True:
-            print('All constraints passed, running selected MG5 processes, please wait!')
-            MG5xsecs = run_mg5_processes(MG5ProcessesToRun, 'SCAN' + str(Energy), Lambdas, k1, k2, k3, M2, w2, M3, w3, Energy)
+        MG5xsecs = (
+            {process: math.nan for process in MG5ProcessesToRun}
+            if runmg5 is True
+            else {}
+        )
+        if mg5_eligible:
+            if mg5_without_dm:
+                print('All non-DM constraints passed; running selected MG5 processes without applying the DM gate, please wait!')
+            else:
+                print('All constraints including DM passed; running selected MG5 processes, please wait!')
+            MG5xsecs.update(
+                run_mg5_processes(
+                    MG5ProcessesToRun,
+                    'SCAN' + str(Energy) + '-point' + str(point_index),
+                    Lambdas,
+                    k1,
+                    k2,
+                    k3,
+                    M2,
+                    invisible_decay_info["w2"],
+                    M3,
+                    w3,
+                    Energy,
+                    w1=invisible_decay_info["w1"],
+                    k233=K233,
+                )
+            )
             print('MG5 cross sections [pb] =', MG5xsecs)
+        add_mg5_signal_rates(point_info, MG5xsecs)
         ewpt_error = None
         if passed or force_ewpt_for_all_points:
             try:

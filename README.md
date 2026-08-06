@@ -3,8 +3,9 @@ TRSM + Dark Matter + ElectroWeak Baryogenesis vs. Higgs Boson Pair production
 
 # Instructions:
 
-## Download MG5, e.g. 2.9.22 (https://launchpad.net/mg5amcnlo)
-- Copy ```loop_sm_twoscalar_generic.tar.gz``` into MG5_aMC_2_9_22/models and untar it: ```tar xvzf loop_sm_twoscalar_generic.tar.gz```
+## Download MG5_aMC and prepare generated processes
+
+- Copy `loop_sm_twoscalar_generic` into the MG5 `models` directory.
 - Launch MG5 and generate the process: 
 ```
 ./bin/mg5_aMC
@@ -13,16 +14,62 @@ generate g g > h h [noborn=QCD]
 output gg_hh_twoscalar
 launch
 ```
-- Enter and proceed to next screen, edit run card and change to the desired beam energies. -
-- Exit and edit ```MG5_aMC_2_9_22/input/mg5_configuration.txt``, changing:
+- Enter and proceed to the next screen, then edit the run card for the desired beam energies.
+- Edit `MG5_aMC/input/mg5_configuration.txt`, changing:
 ```
 automatic_html_opening = False
 ```
-- In the ```generate_mg5_trsm_xsecs.py``` script, change the following to the absolute directory of MG5:
+- By default `generate_mg5_trsm_xsecs.py` uses
+  `../MG5_aMC_v3_5_15` relative to this repository. Override that location
+  without editing code by setting `TRSM_MG5_LOCATION`.
+- The associated-production interface expects generated process directories
+  named `gg_heta0` for `g g > h eta0` and `pp_eta0Z` for
+  `p p > eta0 z`. The process-to-directory mapping is in `ProcLocation` in
+  `generate_mg5_trsm_xsecs.py`.
+
+To run both associated-production processes during a scan, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --run-mg5
 ```
-MGLocation = '/home/apapaefs/Projects/TwoSingletDM/twosingletDM/MG5_aMC_v2_9_22/'
+
+With `--run-mg5` and no `--mg5-process` arguments, the defaults are
+`gg_heta0` and `pp_eta0Z`. A subset can be selected by repeating the option,
+for example `--mg5-process gg_heta0`. By default MadGraph is called only for
+fully viable points: `evo`, `thc`, `hb`, `hs`, `ewpo`, `wmass`, and aggregate
+`dm` must all be `True`.
+
+To drop only the DM requirement while retaining every evolution, theory, and
+experimental constraint, use:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --run-mg5 \
+  --mg5-without-dm
 ```
-- Make sure ```ProcLocation['hh'] = 'gg_hh_twoscalar/'``` is set to the directory in which you have outputted the process.
+
+These non-DM-viable points are retained in the main scan output even when
+`dm=False`. Every requested MG5 column is written for all retained rows, using
+`nan` for rows that were not eligible, so the TSV header remains stable.
+The optional-mode run tag contains `-noDM` to avoid colliding with a fully
+viable MG5 scan using the same date and seed.
+
+The interface updates the generated process's parameter card through MadEvent
+`set` commands. It supplies `Meta=M2`, `Miota=M3`, all three physical widths,
+`k1`, `k2`, `k3`, and the scalar couplings including `kap133` and `kap233`.
+Raw rates are stored as `mg5_xsec_gg_heta0_pb` and
+`mg5_xsec_pp_eta0Z_pb`. The scan also stores
+
+```text
+mono_higgs_xsec_pb = sigma(gg -> h eta0) * BR(eta0 -> iota0 iota0)
+mono_z_xsec_pb     = sigma(pp -> eta0 Z) * BR(eta0 -> iota0 iota0)
+```
+
+with `h=H1`, `eta0=H2`, and stable `iota0=H3`.
+
 ## Get HiggsTools: https://gitlab.com/higgsbounds/higgstools.git and compile it:
 in the HiggsTools directory:
 ```
@@ -61,6 +108,21 @@ including below the 20 GeV lower edge of the SM Higgs tables. Whenever
 HiggsTools and registers it as `HP.Decay.directInv`. The visible branching
 fractions passed to HiggsTools remain the pre-invisible/base values so that
 HiggsTools rescales them exactly once.
+
+When `2*M2 < M1`, the generator likewise includes the previously omitted
+`H1 -> H2 H2` partial width in the physical `H1` width and registers that
+two-BSM-particle decay with HiggsTools.
+
+The 13.6 TeV LO single-scalar cross sections and scalar-cascade metadata are
+written as named columns. The exclusive one-invisible topology uses
+
+```text
+sigma(parent) * BR(parent -> daughter daughter)
+              * 2 * BR(daughter -> H3 H3) * (1 - BR(daughter -> H3 H3))
+```
+
+and is stored for both `H2 -> H1 H1` and `H1 -> H2 H2`. The factor of two
+counts the two assignments of which identical daughter decays invisibly.
 
 For scalar masses in the scan range below the legacy branching-ratio table,
 `4 <= M2 < 20 GeV`, the base SM branching fractions and total width come from
@@ -443,8 +505,8 @@ the constraint suite from the repository root:
 ```
 
 The command above uses the Python installation tested on `manto`. With the
-defaults, the suite writes PNG and PDF versions of up to 36 standalone figures
-and five combined dashboards, together with `constraint_summary.tsv`, under
+defaults, the suite writes PNG and PDF versions of up to 63 standalone figures
+and eleven combined dashboards, together with `constraint_summary.tsv`, under
 `plots/trsm_points_NEW_constraints/`. It also writes a self-contained
 `index.html` with dashboard and individual-plot previews, links to every
 generated PNG/PDF, skipped-plot notices, and the constraint-summary table. Open
@@ -526,13 +588,61 @@ failed evaluations are never interpreted as successful or as having no
 first-order transition.
 
 For a file with no recorded BSMPT attempt, these seven figures and their
-dashboard are skipped, the original 29-plot/four-dashboard inventory is
-unchanged, and the HTML index explains why the BSMPT section is absent. A
-finite `ewpt_ew_true_over_T` is sufficient for compatibility with older files;
-newer files additionally use `ewpt_status`, `ewpt_global_phase_path`,
-`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Detailed transition
-temperatures remain in the per-point `ewpt_result.json` files and are not
-reconstructed by the scan-table plot suite.
+dashboard are skipped. Cascade/MadGraph figures are independently skipped when
+their named scan columns are absent, so legacy inputs remain usable; the HTML
+index explains every unavailable plot. A finite
+`ewpt_ew_true_over_T` is sufficient for compatibility with older files; newer
+files additionally use `ewpt_status`, `ewpt_global_phase_path`,
+`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Detailed transition temperatures
+remain in the per-point `ewpt_result.json` files and are not reconstructed by
+the scan-table plot suite.
+
+Plots 37--42 show \(K_{133}\) and \(K_{233}\) separately versus \(M_3\), with
+the signed resonance displacement \(M_2-2M_3\) as a symmetric-log color scale
+centered on zero. Its dark neutral center makes resonant points visible, while
+blue and orange distinguish the two sides. For each coupling the suite writes
+variants containing all stored points, only points passing the combined
+experimental selection, and only points passing the relic-density constraint.
+Relic-density pass requires an available micrOMEGAs relic result with
+`dm_relic_excluded=False`; an
+unavailable result is never counted as passing. The first new dashboard places
+the six variants side by side. Axes and the resonance color normalization are
+fixed from all finite stored rows so the three selections are directly
+comparable.
+
+Plots 43--46 show the \(M_2\)--\(M_3\) plane colored by the signed \(K_{133}\)
+or \(K_{233}\). One variant colors only the combined-experimental survivors and
+one colors only aggregate-`dm` survivors for each coupling. Every stored point
+is retained as a light-gray reference layer, so the colored selection can be
+read against the original scan support. The second new dashboard collects
+these four mass-plane maps; each coupling uses a common color normalization
+across its experimental and DM variants. Here “experimental” continues to mean
+`hb & hs & ewpo & wmass`; the DM maps use the stored aggregate `dm` flag, not
+the relic-density component alone.
+
+Plot 47 shows the signed mixing angle `a12` versus `M2`, with the same four-way
+DM/experimental categorization used elsewhere in the suite. Plots 40--42
+already provide the requested `M3` versus `K233` views for all stored,
+experimental-passing, and relic-density-passing points.
+
+Plots 48--51 show the two exclusive one-invisible scalar cascades versus both
+`M2` and `M3`, using a logarithmic cross-section axis and the full-viability
+selection. Their rates are
+
+```text
+H2 -> H1 H1 -> (H1 -> H3 H3) + H1
+H1 -> H2 H2 -> (H2 -> H3 H3) + H2
+```
+
+with exactly one daughter required to take the invisible branch. Plots 52--55
+show the MadGraph mono-Higgs and mono-Z products versus both masses. Those
+figures also require full viability. Plots 56--63 repeat the cascade,
+mono-Higgs, and mono-Z figures with only the DM requirement removed; all
+evolution, theory, and experimental constraints must still pass.
+The scalar-cascade and MadGraph results each have a dedicated four-panel
+dashboard for each selection. Zero kinematic rates are counted in the
+annotation but omitted from the logarithmic y axis; missing or all-`nan` MG
+results are reported as unavailable rather than being interpreted as zero.
 
 For scans made with `--independent-m3`, the dashed
 `M3 = M2 + 125 GeV` line in the mass-plane figures is only a reference to the

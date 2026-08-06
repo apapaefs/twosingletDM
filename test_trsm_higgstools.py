@@ -378,6 +378,7 @@ def analyze_parampoint(
     return_details=False,
     h1_direct_invisible_width=0.0,
     h2_direct_invisible_width=0.0,
+    h1_h2h2_width=0.0,
 ):
 
     h1_direct_invisible_width = _validated_direct_invisible_width(
@@ -385,6 +386,9 @@ def analyze_parampoint(
     )
     h2_direct_invisible_width = _validated_direct_invisible_width(
         "h2_direct_invisible_width", h2_direct_invisible_width
+    )
+    h1_h2h2_width = _validated_direct_invisible_width(
+        "h1_h2h2_width", h1_h2h2_width
     )
 
     h1_BRs = ensure_sum_unit(h1_BRs)
@@ -399,9 +403,12 @@ def analyze_parampoint(
     _set_base_decays(H1, h1_BRs)
     _set_base_decays(H2, h2_BRs, include_h1h1=True)
 
-    # This must be the final prediction mutation: setting a partial width
-    # increases the total width and rescales all previously configured BRs.
-    # Explicit zeroes also clear directInv state between scan points.
+    # Set every scan-dependent exotic partial width explicitly, including
+    # zeroes, so state from the previous point cannot leak into this one.
+    H1.setDecayWidth("H2", "H2", h1_h2h2_width)
+
+    # Direct-invisible widths are applied last.  Each partial-width mutation
+    # adjusts the physical total width and rescales previously configured BRs.
     H1.setDecayWidth(HP.Decay.directInv, h1_direct_invisible_width)
     H2.setDecayWidth(HP.Decay.directInv, h2_direct_invisible_width)
 

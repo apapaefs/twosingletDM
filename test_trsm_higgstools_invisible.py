@@ -60,6 +60,46 @@ class TestHiggsToolsInvisibleWidths(unittest.TestCase):
         self.assertEqual(H1.br(HP.Decay.directInv), 0.0)
         self.assertEqual(H2.br(HP.Decay.directInv), 0.0)
 
+    def test_h1_to_h2h2_partial_width_is_added_and_cleared(self):
+        h1_brs, h2_brs, h3_brs = base_br_arrays()
+        analyze_parampoint(
+            pred,
+            H1,
+            H2,
+            H3,
+            125.09,
+            40.0,
+            20.0,
+            1.0,
+            0.1,
+            0.0,
+            h1_brs,
+            h2_brs,
+            h3_brs,
+            h1_h2h2_width=0.001,
+        )
+        self.assertAlmostEqual(H1.totalWidth(), 0.005)
+        self.assertAlmostEqual(H1.br("H2", "H2"), 0.2)
+
+        analyze_parampoint(
+            pred,
+            H1,
+            H2,
+            H3,
+            125.09,
+            40.0,
+            20.0,
+            1.0,
+            0.1,
+            0.0,
+            h1_brs,
+            h2_brs,
+            h3_brs,
+            h1_h2h2_width=0.0,
+        )
+        self.assertAlmostEqual(H1.totalWidth(), 0.004)
+        self.assertEqual(H1.br("H2", "H2"), 0.0)
+
     def test_invalid_direct_invisible_widths_are_rejected(self):
         h1_brs, h2_brs, h3_brs = base_br_arrays()
         common = (

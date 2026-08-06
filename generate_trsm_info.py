@@ -207,23 +207,73 @@ def Gam_h2_to_h1h1(m1, m2, l112):
     return scalar_to_identical_scalar_width(m1, m2, l112)
 
 
-def vxzero_invisible_decay_info(M1, M2, M3, K133, K233, base_w1, base_w2):
-    """Calculate vx=0 invisible partial widths, BRs, and physical total widths."""
+def vxzero_invisible_decay_info(
+    M1,
+    M2,
+    M3,
+    K133,
+    K233,
+    base_w1,
+    base_w2,
+    K122=0.0,
+):
+    """Calculate vx=0 exotic widths, BRs, and physical total widths.
+
+    ``base_w1`` contains only the SM-like H1 modes, while ``base_w2``
+    contains the SM-like H2 modes and H2 -> H1 H1.  The physical H1 width
+    must also include H1 -> H2 H2 whenever that channel is open.  ``K122``
+    defaults to zero to preserve the historical helper API for callers that
+    only need the direct H1/H2 -> H3 H3 widths.
+    """
     for name, value in (("base_w1", base_w1), ("base_w2", base_w2)):
         if not math.isfinite(float(value)) or float(value) < 0.0:
             raise ValueError(f"{name} must be finite and non-negative")
     gamma1 = scalar_to_identical_scalar_width(M3, M1, K133)
     gamma2 = scalar_to_identical_scalar_width(M3, M2, K233)
-    w1 = float(base_w1) + gamma1
+    gamma1_h2h2 = scalar_to_identical_scalar_width(M2, M1, K122)
+    w1 = float(base_w1) + gamma1 + gamma1_h2h2
     w2 = float(base_w2) + gamma2
     return {
         "h1_h3h3_width": gamma1,
         "h1_h3h3_br": gamma1 / w1 if w1 > 0.0 else 0.0,
+        "h1_h2h2_width": gamma1_h2h2,
+        "h1_h2h2_br": gamma1_h2h2 / w1 if w1 > 0.0 else 0.0,
         "h2_h3h3_width": gamma2,
         "h2_h3h3_br": gamma2 / w2 if w2 > 0.0 else 0.0,
         "w1": w1,
         "w2": w2,
     }
+
+
+def exclusive_one_invisible_cascade_xsec(
+    parent_xsec_pb,
+    parent_to_daughters_br,
+    daughter_invisible_br,
+):
+    """Return sigma for parent -> DD with exactly one invisible D decay.
+
+    The exclusive topology has two indistinguishable assignments, giving
+    ``sigma * BR(parent -> DD) * 2*BR(D -> inv)*(1-BR(D -> inv))``.
+    """
+    values = (parent_xsec_pb, parent_to_daughters_br, daughter_invisible_br)
+    if not all(math.isfinite(float(value)) for value in values):
+        raise ValueError("cascade cross-section inputs must be finite")
+    parent_xsec_pb = float(parent_xsec_pb)
+    parent_to_daughters_br = float(parent_to_daughters_br)
+    daughter_invisible_br = float(daughter_invisible_br)
+    if parent_xsec_pb < 0.0:
+        raise ValueError("parent cross section must be non-negative")
+    if not 0.0 <= parent_to_daughters_br <= 1.0:
+        raise ValueError("parent branching ratio must lie in [0, 1]")
+    if not 0.0 <= daughter_invisible_br <= 1.0:
+        raise ValueError("daughter invisible branching ratio must lie in [0, 1]")
+    return (
+        parent_xsec_pb
+        * parent_to_daughters_br
+        * 2.0
+        * daughter_invisible_br
+        * (1.0 - daughter_invisible_br)
+    )
 
 # calculate the width h3 -> h2 h1, given the mass, the coupling l123 (in GeV) and the sin(mixing angle)
 def Gam_h3_to_h2h1(m1, m2, m3, l123):
@@ -691,11 +741,14 @@ def get_point_info(v, vs, vx, M1, M2, M3, a12, a13, a23, PRINT, lX=-999, lPhiX=-
             paramsubs["K233"],
             h1_BRs[-1],
             h2_BRs[-1],
+            K122=paramsubs["K122"],
         )
     else:
         invisible_decay_info = {
             "h1_h3h3_width": 0.0,
             "h1_h3h3_br": 0.0,
+            "h1_h2h2_width": 0.0,
+            "h1_h2h2_br": 0.0,
             "h2_h3h3_width": 0.0,
             "h2_h3h3_br": 0.0,
             "w1": float(h1_BRs[-1]),

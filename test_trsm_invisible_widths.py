@@ -9,6 +9,7 @@ from generate_trsm_info import (
     PORTAL_CONVENTION_ID,
     Gam_h2_to_h1h1,
     calc_h2_BRs,
+    exclusive_one_invisible_cascade_xsec,
     generate_lams,
     higgstools_yr4_lowmass_br_widths,
     scalar_to_identical_scalar_width,
@@ -128,6 +129,52 @@ class TestCanonicalInvisibleWidths(unittest.TestCase):
         self.assertAlmostEqual(
             info["h2_h3h3_br"],
             expected_gamma2 / (1.2 + expected_gamma2),
+        )
+
+    def test_h1_to_h2h2_is_included_in_physical_h1_width(self):
+        info = vxzero_invisible_decay_info(
+            125.09,
+            40.0,
+            20.0,
+            0.0,
+            0.0,
+            0.004,
+            0.002,
+            K122=12.0,
+        )
+
+        expected = scalar_to_identical_scalar_width(40.0, 125.09, 12.0)
+        self.assertAlmostEqual(info["h1_h2h2_width"], expected)
+        self.assertAlmostEqual(info["w1"], 0.004 + expected)
+        self.assertAlmostEqual(info["h1_h2h2_br"], expected / (0.004 + expected))
+
+    def test_generate_lams_includes_open_h1_to_h2h2_channel(self):
+        result = generate_lams(
+            1,
+            40.0,
+            80.0,
+            500.0,
+            0.0,
+            0.1,
+            0.0,
+            0.0,
+            False,
+            lX=0.1,
+            lPhiX=0.1,
+            lSX=0.1,
+        )
+        w1 = result[7]
+        k122 = result[14]
+        base_w1 = result[22][-1]
+        expected = scalar_to_identical_scalar_width(40.0, 125.09, k122)
+
+        self.assertGreater(expected, 0.0)
+        self.assertAlmostEqual(w1, base_w1 + expected)
+
+    def test_exclusive_one_invisible_cascade_has_two_assignments(self):
+        self.assertAlmostEqual(
+            exclusive_one_invisible_cascade_xsec(2.0, 0.25, 0.2),
+            2.0 * 0.25 * 2.0 * 0.2 * 0.8,
         )
 
     def test_generate_lams_returns_physical_totals_but_base_br_arrays(self):

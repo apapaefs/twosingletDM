@@ -94,6 +94,8 @@ def valid_updates(module, point_index):
         "higgstools_hs_top_chi2": "[]",
         "h1_h3h3_width": 0.001,
         "h1_h3h3_br": 0.2,
+        "h1_h2h2_width": 0.0,
+        "h1_h2h2_br": 0.0,
         "h2_h3h3_width": 0.1,
         "h2_h3h3_br": 0.1 / (1.0 + point_index),
         "higgs_invisible_widths_included": True,

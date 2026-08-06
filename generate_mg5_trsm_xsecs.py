@@ -1,152 +1,244 @@
-import subprocess
-import os.path
+import gzip
 import math
-import numpy as np
-from math import log10, floor
+import os
+import subprocess
+from math import floor, log10
 from pathlib import Path
 
-# MG5/aMC sub-dir (INCLUDE THE SLASH AT THE END!):
+
+# MG5/aMC subdirectory.  Override this for installations outside the project.
 MGLocation = os.environ.get(
     "TRSM_MG5_LOCATION",
     str(Path(__file__).resolve().parents[1] / "MG5_aMC_v3_5_15") + os.sep,
 )
 
 
-# Process sub-dirs (INCLUDE THE SLASH AT THE END!):
-ProcLocation = {}
-ProcLocation['hh'] = 'gg_hh_twoscalar/'
-ProcLocation['hhh'] = 'gg_hhh_twoscalar/'
+# Generated process directories, relative to MGLocation.
+ProcLocation = {
+    "hh": "gg_hh_twoscalar/",
+    "hhh": "gg_hhh_twoscalar/",
+    "gg_heta0": "gg_heta0/",
+    "pp_eta0Z": "pp_eta0Z/",
+}
 
 
 def round_sig(x, sig=2):
-    if x == 0.:
-        return 0.
-    if math.isnan(x) is True:
-        print('Warning, NaN!', x)
-        return 0.
-    return round(x, sig-int(floor(log10(abs(x))))-1)
+    if x == 0.0:
+        return 0.0
+    if math.isnan(x):
+        print("Warning, NaN!", x)
+        return 0.0
+    return round(x, sig - int(floor(log10(abs(x)))) - 1)
 
-# function to run MG5:
-def drive_mg(process, runnum, mgloc, k1choice, k2choice, k3choice, LambdasArray, m2, w2, m3, w3, nevents, nruns,output=False,ecm=13):
-    if process in ProcLocation:
-        procloc = ProcLocation[process]
-    else:
-        print('Process', process,'is not defined, exiting!')
-    filename = mgloc + procloc + '/gg_' + process + '_lambdavar_run' + str(runnum) + '.dcmd'
-    #print('generating mg5input:', filename)
-    ebeam1 = ecm*1000/2
-    ebeam2 = ebeam1
+
+def _process_directory(process, mgloc):
+    if process not in ProcLocation:
+        available = ", ".join(sorted(ProcLocation))
+        raise ValueError(
+            f"MG5 process {process!r} is not defined; available processes: {available}"
+        )
+    process_dir = Path(mgloc).expanduser() / ProcLocation[process]
+    madevent = process_dir / "bin" / "madevent"
+    if not process_dir.is_dir() or not madevent.is_file():
+        raise FileNotFoundError(
+            f"Generated MG5 process directory for {process!r} was not found at "
+            f"{process_dir}. Generate/copy that process there or set "
+            "TRSM_MG5_LOCATION to the MG5 installation containing it."
+        )
+    return process_dir, madevent
+
+
+def _run_name(runnum, m2, w2, m3, w3, lambdas):
+    return (
+        "run"
+        + str(runnum)
+        + "_m2_"
+        + str(m2)
+        + "_m3_"
+        + str(m3)
+        + "_w2_"
+        + str(w2)
+        + "_w3_"
+        + str(w3)
+        + "_"
+        + "_".join(lambdas)
+    )
+
+
+def _lhe_path(process_dir, run_name):
+    return process_dir / "Events" / run_name / "unweighted_events.lhe.gz"
+
+
+def drive_mg(
+    process,
+    runnum,
+    mgloc,
+    k1choice,
+    k2choice,
+    k3choice,
+    LambdasArray,
+    m2,
+    w2,
+    m3,
+    w3,
+    nevents,
+    nruns,
+    output=False,
+    ecm=13,
+    *,
+    w1=None,
+    k233=None,
+):
+    """Run a generated MadEvent process for the supplied TRSM parameter card."""
+    process_dir, madevent = _process_directory(process, mgloc)
+    command_file = process_dir / f"mg5_{process}_lambdavar_run{runnum}.dcmd"
+    ebeam = ecm * 1000.0 / 2.0
     counter = 0
-    for lams in LambdasArray:
-        if counter > nruns:
+    for lambdas in LambdasArray:
+        if counter >= nruns:
             break
-        #print(lams)
-        lhe = 'run' + str(runnum) + '_m2_' + str(m2) + '_m3_' + str(m3) + '_w2_' + str(w2) + '_w3_' + str(w3) + '_' + '_'.join((lams)) + '/unweighted_events.lhe.gz'
-        lhefile = MGLocation + procloc + 'Events/' + lhe
-        #print('lhefile=', lhefile)
-        #TestBool = True
-        #if TestBool is False:
-        while os.path.exists(lhefile) is False:
-            filestream = open(filename,'w')
-            #filestream.write('launch run' + str(RunNum) + '_m2_' + str(m2) + '_m3_' + str(m3) + '_w2_' + str(w2) + '_w3_' + str(w3) + '_' + '_'.join((lams)) + ' --accuracy=0.25 --points=300 --iterations=1\n0\n')
-            filestream.write('generate_events run' + str(runnum) + '_m2_' + str(m2) + '_m3_' + str(m3) + '_w2_' + str(w2) + '_w3_' + str(w3) + '_' + '_'.join((lams)) + ' --accuracy=0.25 --points=300 --iterations=1\n')
-            filestream.write('set ebeam1 ' + str(ebeam1) + '\n')
-            filestream.write('set ebeam2 ' + str(ebeam2) + '\n')
-            filestream.write('set Meta ' + str(m2) + '\n')
-            filestream.write('set Weta ' + str(w2) + '\n')
-            filestream.write('set Miota ' + str(m3) + '\n')
-            filestream.write('set Wiota ' + str(w3) + '\n')
-            filestream.write('set k1 ' + str(k1choice) + '\n')
-            filestream.write('set k2 ' + str(k2choice) + '\n')
-            filestream.write('set k3 ' + str(k3choice) + '\n')
-            filestream.write('set kap111 ' + str(lams[0]) + '\n')
-            filestream.write('set kap112 ' + str(lams[1]) + '\n')
-            filestream.write('set kap113 ' + str(lams[2]) + '\n')
-            filestream.write('set kap123 ' + str(lams[3]) + '\n')
-            filestream.write('set kap122 ' + str(lams[4]) + '\n')
-            filestream.write('set kap1111 ' + str(lams[5]) + '\n')
-            filestream.write('set kap1112 ' + str(lams[6]) + '\n')
-            filestream.write('set kap1113 ' + str(lams[7]) + '\n')
-            filestream.write('set kap133 ' + str(lams[8]) + '\n')
-            filestream.write('set nevents ' + str(nevents) + '\n')
-            filestream.write('0')
-            filestream.close()
-            # run mg5 with the file generated
-            if output is True:
-                print('printing filename to screen')
-            runcommand = 'cat ' + filename
-            p = subprocess.run(runcommand, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=mgloc + procloc)
-            if output is True:
-                print(p.stdout)
-            runcommand = mgloc + procloc + '/bin/madevent ' + filename
-            #print('runcommand=',runcommand)
-            p = subprocess.Popen(runcommand, shell=True, text=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=mgloc + procloc)
-            for line in iter(p.stdout.readline, b''):
-                pass
-                if output is True:
-                    print(line)
-            if output is True:
-                print(p.stdout)
-                print(p.stderr)
-            counter = counter + 1
-    print('Done generating cross section')        
+        run_name = _run_name(runnum, m2, w2, m3, w3, lambdas)
+        lhefile = _lhe_path(process_dir, run_name)
+        if lhefile.exists():
+            counter += 1
+            continue
+
+        commands = [
+            f"generate_events {run_name} --accuracy=0.25 --points=300 --iterations=1",
+            f"set ebeam1 {ebeam}",
+            f"set ebeam2 {ebeam}",
+            f"set Meta {m2}",
+            f"set Weta {w2}",
+            f"set Miota {m3}",
+            f"set Wiota {w3}",
+            f"set k1 {k1choice}",
+            f"set k2 {k2choice}",
+            f"set k3 {k3choice}",
+            f"set kap111 {lambdas[0]}",
+            f"set kap112 {lambdas[1]}",
+            f"set kap113 {lambdas[2]}",
+            f"set kap123 {lambdas[3]}",
+            f"set kap122 {lambdas[4]}",
+            f"set kap1111 {lambdas[5]}",
+            f"set kap1112 {lambdas[6]}",
+            f"set kap1113 {lambdas[7]}",
+            f"set kap133 {lambdas[8]}",
+        ]
+        if w1 is not None:
+            commands.append(f"set WH {w1}")
+        effective_k233 = k233 if k233 is not None else (
+            lambdas[9] if len(lambdas) > 9 else None
+        )
+        if effective_k233 is not None:
+            commands.append(f"set kap233 {effective_k233}")
+        commands.extend((f"set nevents {nevents}", "0"))
+        command_file.write_text("\n".join(commands), encoding="ascii")
+
+        if output:
+            print(command_file.read_text(encoding="ascii"))
+        completed = subprocess.run(
+            [str(madevent), str(command_file)],
+            cwd=process_dir,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        if output and completed.stdout:
+            print(completed.stdout)
+        if completed.returncode != 0 or not lhefile.exists():
+            tail = "\n".join((completed.stdout or "").splitlines()[-30:])
+            raise RuntimeError(
+                f"MG5 process {process!r} failed for run {run_name} "
+                f"(exit code {completed.returncode}); expected {lhefile}.\n{tail}"
+            )
+        counter += 1
+    print("Done generating cross section")
     return counter
 
+
+def _integrated_weight(lhefile):
+    with gzip.open(lhefile, "rt", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            if "Integrated weight" not in line:
+                continue
+            value_text = line.rsplit(":", 1)[-1].strip().split()[0]
+            return float(value_text)
+    raise ValueError(f"No Integrated weight entry was found in {lhefile}")
+
+
 def read_files(runnum, LambdasArray, m2, w2, m3, w3, process, nruns):
-    if process in ProcLocation:
-        procloc = ProcLocation[process]
-    else:
-        print('Process', process,'is not defined, exiting!')
+    process_dir, _madevent = _process_directory(process, MGLocation)
     X = []
     Z = []
     XSEC = {}
     counter = 0
-    for lams in LambdasArray:
-        if counter > nruns:
+    for lambdas in LambdasArray:
+        if counter >= nruns:
             break
-        #print(lams)
-        lhe = 'run' + str(runnum) + '_m2_' + str(m2) + '_m3_' + str(m3) + '_w2_' + str(w2) + '_w3_' + str(w3) + '_' + '_'.join((lams)) + '/unweighted_events.lhe.gz'
-        lhefile = MGLocation + procloc + 'Events/' + lhe
-        #print('lhefile=', lhefile)
-        #TestBool = True
-        #if TestBool is False:
-        if os.path.exists(lhefile) is False:
-            print('Error, lhe file or summary file:', lhefile, 'does not exist!')
-            exit()
-        else:
-            zgrepcommand = 'zgrep "Integrated weight" ' + lhefile
-            p = subprocess.Popen(zgrepcommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd='.')
-            for line in iter(p.stdout.readline, b''):
-                xsec = float(line.split()[5])
-            #print(m2, m3, lams, xsec)
-            #xsec = 0
-            lams_tuple = []
-            for mm in range(len(lams)):
-                lams_tuple.append(float(lams[mm]))
-            X.append(tuple(lams_tuple))
-            Z.append(float(xsec))
-            XSEC[tuple(lams_tuple)] = float(xsec)
-            #print(X)
-        counter = counter + 1
-    #return np.transpose(X), Z, XSEC
+        run_name = _run_name(runnum, m2, w2, m3, w3, lambdas)
+        lhefile = _lhe_path(process_dir, run_name)
+        if not lhefile.exists():
+            raise FileNotFoundError(f"MG5 LHE file does not exist: {lhefile}")
+        xsec = _integrated_weight(lhefile)
+        lambdas_tuple = tuple(float(value) for value in lambdas)
+        X.append(lambdas_tuple)
+        Z.append(xsec)
+        XSEC[lambdas_tuple] = xsec
+        counter += 1
     return X, Z, XSEC
 
-def get_mg5_xsec(process, runnum, LambdasArray, k1, k2, k3, m2, w2, m3, w3, ecm=13):
-    # check if file exists and run MG5 if not:
-    drive_mg(process, runnum, MGLocation, round_sig(k1,4), round_sig(k2,4), round_sig(k3,4), [[str(round_sig(lam,4)) for lam in LambdasArray]], round_sig(m2,4), round_sig(w2,4), round_sig(m3,4), round_sig(w3,4), 1, 1,output=True, ecm=ecm)
-    # read the xsec 
-    X, Z, XSEC = read_files(runnum, [[str(round_sig(lam,4)) for lam in LambdasArray]], round_sig(m2,4), round_sig(w2,4), round_sig(m3,4), round_sig(w3,4), process, 1)
-    return Z[0]
 
-
-# TEST:
-#Lambdas = [ 27.940871698413677 , 39.07032671865848 , 160.76112043143365 , -462.90567518636254 , -65.75926975945164 , 0.07061899381530284 , -0.19910092033686816 , -0.017181659533562252 , 160.76112043143365 ]
-#k1 = 0.966
-#k2 = 0.094
-#k3 = 0.239
-#m2 = 255
-#m3 = 504
-#w2 = 0.086
-#w3 = 11
-#xsec = get_mg5_xsec('hhh', RunNum, Lambdas, k1, k2, k3, m2, w2, m3, w3)
-#print(xsec)
+def get_mg5_xsec(
+    process,
+    runnum,
+    LambdasArray,
+    k1,
+    k2,
+    k3,
+    m2,
+    w2,
+    m3,
+    w3,
+    ecm=13,
+    *,
+    w1=None,
+    k233=None,
+):
+    rounded_lambdas = [str(round_sig(value, 4)) for value in LambdasArray]
+    rounded_m2 = round_sig(m2, 4)
+    rounded_w2 = round_sig(w2, 4)
+    rounded_m3 = round_sig(m3, 4)
+    rounded_w3 = round_sig(w3, 4)
+    drive_mg(
+        process,
+        runnum,
+        MGLocation,
+        round_sig(k1, 4),
+        round_sig(k2, 4),
+        round_sig(k3, 4),
+        [rounded_lambdas],
+        rounded_m2,
+        rounded_w2,
+        rounded_m3,
+        rounded_w3,
+        1,
+        1,
+        output=True,
+        ecm=ecm,
+        w1=round_sig(w1, 4) if w1 is not None else None,
+        k233=round_sig(k233, 4) if k233 is not None else None,
+    )
+    _x, cross_sections, _mapping = read_files(
+        runnum,
+        [rounded_lambdas],
+        rounded_m2,
+        rounded_w2,
+        rounded_m3,
+        rounded_w3,
+        process,
+        1,
+    )
+    if not cross_sections:
+        raise RuntimeError(f"MG5 returned no cross section for process {process!r}")
+    return cross_sections[0]
