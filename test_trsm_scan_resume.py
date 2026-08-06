@@ -200,6 +200,51 @@ class TestGeneratorResume(unittest.TestCase):
             self.assertTrue(resumed.independent_m3)
             self.assertFalse(resumed.print_info)
 
+    def test_resume_cli_restores_resolved_scan_range_overrides(self):
+        generator = load_generator_module()
+        configure_numeric_stubs(generator)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scan = Path(tmpdir) / "trsm_points_ranges.dat"
+            args = generator.parse_args(
+                [
+                    "879",
+                    "--nrandom",
+                    "10",
+                    "--independent-m3",
+                    "--m2-min",
+                    "200",
+                    "--m2-max",
+                    "350",
+                    "--m3-min",
+                    "4",
+                    "--m3-max",
+                    "65",
+                    "--k133-pow-min",
+                    "-6",
+                    "--k133-pow-max",
+                    "2",
+                    "--scan-k133-k233-log",
+                ]
+            )
+            metadata = generator.build_scan_metadata(args, "ranges", scan)
+            generator.write_scan_metadata_file(
+                scan.with_suffix(".metadata.json"),
+                metadata,
+            )
+
+            resumed = generator.parse_args(
+                ["--resume-from", str(scan), "--nrandom", "20"]
+            )
+
+            self.assertEqual((resumed.m2_min, resumed.m2_max), (200.0, 350.0))
+            self.assertEqual((resumed.m3_min, resumed.m3_max), (4.0, 65.0))
+            self.assertEqual(
+                (resumed.k133_pow_min, resumed.k133_pow_max),
+                (-6.0, 2.0),
+            )
+            self.assertEqual((generator.m2_min, generator.m2_max), (200.0, 350.0))
+            self.assertEqual((generator.m3_min, generator.m3_max), (4.0, 65.0))
+
     def test_resume_cli_rejects_immutable_override(self):
         generator = load_generator_module()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -218,6 +263,18 @@ class TestGeneratorResume(unittest.TestCase):
                         "--nrandom",
                         "20",
                         "--independent-m3",
+                    ]
+                )
+
+            with self.assertRaises(SystemExit):
+                generator.parse_args(
+                    [
+                        "--resume-from",
+                        str(scan),
+                        "--nrandom",
+                        "20",
+                        "--m3-max",
+                        "65",
                     ]
                 )
 

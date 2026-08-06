@@ -100,7 +100,45 @@ python3 generate_trsm_points.py 123 \
 
 This fills the rectangular `(M2, M3)` scan range and can therefore include
 `M3 < M2` as well as `M3 < M2 + mhiggs`. The mode is mutually exclusive with
-the exact and approximate resonant-DM mass modes. In the `vx=0` branch, the
+the exact and approximate resonant-DM mass modes.
+
+Every random-scan range can be overridden on the command line. Any bound that
+is omitted keeps the value in the `define ranges here` block of
+`generate_trsm_points.py`. For example, a light-DM rectangular scan can use:
+
+```bash
+python3 generate_trsm_points.py 97999 \
+  --nrandom 10000 \
+  --independent-m3 \
+  --m2-min 4 --m2-max 1000 \
+  --m3-min 4 --m3-max 65 \
+  --scan-k133-k233-log \
+  --k133-pow-min -4 --k133-pow-max 3 \
+  --k233-pow-min -3 --k233-pow-max 5
+```
+
+The complete set of optional overrides is:
+
+```text
+--m2-min/--m2-max                 --m3-min/--m3-max
+--vs-min/--vs-max                 --k1-min/--k1-max
+--lx-min/--lx-max                 --lphix-min/--lphix-max
+--lsx-min/--lsx-max               --k133-min/--k133-max
+--k233-min/--k233-max             --k133-pow-min/--k133-pow-max
+--k233-pow-min/--k233-pow-max
+```
+
+The `lphix`, `lsx`, and linear `K133`/`K233` bounds retain the established
+sampling convention: they bound the first uniform factor, which is then
+multiplied by an independent uniform value in `[-1,1]`. The `*-pow-*` options
+are base-10 exponent bounds for the signed logarithmic coupling scan. In
+contrast, `--m2`, `--m3`, `--vs`, and the other unsuffixed parameter options
+select one explicit point; they are not scan-range settings. Resolved bounds
+are saved in scan metadata and the checkpoint fingerprint. A resumed campaign
+therefore restores its original ranges, and range flags cannot be changed on
+`--resume-from`.
+
+In the `vx=0` branch, the
 stable `h3` width and visible branching fractions are recorded as zero,
 including below the 20 GeV lower edge of the SM Higgs tables. Whenever
 `2*M3 < M1` or `2*M3 < M2`, the generator includes the corresponding

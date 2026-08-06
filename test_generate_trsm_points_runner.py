@@ -960,6 +960,88 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertTrue(args.scan_k133_k233_log)
 
+    def test_scan_range_cli_defaults_follow_the_file_range_block(self):
+        generator = load_generator_module()
+
+        for option, default in generator.FILE_SCAN_RANGE_DEFAULTS.items():
+            self.assertEqual(getattr(generator.cli_args, option), float(default))
+            self.assertEqual(
+                getattr(generator, generator.SCAN_RANGE_BINDINGS[option]),
+                float(default),
+            )
+
+    def test_scan_range_cli_overrides_activate_all_supported_bounds(self):
+        overrides = {
+            "m2_min": 210.0,
+            "m2_max": 310.0,
+            "m3_min": 12.0,
+            "m3_max": 42.0,
+            "vs_min": 60.0,
+            "vs_max": 90.0,
+            "k1_min": 0.91,
+            "k1_max": 0.97,
+            "lx_min": 0.2,
+            "lx_max": 0.7,
+            "lphix_min": 0.001,
+            "lphix_max": 0.003,
+            "lsx_min": 0.002,
+            "lsx_max": 0.004,
+            "k133_min": 0.01,
+            "k133_max": 2.0,
+            "k233_min": 0.02,
+            "k233_max": 3.0,
+            "k133_pow_min": -2.0,
+            "k133_pow_max": 1.0,
+            "k233_pow_min": -1.0,
+            "k233_pow_max": 2.0,
+        }
+        argv = ["--nrandom", "0", "--independent-m3"]
+        for option, value in overrides.items():
+            argv.extend([f"--{option.replace('_', '-')}", str(value)])
+
+        generator = load_generator_module(argv)
+
+        for option, expected in overrides.items():
+            self.assertEqual(getattr(generator.cli_args, option), expected)
+            self.assertEqual(
+                getattr(generator, generator.SCAN_RANGE_BINDINGS[option]),
+                expected,
+            )
+
+        metadata = generator.build_scan_metadata(
+            generator.cli_args,
+            "range-test",
+            Path("output/range-test.dat"),
+        )
+        ranges = {
+            entry["variable"]: entry for entry in metadata["variable_ranges"]
+        }
+        self.assertEqual(
+            (ranges["M2"]["configured_min"], ranges["M2"]["configured_max"]),
+            (210.0, 310.0),
+        )
+        self.assertEqual(
+            (ranges["M3"]["configured_min"], ranges["M3"]["configured_max"]),
+            (12.0, 42.0),
+        )
+        self.assertEqual(metadata["options"]["k133_pow_min"], -2.0)
+        self.assertEqual(
+            generator.immutable_scan_configuration(generator.cli_args)[
+                "configured_ranges"
+            ]["K233_log_power"],
+            [-1.0, 2.0],
+        )
+
+    def test_scan_range_cli_rejects_invalid_bounds(self):
+        with self.assertRaises(SystemExit):
+            load_generator_module(["--m2-min", "500", "--m2-max", "100"])
+        with self.assertRaises(SystemExit):
+            load_generator_module(["--k1-min", "-1.1"])
+        with self.assertRaises(SystemExit):
+            load_generator_module(["--m3-max", "nan"])
+        with self.assertRaises(SystemExit):
+            load_generator_module(["--vs-min", "0"])
+
     def test_k133_k233_linear_and_log_ranges_are_separate(self):
         generator = load_generator_module()
 

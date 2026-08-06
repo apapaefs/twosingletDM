@@ -186,6 +186,91 @@ def parse_args(argv=None):
     parser.add_argument("--lx", type=float)
     parser.add_argument("--lphix", type=float)
     parser.add_argument("--lsx", type=float)
+    range_group = parser.add_argument_group(
+        "random-scan range overrides",
+        (
+            "Override individual bounds from the 'define ranges here' block. "
+            "Any omitted bound keeps its value from that block."
+        ),
+    )
+    range_group.add_argument("--m2-min", type=float, help="Minimum random-scan M2 [GeV].")
+    range_group.add_argument("--m2-max", type=float, help="Maximum random-scan M2 [GeV].")
+    range_group.add_argument("--m3-min", type=float, help="Minimum random-scan M3 [GeV].")
+    range_group.add_argument("--m3-max", type=float, help="Maximum random-scan M3 [GeV].")
+    range_group.add_argument("--vs-min", type=float, help="Minimum random-scan vs [GeV].")
+    range_group.add_argument("--vs-max", type=float, help="Maximum random-scan vs [GeV].")
+    range_group.add_argument(
+        "--k1-min",
+        type=float,
+        help="Minimum random-scan k1; both k1 bounds must lie in [-1, 1].",
+    )
+    range_group.add_argument(
+        "--k1-max",
+        type=float,
+        help="Maximum random-scan k1; both k1 bounds must lie in [-1, 1].",
+    )
+    range_group.add_argument("--lx-min", type=float, help="Minimum random-scan lambda_X.")
+    range_group.add_argument("--lx-max", type=float, help="Maximum random-scan lambda_X.")
+    range_group.add_argument(
+        "--lphix-min",
+        type=float,
+        help="Minimum pre-sign random-scan lambda_PhiX factor.",
+    )
+    range_group.add_argument(
+        "--lphix-max",
+        type=float,
+        help="Maximum pre-sign random-scan lambda_PhiX factor.",
+    )
+    range_group.add_argument(
+        "--lsx-min",
+        type=float,
+        help="Minimum pre-sign random-scan lambda_SX factor.",
+    )
+    range_group.add_argument(
+        "--lsx-max",
+        type=float,
+        help="Maximum pre-sign random-scan lambda_SX factor.",
+    )
+    range_group.add_argument(
+        "--k133-min",
+        type=float,
+        help="Minimum pre-sign K133 factor for --scan-k133-k233 [GeV].",
+    )
+    range_group.add_argument(
+        "--k133-max",
+        type=float,
+        help="Maximum pre-sign K133 factor for --scan-k133-k233 [GeV].",
+    )
+    range_group.add_argument(
+        "--k233-min",
+        type=float,
+        help="Minimum pre-sign K233 factor for --scan-k133-k233 [GeV].",
+    )
+    range_group.add_argument(
+        "--k233-max",
+        type=float,
+        help="Maximum pre-sign K233 factor for --scan-k133-k233 [GeV].",
+    )
+    range_group.add_argument(
+        "--k133-pow-min",
+        type=float,
+        help="Minimum base-10 K133 exponent for --scan-k133-k233-log.",
+    )
+    range_group.add_argument(
+        "--k133-pow-max",
+        type=float,
+        help="Maximum base-10 K133 exponent for --scan-k133-k233-log.",
+    )
+    range_group.add_argument(
+        "--k233-pow-min",
+        type=float,
+        help="Minimum base-10 K233 exponent for --scan-k133-k233-log.",
+    )
+    range_group.add_argument(
+        "--k233-pow-max",
+        type=float,
+        help="Maximum base-10 K233 exponent for --scan-k133-k233-log.",
+    )
     resonant_group = parser.add_mutually_exclusive_group()
     resonant_group.add_argument(
         "--resonantDM1",
@@ -475,6 +560,12 @@ def parse_args(argv=None):
         parser.error("--m1 is accepted for CLI compatibility, but this generator currently fixes M1=125.09")
     if args.higgstools_top < 1:
         parser.error("--higgstools-top must be at least 1")
+    range_resolver = globals().get("apply_scan_range_overrides")
+    if range_resolver is not None:
+        try:
+            range_resolver(args)
+        except ValueError as error:
+            parser.error(str(error))
     return args
 
 
@@ -1647,6 +1738,95 @@ K133_pow_max = 3
 
 K233_pow_min = -3
 K233_pow_max = 5
+
+
+SCAN_RANGE_BINDINGS = {
+    "m2_min": "m2_min",
+    "m2_max": "m2_max",
+    "m3_min": "m3_min",
+    "m3_max": "m3_max",
+    "vs_min": "vs_min",
+    "vs_max": "vs_max",
+    "k1_min": "k1_min",
+    "k1_max": "k1_max",
+    "lx_min": "lX_min",
+    "lx_max": "lX_max",
+    "lphix_min": "lPhiX_min",
+    "lphix_max": "lPhiX_max",
+    "lsx_min": "lSX_min",
+    "lsx_max": "lSX_max",
+    "k133_min": "K133_min",
+    "k133_max": "K133_max",
+    "k233_min": "K233_min",
+    "k233_max": "K233_max",
+    "k133_pow_min": "K133_pow_min",
+    "k133_pow_max": "K133_pow_max",
+    "k233_pow_min": "K233_pow_min",
+    "k233_pow_max": "K233_pow_max",
+}
+FILE_SCAN_RANGE_DEFAULTS = {
+    option: globals()[global_name]
+    for option, global_name in SCAN_RANGE_BINDINGS.items()
+}
+SCAN_RANGE_PAIRS = (
+    ("m2_min", "m2_max", "M2"),
+    ("m3_min", "m3_max", "M3"),
+    ("vs_min", "vs_max", "vs"),
+    ("k1_min", "k1_max", "k1"),
+    ("lx_min", "lx_max", "lambda_X"),
+    ("lphix_min", "lphix_max", "lambda_PhiX pre-sign factor"),
+    ("lsx_min", "lsx_max", "lambda_SX pre-sign factor"),
+    ("k133_min", "k133_max", "K133 pre-sign factor"),
+    ("k233_min", "k233_max", "K233 pre-sign factor"),
+    ("k133_pow_min", "k133_pow_max", "K133 base-10 exponent"),
+    ("k233_pow_min", "k233_pow_max", "K233 base-10 exponent"),
+)
+
+
+def apply_scan_range_overrides(args):
+    """Resolve CLI scan bounds against file defaults and activate them."""
+    resolved = {}
+    for option, default in FILE_SCAN_RANGE_DEFAULTS.items():
+        value = getattr(args, option, None)
+        value = default if value is None else value
+        try:
+            value = float(value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"--{option.replace('_', '-')} must be a finite number"
+            ) from error
+        if not math.isfinite(value):
+            raise ValueError(
+                f"--{option.replace('_', '-')} must be a finite number"
+            )
+        resolved[option] = value
+
+    for lower, upper, label in SCAN_RANGE_PAIRS:
+        if resolved[lower] > resolved[upper]:
+            raise ValueError(
+                f"Invalid {label} range: --{lower.replace('_', '-')}="
+                f"{resolved[lower]:g} exceeds --{upper.replace('_', '-')}="
+                f"{resolved[upper]:g}"
+            )
+
+    for option in ("m2_min", "m2_max", "m3_min", "m3_max", "vs_min", "vs_max"):
+        if resolved[option] <= 0.0:
+            raise ValueError(f"--{option.replace('_', '-')} must be positive")
+    if resolved["k1_min"] < -1.0 or resolved["k1_max"] > 1.0:
+        raise ValueError("--k1-min and --k1-max must both lie in [-1, 1]")
+
+    for option, global_name in SCAN_RANGE_BINDINGS.items():
+        value = resolved[option]
+        globals()[global_name] = value
+        setattr(args, option, value)
+    return resolved
+
+
+try:
+    apply_scan_range_overrides(cli_args)
+except ValueError as error:
+    print(f"{Path(sys.argv[0]).name}: error: {error}", file=sys.stderr)
+    raise SystemExit(2) from error
 
 
 def draw_random_vxzero_candidate(args, rng=None):
