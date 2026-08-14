@@ -1,7 +1,9 @@
+import fcntl
 import gzip
 import math
 import os
 import subprocess
+from contextlib import contextmanager
 from math import floor, log10
 from pathlib import Path
 
@@ -20,6 +22,10 @@ ProcLocation = {
     "gg_heta0": "gg_heta0/",
     "pp_eta0Z": "pp_eta0Z/",
 }
+
+
+TREE_LEVEL_SURVEY_ITERATIONS = 3
+LOOP_INDUCED_SURVEY_ITERATIONS = 1
 
 
 def round_sig(x, sig=2):
@@ -69,6 +75,35 @@ def _lhe_path(process_dir, run_name):
     return process_dir / "Events" / run_name / "unweighted_events.lhe.gz"
 
 
+def _survey_iterations(process_dir):
+    """Use MadEvent's minimum survey length for tree-level processes."""
+    characteristics = process_dir / "SubProcesses" / "proc_characteristics"
+    try:
+        lines = characteristics.read_text(encoding="ascii").splitlines()
+    except OSError:
+        return TREE_LEVEL_SURVEY_ITERATIONS
+
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "loop_induced":
+            if value.strip().lower() == "true":
+                return LOOP_INDUCED_SURVEY_ITERATIONS
+            return TREE_LEVEL_SURVEY_ITERATIONS
+    return TREE_LEVEL_SURVEY_ITERATIONS
+
+
+@contextmanager
+def _madevent_lock(process_dir):
+    """Serialize runs that share MadEvent's mutable process directory."""
+    lock_path = process_dir / ".trsm_madevent.lock"
+    with lock_path.open("a+", encoding="ascii") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def drive_mg(
     process,
     runnum,
@@ -93,66 +128,69 @@ def drive_mg(
     process_dir, madevent = _process_directory(process, mgloc)
     command_file = process_dir / f"mg5_{process}_lambdavar_run{runnum}.dcmd"
     ebeam = ecm * 1000.0 / 2.0
+    survey_iterations = _survey_iterations(process_dir)
     counter = 0
-    for lambdas in LambdasArray:
-        if counter >= nruns:
-            break
-        run_name = _run_name(runnum, m2, w2, m3, w3, lambdas)
-        lhefile = _lhe_path(process_dir, run_name)
-        if lhefile.exists():
-            counter += 1
-            continue
+    with _madevent_lock(process_dir):
+        for lambdas in LambdasArray:
+            if counter >= nruns:
+                break
+            run_name = _run_name(runnum, m2, w2, m3, w3, lambdas)
+            lhefile = _lhe_path(process_dir, run_name)
+            if lhefile.exists():
+                counter += 1
+                continue
 
-        commands = [
-            f"generate_events {run_name} --accuracy=0.25 --points=300 --iterations=1",
-            f"set ebeam1 {ebeam}",
-            f"set ebeam2 {ebeam}",
-            f"set Meta {m2}",
-            f"set Weta {w2}",
-            f"set Miota {m3}",
-            f"set Wiota {w3}",
-            f"set k1 {k1choice}",
-            f"set k2 {k2choice}",
-            f"set k3 {k3choice}",
-            f"set kap111 {lambdas[0]}",
-            f"set kap112 {lambdas[1]}",
-            f"set kap113 {lambdas[2]}",
-            f"set kap123 {lambdas[3]}",
-            f"set kap122 {lambdas[4]}",
-            f"set kap1111 {lambdas[5]}",
-            f"set kap1112 {lambdas[6]}",
-            f"set kap1113 {lambdas[7]}",
-            f"set kap133 {lambdas[8]}",
-        ]
-        if w1 is not None:
-            commands.append(f"set WH {w1}")
-        effective_k233 = k233 if k233 is not None else (
-            lambdas[9] if len(lambdas) > 9 else None
-        )
-        if effective_k233 is not None:
-            commands.append(f"set kap233 {effective_k233}")
-        commands.extend((f"set nevents {nevents}", "0"))
-        command_file.write_text("\n".join(commands), encoding="ascii")
-
-        if output:
-            print(command_file.read_text(encoding="ascii"))
-        completed = subprocess.run(
-            [str(madevent), str(command_file)],
-            cwd=process_dir,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-        if output and completed.stdout:
-            print(completed.stdout)
-        if completed.returncode != 0 or not lhefile.exists():
-            tail = "\n".join((completed.stdout or "").splitlines()[-30:])
-            raise RuntimeError(
-                f"MG5 process {process!r} failed for run {run_name} "
-                f"(exit code {completed.returncode}); expected {lhefile}.\n{tail}"
+            commands = [
+                f"generate_events {run_name} --accuracy=0.25 --points=300 "
+                f"--iterations={survey_iterations}",
+                f"set ebeam1 {ebeam}",
+                f"set ebeam2 {ebeam}",
+                f"set Meta {m2}",
+                f"set Weta {w2}",
+                f"set Miota {m3}",
+                f"set Wiota {w3}",
+                f"set k1 {k1choice}",
+                f"set k2 {k2choice}",
+                f"set k3 {k3choice}",
+                f"set kap111 {lambdas[0]}",
+                f"set kap112 {lambdas[1]}",
+                f"set kap113 {lambdas[2]}",
+                f"set kap123 {lambdas[3]}",
+                f"set kap122 {lambdas[4]}",
+                f"set kap1111 {lambdas[5]}",
+                f"set kap1112 {lambdas[6]}",
+                f"set kap1113 {lambdas[7]}",
+                f"set kap133 {lambdas[8]}",
+            ]
+            if w1 is not None:
+                commands.append(f"set WH {w1}")
+            effective_k233 = k233 if k233 is not None else (
+                lambdas[9] if len(lambdas) > 9 else None
             )
-        counter += 1
+            if effective_k233 is not None:
+                commands.append(f"set kap233 {effective_k233}")
+            commands.extend((f"set nevents {nevents}", "0"))
+            command_file.write_text("\n".join(commands), encoding="ascii")
+
+            if output:
+                print(command_file.read_text(encoding="ascii"))
+            completed = subprocess.run(
+                [str(madevent), str(command_file)],
+                cwd=process_dir,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            if output and completed.stdout:
+                print(completed.stdout)
+            if completed.returncode != 0 or not lhefile.exists():
+                tail = "\n".join((completed.stdout or "").splitlines()[-30:])
+                raise RuntimeError(
+                    f"MG5 process {process!r} failed for run {run_name} "
+                    f"(exit code {completed.returncode}); expected {lhefile}.\n{tail}"
+                )
+            counter += 1
     print("Done generating cross section")
     return counter
 

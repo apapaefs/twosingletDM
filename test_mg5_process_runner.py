@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from generate_mg5_trsm_xsecs import ProcLocation, drive_mg
+from generate_mg5_trsm_xsecs import ProcLocation, _survey_iterations, drive_mg
 from mg5_process_runner import run_mg5_processes, selected_mg5_processes
 
 
@@ -156,6 +156,7 @@ class TestMG5ProcessRunner(unittest.TestCase):
                 )
 
         self.assertEqual(count, 1)
+        self.assertIn("--iterations=3", captured["text"])
         self.assertIn("set ebeam1 6800.0", captured["text"])
         self.assertIn("set Meta 300.0", captured["text"])
         self.assertIn("set Weta 1.2", captured["text"])
@@ -164,6 +165,15 @@ class TestMG5ProcessRunner(unittest.TestCase):
         self.assertIn("set WH 0.0042", captured["text"])
         self.assertIn("set kap133 9", captured["text"])
         self.assertIn("set kap233 25.0", captured["text"])
+
+    def test_loop_induced_process_keeps_single_fast_survey_iteration(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            process_dir = Path(tmpdir)
+            characteristics = process_dir / "SubProcesses" / "proc_characteristics"
+            characteristics.parent.mkdir(parents=True)
+            characteristics.write_text("loop_induced = True\n", encoding="ascii")
+
+            self.assertEqual(_survey_iterations(process_dir), 1)
 
 
 if __name__ == "__main__":
