@@ -474,6 +474,52 @@ them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` when BSMPT
 returns a finite strength. Use it together with `--run-ewpt` if you want BSMPT
 for both viable and DM-failed points; by itself it only targets DM-failed points.
 
+### Run EWPT on points from a completed scan without requiring DM
+
+`reprocess_trsm_ewpt.py` runs BSMPT on rows already stored in a completed scan;
+it does not regenerate points, rerun HiggsTools or micrOMEGAs, or invoke MG5.
+The source TSV is never modified. A row is selected when all stored non-DM
+flags pass,
+
+```text
+evo & thc & hb & hs & ewpo & wmass
+```
+
+while its stored aggregate `dm` result is preserved and reported but does not
+gate EWPT. This is appropriate for a source generated with
+`--write-evo-thc-points`, which retains every possible non-DM-viable candidate.
+
+For the seed-27999 scan, replace `YYYYMMDD` below with the date in the actual
+input filename:
+
+```bash
+./trsmdm/bin/python reprocess_trsm_ewpt.py \
+  output/trsm_points_13.6-YYYYMMDD-27999-True_vxzero.dat \
+  --output output/trsm_points_13.6-YYYYMMDD-27999-True_vxzero_ewpt_non_dm.dat \
+  --ewpt-workdir output/ewpt_seed_27999_reprocessed_non_dm \
+  --ewpt-thigh 1000 \
+  --ewpt-executable /Users/apapaefs/Projects/BSMPT/build/macos-armv8-release/bin/CalcTemps \
+  --ewpt-minima-executable /Users/apapaefs/Projects/BSMPT/build/macos-armv8-release/bin/MinimaTracer
+```
+
+All input rows and columns, including DM and MG5 results, are copied to the new
+TSV. The six EWPT summary columns are added or updated only for selected rows.
+Rows already containing an EWPT attempt are preserved by default, so a scan
+originally run with `--run-ewpt` does not repeat its fully viable BSMPT jobs;
+add `--rerun-existing-ewpt` only when they should be recalculated as well.
+Individual BSMPT failures are recorded as `ewpt_status=failed` and processing
+continues.
+
+Progress is committed after every input row to
+`<output>.partial`. After an interruption, repeat the command with `--resume`;
+the source checksum, destination, work directory, selection and BSMPT settings
+must match. The final TSV appears only after every source row is accounted for.
+The command also writes an `*.ewpt-reprocess.json` provenance summary and, when
+the source has scan metadata, a matching metadata sidecar for the new TSV.
+Use `--checkpoint-every N` to change the transaction size and
+`--ewpt-require-eq418` to apply the same analytic prefilter available during
+generation.
+
 - If the EWPT campaign logs show `ModuleNotFoundError` for packages such as
 `scipy`, run with the same Python interpreter used in the working environment,
 for example `/Users/apapaefs/.venvs/compphys/bin/python`.
@@ -985,7 +1031,8 @@ Run the focused tests for the scan and campaign helpers with:
 python3 test_generate_trsm_points_runner.py
 python3 test_run_trsm_seed_campaign.py
 python3 test_trsm_ewpt_runner.py
-python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py
+python3 test_reprocess_trsm_ewpt.py
+python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py reprocess_trsm_ewpt.py
 ```
 
 
