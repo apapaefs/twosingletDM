@@ -34,6 +34,7 @@ POINT_COLUMNS = ("M2", "M3", "vs", "vx", "a12", "lX", "lPhiX", "lSX")
 REQUIRED_INPUT_COLUMNS = POINT_COLUMNS + NON_DM_CONSTRAINT_COLUMNS + ("dm",)
 EWPT_COLUMNS = (
     "ewpt_ew_true_over_T",
+    "ewpt_ew_jump_over_T",
     "ewpt_global_phase_path",
     "ewpt_has_x_broken",
     "ewpt_ew_step_index",
@@ -132,6 +133,8 @@ def existing_ewpt_attempt(row: Mapping[str, str]) -> bool:
         return True
     if finite_number(row.get("ewpt_ew_true_over_T")) is not None:
         return True
+    if finite_number(row.get("ewpt_ew_jump_over_T")) is not None:
+        return True
     if optional_text(row.get("ewpt_global_phase_path")):
         return True
     if finite_number(row.get("ewpt_ew_step_index")) is not None:
@@ -142,6 +145,7 @@ def existing_ewpt_attempt(row: Mapping[str, str]) -> bool:
 def empty_ewpt_updates() -> dict[str, object]:
     return {
         "ewpt_ew_true_over_T": None,
+        "ewpt_ew_jump_over_T": None,
         "ewpt_global_phase_path": None,
         "ewpt_has_x_broken": None,
         "ewpt_ew_step_index": None,
@@ -176,6 +180,9 @@ def updates_from_payload(payload: Mapping[str, object]) -> dict[str, object]:
     if strength is not None:
         updates["ewpt_ew_true_over_T"] = finite_number(
             strength.get("ew_true_over_T")
+        )
+        updates["ewpt_ew_jump_over_T"] = finite_number(
+            strength.get("ew_jump_over_T")
         )
 
     minimatracer = payload.get("minimatracer") or {}

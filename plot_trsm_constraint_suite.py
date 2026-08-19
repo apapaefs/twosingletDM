@@ -117,6 +117,7 @@ NUMERIC_COLUMNS = (
 
 OPTIONAL_NUMERIC_COLUMNS = (
     "w2",
+    "ewpt_ew_jump_over_T",
     "ewpt_ew_step_index",
     "vs",
     "vx",
@@ -760,6 +761,18 @@ PLOT_SPECS = (
         requires_bsmpt=True,
     ),
     PlotSpec(
+        "31b_bsmpt_ew_jump_over_t_m2_m3",
+        r"Selected BSMPT electroweak jump",
+        "continuous_mass",
+        scheme="bsmpt_phase",
+        value="ewpt_ew_jump_over_T",
+        norm_kind="threshold1",
+        cmap="RdBu_r",
+        colorbar_label=r"$\Delta v_{\rm EW}(T_*)/T_*$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_ew_jump_over_T",),
+    ),
+    PlotSpec(
         "32_bsmpt_phase_history_m2_m3",
         "BSMPT global phase history",
         "categorical_mass",
@@ -1207,9 +1220,9 @@ DASHBOARDS = OrderedDict(
             (
                 "30_bsmpt_status_m2_m3",
                 "31_bsmpt_ew_true_over_t_m2_m3",
+                "31b_bsmpt_ew_jump_over_t_m2_m3",
                 "32_bsmpt_phase_history_m2_m3",
                 "33_bsmpt_ew_entry_step_m2_m3",
-                "34_bsmpt_strength_vs_m2",
                 "36_bsmpt_counts",
             ),
         ),

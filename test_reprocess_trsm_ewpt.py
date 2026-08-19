@@ -61,10 +61,12 @@ class FakeEWPTModule:
                 {
                     "temperature_kind": "crit",
                     "ew_true_over_T": 10.0 + index,
+                    "ew_jump_over_T": 9.0 + index,
                 },
                 {
                     "temperature_kind": "nucl",
                     "ew_true_over_T": 1.0 + index / 10.0,
+                    "ew_jump_over_T": 0.5 + index / 10.0,
                 },
             ],
             "minimatracer": {
@@ -99,6 +101,7 @@ def scan_row(index, *, dm=True, **updates):
         "wmass": "True",
         "dm": ("True" if dm else "False") if type(dm) is bool else str(dm),
         "ewpt_ew_true_over_T": "nan",
+        "ewpt_ew_jump_over_T": "nan",
         "ewpt_global_phase_path": "nan",
         "ewpt_has_x_broken": "nan",
         "ewpt_ew_step_index": "nan",
@@ -173,6 +176,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             self.assertEqual(len(written), 4)
             self.assertEqual(written[0]["ewpt_status"], "success")
             self.assertEqual(float(written[0]["ewpt_ew_true_over_T"]), 1.1)
+            self.assertEqual(float(written[0]["ewpt_ew_jump_over_T"]), 0.6)
             self.assertEqual(written[1]["ewpt_global_phase_path"], "SYM -> X_BROKEN -> EW")
             self.assertEqual(written[1]["ewpt_has_x_broken"], "True")
             self.assertEqual(written[1]["dm"], "False")
@@ -209,6 +213,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             self.assertEqual(written[1]["ewpt_status"], "failed")
             self.assertIn("simulated BSMPT failure", written[1]["ewpt_error"])
             self.assertEqual(written[1]["ewpt_ew_true_over_T"], "nan")
+            self.assertEqual(written[1]["ewpt_ew_jump_over_T"], "nan")
             self.assertEqual(result.counts["success"], 2)
             self.assertEqual(result.counts["failed"], 1)
 
@@ -241,6 +246,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
 
             self.assertEqual([call["index"] for call in fake.calls], [1])
             self.assertEqual(read_scan(output)[0]["ewpt_ew_true_over_T"], "1.1")
+            self.assertEqual(read_scan(output)[0]["ewpt_ew_jump_over_T"], "0.6")
             self.assertEqual(result.counts["success"], 1)
             self.assertEqual(result.counts["existing"], 0)
 

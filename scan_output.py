@@ -88,6 +88,7 @@ HIGGSTOOLS_COLUMNS = [
 
 EWPT_COLUMNS = [
     "ewpt_ew_true_over_T",
+    "ewpt_ew_jump_over_T",
     "ewpt_global_phase_path",
     "ewpt_has_x_broken",
     "ewpt_ew_step_index",

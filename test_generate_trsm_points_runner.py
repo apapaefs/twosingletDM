@@ -227,11 +227,13 @@ class FakeEWPTModule:
                     "temperature_kind": "crit",
                     "transition_index": 0,
                     "ew_true_over_T": 0.4,
+                    "ew_jump_over_T": 0.3,
                 },
                 {
                     "temperature_kind": "nucl",
                     "transition_index": 0,
                     "ew_true_over_T": 0.9,
+                    "ew_jump_over_T": 0.8,
                 },
             ],
         }
@@ -276,6 +278,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertIn("dm_limit_model", scan_output.output_columns({}))
         self.assertIn("dm_rescale", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_true_over_T", scan_output.output_columns({}))
+        self.assertIn("ewpt_ew_jump_over_T", scan_output.output_columns({}))
         self.assertIn("ewpt_global_phase_path", scan_output.output_columns({}))
         self.assertIn("ewpt_has_x_broken", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_step_index", scan_output.output_columns({}))
@@ -1801,6 +1804,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(len(fake_ewpt.calls), 1)
         self.assertEqual(fake_ewpt.calls[0]["point"].index, 7)
         self.assertEqual(point_info["ewpt_ew_true_over_T"], 0.9)
+        self.assertEqual(point_info["ewpt_ew_jump_over_T"], 0.8)
         self.assertEqual(
             point_info["ewpt_global_phase_path"],
             "SINGLET_S -> X_BROKEN -> EW_X_BROKEN -> EW",
@@ -1880,6 +1884,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             )
 
         self.assertEqual(point_info["ewpt_ew_true_over_T"], 0.9)
+        self.assertEqual(point_info["ewpt_ew_jump_over_T"], 0.8)
         self.assertEqual(point_info["ewpt_status"], "success")
         self.assertEqual(
             point_info["ewpt_global_phase_path"],

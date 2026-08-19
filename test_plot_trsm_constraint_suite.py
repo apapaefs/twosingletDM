@@ -61,6 +61,7 @@ ROWS = [
 ]
 
 BSMPT_EXTRA_HEADER = [
+    "ewpt_ew_jump_over_T",
     "ewpt_status",
     "ewpt_global_phase_path",
     "ewpt_has_x_broken",
@@ -106,21 +107,21 @@ SIGNAL_HEADER = HEADER + SIGNAL_EXTRA_HEADER
 
 def bsmpt_fixture_rows():
     payloads = [
-        ("nan", "nan", "nan", "nan", "nan"),
-        ("nan", "failed", "nan", "nan", "nan"),
-        ("nan", "success", "SYM -> EW", False, 0),
-        (0.75, "success", "SYM -> SINGLET_S -> EW", False, 1),
-        (1.25, "success", "SYM -> X_BROKEN -> EW_X_BROKEN", True, 1),
-        (2.0, "success", "SYM -> EW", False, 0),
-        (0.4, "success", "SYM -> MIXED -> EW", False, 1),
-        ("nan", "nan", "nan", "nan", "nan"),
+        ("nan", "nan", "nan", "nan", "nan", "nan"),
+        ("nan", "nan", "failed", "nan", "nan", "nan"),
+        ("nan", "nan", "success", "SYM -> EW", False, 0),
+        (0.75, 0.65, "success", "SYM -> SINGLET_S -> EW", False, 1),
+        (1.25, 1.10, "success", "SYM -> X_BROKEN -> EW_X_BROKEN", True, 1),
+        (2.0, 1.80, "success", "SYM -> EW", False, 0),
+        (0.4, 0.20, "success", "SYM -> MIXED -> EW", False, 1),
+        ("nan", "nan", "nan", "nan", "nan", "nan"),
     ]
     rows = []
     for original, payload in zip(ROWS, payloads):
-        strength, status, phase_path, has_x_broken, ew_step = payload
+        strength, jump, status, phase_path, has_x_broken, ew_step = payload
         row = list(original)
         row[HEADER.index("ewpt_ew_true_over_T")] = strength
-        row.extend([status, phase_path, has_x_broken, ew_step])
+        row.extend([jump, status, phase_path, has_x_broken, ew_step])
         rows.append(row)
     return rows
 
@@ -787,6 +788,16 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             bsmpt_norm.vcenter,
             self.plotter.BSMPT_STRONG_EWPT_THRESHOLD,
         )
+        jump_spec = self.plotter.PLOT_BY_STEM[
+            "31b_bsmpt_ew_jump_over_t_m2_m3"
+        ]
+        jump_norm = self.plotter.norm_for(
+            jump_spec, np.array([0.2, 0.8, 1.0, 1.4])
+        )
+        self.assertEqual(
+            jump_norm.vcenter,
+            self.plotter.BSMPT_STRONG_EWPT_THRESHOLD,
+        )
 
     def test_continuous_marker_groups_share_one_norm(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -973,6 +984,20 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         finally:
             self.plotter.plt.close(fig)
 
+        jump_spec = self.plotter.PLOT_BY_STEM[
+            "31b_bsmpt_ew_jump_over_t_m2_m3"
+        ]
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_continuous_mass(fig, ax, data, jump_spec)
+            self.assertEqual(len(ax.collections), 4)
+            self.assertIn(
+                r"$\Delta v_{\rm EW}(T_*)/T_*$",
+                [axis.get_ylabel() for axis in fig.axes],
+            )
+        finally:
+            self.plotter.plt.close(fig)
+
     def test_bsmpt_strength_xy_and_count_renderers(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_bsmpt_fixture(tmpdir)
@@ -1015,6 +1040,26 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 self.plotter.render_spec(fig, ax, data, spec)
         finally:
             self.plotter.plt.close(fig)
+
+    def test_ew_jump_plot_is_omitted_for_legacy_bsmpt_scan(self):
+        legacy_header = [
+            column
+            for column in BSMPT_HEADER
+            if column != "ewpt_ew_jump_over_T"
+        ]
+        jump_index = BSMPT_HEADER.index("ewpt_ew_jump_over_T")
+        legacy_rows = [
+            row[:jump_index] + row[jump_index + 1 :]
+            for row in bsmpt_fixture_rows()
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "legacy_bsmpt.tsv"
+            write_fixture(path, legacy_header, legacy_rows)
+            data = self.plotter.load_scan(path)
+
+        stems = self.plotter.figure_stems_for_data(data)
+        self.assertIn("31_bsmpt_ew_true_over_t_m2_m3", stems)
+        self.assertNotIn("31b_bsmpt_ew_jump_over_t_m2_m3", stems)
 
     def test_cumulative_renderer_uses_nested_styles_and_skips_missing_columns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1089,11 +1134,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
     def test_registry_and_expected_paths_are_unique(self):
-        self.assertEqual(len(self.plotter.PLOT_SPECS), 69)
+        self.assertEqual(len(self.plotter.PLOT_SPECS), 70)
         self.assertEqual(len(self.plotter.DASHBOARDS), 12)
         stems = self.plotter.all_figure_stems()
-        self.assertEqual(len(stems), 81)
-        self.assertEqual(len(set(stems)), 81)
+        self.assertEqual(len(stems), 82)
+        self.assertEqual(len(set(stems)), 82)
         self.assertTrue(any("bsmpt" in stem for stem in stems))
         self.assertTrue(any("signal" in stem for stem in stems))
         self.assertEqual(
@@ -1130,6 +1175,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "29_cumulative_constraints_m3_lsx",
                 "30_bsmpt_status_m2_m3",
                 "31_bsmpt_ew_true_over_t_m2_m3",
+                "31b_bsmpt_ew_jump_over_t_m2_m3",
                 "32_bsmpt_phase_history_m2_m3",
                 "33_bsmpt_ew_entry_step_m2_m3",
                 "34_bsmpt_strength_vs_m2",
@@ -1206,9 +1252,9 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "dashboard_bsmpt_summary": (
                     "30_bsmpt_status_m2_m3",
                     "31_bsmpt_ew_true_over_t_m2_m3",
+                    "31b_bsmpt_ew_jump_over_t_m2_m3",
                     "32_bsmpt_phase_history_m2_m3",
                     "33_bsmpt_ew_entry_step_m2_m3",
-                    "34_bsmpt_strength_vs_m2",
                     "36_bsmpt_counts",
                 ),
                 "dashboard_portal_resonance_summary": (
@@ -1318,10 +1364,10 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertNotEqual(binary_styles["fail"].marker, binary_styles["pass"].marker)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both")
-        self.assertEqual(len(paths), 162)
-        self.assertEqual(len(set(paths)), 162)
-        self.assertEqual(sum(path.suffix == ".png" for path in paths), 81)
-        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 81)
+        self.assertEqual(len(paths), 164)
+        self.assertEqual(len(set(paths)), 164)
+        self.assertEqual(sum(path.suffix == ".png" for path in paths), 82)
+        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 82)
 
         legacy_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=data
@@ -1334,7 +1380,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         bsmpt_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=bsmpt_data
         )
-        self.assertEqual(len(bsmpt_paths), 108)
+        self.assertEqual(len(bsmpt_paths), 110)
         self.assertTrue(any(path.stem == "dashboard_bsmpt_summary" for path in bsmpt_paths))
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1670,7 +1716,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(len(paths), 108)
+            self.assertEqual(len(paths), 110)
             self.assertTrue(
                 (output_dir / "dashboard_bsmpt_summary.png").exists()
             )

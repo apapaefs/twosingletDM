@@ -432,11 +432,14 @@ strength, the viable-point TSV also includes:
 
 ```text
 ewpt_ew_true_over_T
+ewpt_ew_jump_over_T
 ```
 
-This is selected from the available BSMPT strengths with priority `nucl`, then
-`perc`, then `compl`, then `crit`. If EWPT is not run, Eq. 4.18 skips the run, or
-no finite strength is available, the column is written as `nan`.
+Both values describe the same selected BSMPT transition. It is chosen from the
+available strengths with priority `nucl`, then `perc`, then `compl`, then
+`crit`; within one temperature kind the largest finite `ew_true/T` is selected.
+If EWPT is not run, Eq. 4.18 skips the run, or no finite strength is available,
+the columns are written as `nan`.
 
 `--write-dm-failed` writes points that pass the non-DM checks but fail the
 dark-matter check to a separate sidecar file:
@@ -470,9 +473,10 @@ experimental line-flux limit by `xi^2`).
 
 `--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
 that fail only the dark-matter check. It runs BSMPT for those points and writes
-them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` when BSMPT
-returns a finite strength. Use it together with `--run-ewpt` if you want BSMPT
-for both viable and DM-failed points; by itself it only targets DM-failed points.
+them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` and
+`ewpt_ew_jump_over_T` when BSMPT returns a finite strength. Use it together
+with `--run-ewpt` if you want BSMPT for both viable and DM-failed points; by
+itself it only targets DM-failed points.
 
 ### Run EWPT on points from a completed scan without requiring DM
 
@@ -503,7 +507,7 @@ input filename:
 ```
 
 All input rows and columns, including DM and MG5 results, are copied to the new
-TSV. The six EWPT summary columns are added or updated only for selected rows.
+TSV. The seven EWPT summary columns are added or updated only for selected rows.
 Rows already containing an EWPT attempt are preserved by default, so a scan
 originally run with `--run-ewpt` does not repeat its fully viable BSMPT jobs;
 add `--rerun-existing-ewpt` only when they should be recalculated as well.
@@ -648,12 +652,13 @@ apply EWPO and is therefore separate from the suite's `experimental` and
 `full_viability` definitions. The fourth dashboard collects all six plots, and
 `constraint_summary.tsv` records each cumulative count explicitly.
 
-When the scan contains recorded BSMPT results, plots 30--36 and a fifth
-dashboard are added automatically:
+When the scan contains recorded BSMPT results, plots 30--36, the additional
+plot 31b, and a fifth dashboard are added automatically:
 
 - BSMPT run/failed/no-selected-FOPT/weak-FOPT/strong-FOPT status on the
   \(M_2,M_3\) plane;
-- the selected \(v_{\rm EW,true}(T_*)/T_*\) on the mass plane, with one shared
+- the selected \(v_{\rm EW,true}(T_*)/T_*\) and
+  \(\Delta v_{\rm EW}(T_*)/T_*\) on the mass plane, each with a
   threshold-centred normalization;
 - MinimaTracer global phase-route and electroweak-entry-step maps;
 - \(v_{\rm EW,true}(T_*)/T_*\) versus \(M_2\) and \(M_3\); and
@@ -671,15 +676,16 @@ Rows for which BSMPT was not requested remain visible as “not run”, while
 failed evaluations are never interpreted as successful or as having no
 first-order transition.
 
-For a file with no recorded BSMPT attempt, these seven figures and their
+For a file with no recorded BSMPT attempt, these eight figures and their
 dashboard are skipped. Cascade/MadGraph figures are independently skipped when
 their named scan columns are absent, so legacy inputs remain usable; the HTML
-index explains every unavailable plot. A finite
-`ewpt_ew_true_over_T` is sufficient for compatibility with older files; newer
-files additionally use `ewpt_status`, `ewpt_global_phase_path`,
-`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Detailed transition temperatures
-remain in the per-point `ewpt_result.json` files and are not reconstructed by
-the scan-table plot suite.
+index explains every unavailable plot. A finite `ewpt_ew_true_over_T` is
+sufficient for compatibility with older files. Newer files additionally use
+`ewpt_ew_jump_over_T`, `ewpt_status`, `ewpt_global_phase_path`,
+`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Plot 31b is omitted for legacy
+scans without the jump column. Detailed transition temperatures remain in the
+per-point `ewpt_result.json` files and are not reconstructed by the scan-table
+plot suite.
 
 Plots 37--42 show \(K_{133}\) and \(K_{233}\) separately versus \(M_3\), with
 the signed resonance displacement \(M_2-2M_3\) as a symmetric-log color scale

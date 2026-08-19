@@ -1185,6 +1185,9 @@ def add_ewpt_strength_info(point_info, payload):
     if strength is None:
         return
     point_info["ewpt_ew_true_over_T"] = finite_number(strength.get("ew_true_over_T"))
+    point_info["ewpt_ew_jump_over_T"] = finite_number(
+        strength.get("ew_jump_over_T")
+    )
 
 
 def add_ewpt_phase_history_info(point_info, payload):
