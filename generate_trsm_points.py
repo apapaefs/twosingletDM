@@ -286,8 +286,8 @@ def parse_args(argv=None):
         "--approximate-resonantDM",
         action="store_true",
         help=(
-            "In the random vx=0 scan, sample near either M1 = 2*M3 "
-            "or M2 = 2*M3 within the --delta-res mass window."
+            "In the random vx=0 scan, sample near either M2 = 2*M3 "
+            "or M3 = 2*M2 within the --delta-res mass window."
         ),
     )
     resonant_group.add_argument(
@@ -539,8 +539,10 @@ def parse_args(argv=None):
         parser.error("--approximate-resonantDM requires --delta-res")
     if not args.approximate_resonantDM and args.delta_res is not None:
         parser.error("--delta-res requires --approximate-resonantDM")
-    if args.delta_res is not None and args.delta_res < 0.0:
-        parser.error("--delta-res must be non-negative")
+    if args.delta_res is not None and (
+        not math.isfinite(args.delta_res) or args.delta_res < 0.0
+    ):
+        parser.error("--delta-res must be finite and non-negative")
     if args.write_all_points and args.write_evo_thc_points:
         parser.error("--write-all-points and --write-evo-thc-points are mutually exclusive")
     if args.mg5_without_dm and not args.run_mg5:
@@ -1035,19 +1037,45 @@ def checked_uniform(low, high, label, rng=None):
     return (rng or random).uniform(low, high)
 
 
-def sample_approximate_resonant_masses(delta_res, m1=125.09, rng=None):
+def approximate_resonant_branch_windows(delta_res):
     delta_res = float(delta_res)
-    m1 = float(m1)
-    rng = rng or random
-    if delta_res < 0.0:
-        raise ValueError("delta_res must be non-negative")
-    if not math.isfinite(m1) or m1 <= 0.0:
-        raise ValueError("M1 must be finite and positive")
+    if not math.isfinite(delta_res) or delta_res < 0.0:
+        raise ValueError("delta_res must be finite and non-negative")
 
-    if rng.random() < 0.5:
-        m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
-        m3_high = min(m3_max, (m2_max + delta_res) / 2.0)
-        m3 = checked_uniform(m3_low, m3_high, "M3 anchor", rng=rng)
+    branches = []
+    m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
+    m3_high = min(m3_max, (m2_max + delta_res) / 2.0)
+    if m3_low <= m3_high:
+        branches.append(("M2 = 2*M3", m3_low, m3_high))
+
+    m2_low = max(m2_min, (m3_min - delta_res) / 2.0)
+    m2_high = min(m2_max, (m3_max + delta_res) / 2.0)
+    if m2_low <= m2_high:
+        branches.append(("M3 = 2*M2", m2_low, m2_high))
+
+    return branches
+
+
+def sample_approximate_resonant_masses(delta_res, rng=None):
+    delta_res = float(delta_res)
+    rng = rng or random
+    branches = approximate_resonant_branch_windows(delta_res)
+    if not branches:
+        raise ValueError(
+            "No valid --approximate-resonantDM branch for "
+            f"M2 in [{m2_min}, {m2_max}] GeV, "
+            f"M3 in [{m3_min}, {m3_max}] GeV, and "
+            f"delta_res={delta_res} GeV"
+        )
+
+    if len(branches) == 2:
+        branch = branches[0] if rng.random() < 0.5 else branches[1]
+    else:
+        branch = branches[0]
+
+    relation, anchor_low, anchor_high = branch
+    if relation == "M2 = 2*M3":
+        m3 = checked_uniform(anchor_low, anchor_high, "M3 anchor", rng=rng)
         m2 = checked_uniform(
             max(m2_min, 2.0 * m3 - delta_res),
             min(m2_max, 2.0 * m3 + delta_res),
@@ -1056,16 +1084,11 @@ def sample_approximate_resonant_masses(delta_res, m1=125.09, rng=None):
         )
         return m2, m3
 
-    m2 = checked_uniform(
-        m2_min,
-        m2_max,
-        "M2 h1-resonance companion",
-        rng=rng,
-    )
+    m2 = checked_uniform(anchor_low, anchor_high, "M2 anchor", rng=rng)
     m3 = checked_uniform(
-        max(m3_min, (m1 - delta_res) / 2.0),
-        min(m3_max, (m1 + delta_res) / 2.0),
-        "M3 approximate h1 resonance",
+        max(m3_min, 2.0 * m2 - delta_res),
+        min(m3_max, 2.0 * m2 + delta_res),
+        "M3 approximate resonance",
         rng=rng,
     )
     return m2, m3
@@ -1076,13 +1099,9 @@ def sample_random_masses(args, rng=None):
     rng = rng or random
     if getattr(args, "approximate_resonantDM", False):
         if supplied_rng is None:
-            return sample_approximate_resonant_masses(
-                args.delta_res,
-                getattr(args, "m1", 125.09),
-            )
+            return sample_approximate_resonant_masses(args.delta_res)
         return sample_approximate_resonant_masses(
             args.delta_res,
-            getattr(args, "m1", 125.09),
             rng=rng,
         )
 
@@ -1990,31 +2009,63 @@ def _mass_sampling_metadata(args):
 
     if getattr(args, "approximate_resonantDM", False):
         delta = float(args.delta_res)
-        m1 = float(getattr(args, "m1", 125.09))
-        h2_m3_min = max(m3_min, (m2_min - delta) / 2.0)
-        h2_m3_max = min(m3_max, (m2_max + delta) / 2.0)
-        h1_m3_min = max(m3_min, (m1 - delta) / 2.0)
-        h1_m3_max = min(m3_max, (m1 + delta) / 2.0)
+        branches = approximate_resonant_branch_windows(delta)
+        if not branches:
+            raise ValueError(
+                "No valid --approximate-resonantDM branch for the configured "
+                "M2 and M3 ranges"
+            )
+
+        m2_intervals = []
+        m3_intervals = []
+        for relation, anchor_low, anchor_high in branches:
+            if relation == "M2 = 2*M3":
+                m3_intervals.append((anchor_low, anchor_high))
+                m2_intervals.append(
+                    (
+                        max(m2_min, 2.0 * anchor_low - delta),
+                        min(m2_max, 2.0 * anchor_high + delta),
+                    )
+                )
+            else:
+                m2_intervals.append((anchor_low, anchor_high))
+                m3_intervals.append(
+                    (
+                        max(m3_min, 2.0 * anchor_low - delta),
+                        min(m3_max, 2.0 * anchor_high + delta),
+                    )
+                )
+
+        branch_relations = " or ".join(
+            f"|{relation.replace(' = ', ' - ')}| <= delta_res"
+            for relation, _low, _high in branches
+        )
+        selection_note = (
+            "Both available branches are selected with equal probability."
+            if len(branches) == 2
+            else f"Only the range-compatible {branches[0][0]} branch is sampled."
+        )
         return (
-            "approximate_resonant_dm",
-            "A 50/50 branch samples either |M2 - 2 M3| <= delta_res or |M1 - 2 M3| <= delta_res.",
+            "approximate_mass_doubling",
+            f"Samples {branch_relations}. {selection_note}",
             [
                 _range_record(
                     "M2",
                     *configured_m2,
-                    *configured_m2,
+                    min(low for low, _high in m2_intervals),
+                    max(high for _low, high in m2_intervals),
                     "GeV",
                     "conditional uniform mixture",
-                    f"delta_res = {delta:g} GeV",
+                    f"{selection_note} delta_res = {delta:g} GeV",
                 ),
                 _range_record(
                     "M3",
                     *configured_m3,
-                    min(h2_m3_min, h1_m3_min),
-                    max(h2_m3_max, h1_m3_max),
+                    min(low for low, _high in m3_intervals),
+                    max(high for _low, high in m3_intervals),
                     "GeV",
                     "conditional uniform mixture",
-                    f"Union support of the two resonance branches; delta_res = {delta:g} GeV",
+                    f"{selection_note} delta_res = {delta:g} GeV",
                 ),
             ],
         )

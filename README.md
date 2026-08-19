@@ -388,8 +388,8 @@ value for all points, while `--resonantDM2` updates `m3` point-by-point after
 each random `m2` draw. In both cases the annihilating dark-matter pair obeys
 `2*M3 = M1` or `2*M3 = M2`, respectively.
 
-To scan uniformly near either resonant mass relation instead of exactly on it,
-use `--approximate-resonantDM` with a mass-window half-width:
+To scan uniformly near either mass-doubling relation, use
+`--approximate-resonantDM` with a mass-window half-width:
 
 ```bash
 python3 generate_trsm_points.py 123 \
@@ -402,12 +402,15 @@ For each random point, this mode chooses one of the two approximate branches and
 samples uniformly inside the available scan range:
 
 ```text
-2*M3 = M1 +/- delta_res
 M2 = 2*M3 +/- delta_res
+M3 = 2*M2 +/- delta_res
 ```
 
-The approximate mode is mutually exclusive with `--resonantDM1` and
-`--resonantDM2`. The `--delta-res` value is in GeV.
+If both branches have support in the configured M2/M3 ranges, each is selected
+with 50% probability. If only one branch has support, that branch is used for
+every point; the scan fails early if neither branch is available. The
+approximate mode is mutually exclusive with `--resonantDM1` and
+`--resonantDM2`. The `--delta-res` value is the half-width in GeV.
 
 - To run BSMPT EWPT checks only after a generated point passes the existing
 viability checks, add `--run-ewpt`:

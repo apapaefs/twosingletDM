@@ -615,6 +615,9 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         with self.assertRaises(SystemExit):
             generator.parse_args(["--approximate-resonantDM", "--delta-res", "-1"])
 
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["--approximate-resonantDM", "--delta-res", "nan"])
+
     def test_explicit_point_can_omit_m3_when_resonant_dm_is_enabled(self):
         generator = load_generator_module()
 
@@ -700,23 +703,92 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         uniform_calls.clear()
-        samples = iter([300.0, 66.0])
+        samples = iter([300.0, 604.0])
         generator.random.random = lambda: 0.75
 
         m2, m3 = generator.sample_approximate_resonant_masses(10.0)
 
-        self.assertEqual((m2, m3), (300.0, 66.0))
-        self.assertLessEqual(abs(2.0 * m3 - 125.09), 10.0)
+        self.assertEqual((m2, m3), (300.0, 604.0))
+        self.assertLessEqual(abs(m3 - 2.0 * m2), 10.0)
         self.assertEqual(
             uniform_calls,
-            [
-                (generator.m2_min, generator.m2_max),
-                (
-                    max(generator.m3_min, (125.09 - 10.0) / 2.0),
-                    (125.09 + 10.0) / 2.0,
-                ),
-            ],
+            [(generator.m2_min, 505.0), (590.0, 610.0)],
         )
+
+    def test_approximate_resonant_sampler_supports_light_mass_ranges(self):
+        generator = load_generator_module(
+            ["--m2-max", "25", "--m3-max", "10"]
+        )
+        uniform_calls = []
+
+        def sample_branch(choice, values):
+            samples = iter(values)
+            generator.random.random = lambda: choice
+
+            def fake_uniform(low, high):
+                uniform_calls.append((low, high))
+                return next(samples)
+
+            generator.random.uniform = fake_uniform
+            return generator.sample_approximate_resonant_masses(1.0)
+
+        self.assertEqual(sample_branch(0.25, [8.0, 16.5]), (16.5, 8.0))
+        self.assertEqual(uniform_calls, [(4.0, 10.0), (15.0, 17.0)])
+
+        uniform_calls.clear()
+        self.assertEqual(sample_branch(0.75, [4.5, 9.0]), (4.5, 9.0))
+        self.assertEqual(uniform_calls, [(4.0, 5.5), (8.0, 10.0)])
+
+    def test_approximate_resonant_sampler_uses_only_supported_branch(self):
+        generator = load_generator_module(
+            [
+                "--m2-min",
+                "8",
+                "--m2-max",
+                "10",
+                "--m3-min",
+                "4",
+                "--m3-max",
+                "5",
+            ]
+        )
+        uniform_calls = []
+        samples = iter([4.5, 9.0])
+
+        def unexpected_branch_draw():
+            raise AssertionError(
+                "a branch draw is unnecessary when only one is supported"
+            )
+
+        def fake_uniform(low, high):
+            uniform_calls.append((low, high))
+            return next(samples)
+
+        generator.random.random = unexpected_branch_draw
+        generator.random.uniform = fake_uniform
+
+        self.assertEqual(
+            generator.sample_approximate_resonant_masses(1.0),
+            (9.0, 4.5),
+        )
+        self.assertEqual(uniform_calls, [(4.0, 5.0), (8.0, 10.0)])
+
+    def test_approximate_resonant_sampler_rejects_unsupported_ranges(self):
+        generator = load_generator_module(
+            [
+                "--m2-min",
+                "20",
+                "--m2-max",
+                "25",
+                "--m3-min",
+                "4",
+                "--m3-max",
+                "5",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "No valid --approximate-resonantDM"):
+            generator.sample_approximate_resonant_masses(1.0)
 
     def test_independent_m3_sampler_uses_full_configured_range(self):
         generator = load_generator_module()
@@ -1103,6 +1175,46 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
         self.assertIn("|K133| in [0.0001, 1000]", ranges["K133"]["note"])
 
+    def test_scan_metadata_records_approximate_mass_doubling_branches(self):
+        generator = load_generator_module(
+            [
+                "23666",
+                "--approximate-resonantDM",
+                "--delta-res",
+                "1",
+                "--m2-max",
+                "25",
+                "--m3-max",
+                "10",
+            ]
+        )
+
+        metadata = generator.build_scan_metadata(
+            generator.cli_args,
+            "test-run",
+            Path("output/test.dat"),
+        )
+        ranges = {
+            entry["variable"]: entry for entry in metadata["variable_ranges"]
+        }
+
+        self.assertEqual(
+            metadata["mass_sampling"]["mode"],
+            "approximate_mass_doubling",
+        )
+        self.assertIn(
+            "|M2 - 2*M3| <= delta_res or |M3 - 2*M2| <= delta_res",
+            metadata["mass_sampling"]["description"],
+        )
+        self.assertEqual(
+            (ranges["M2"]["effective_min"], ranges["M2"]["effective_max"]),
+            (4.0, 21.0),
+        )
+        self.assertEqual(
+            (ranges["M3"]["effective_min"], ranges["M3"]["effective_max"]),
+            (4.0, 10.0),
+        )
+
     def test_main_writes_scan_metadata_sidecar_atomically(self):
         generator = load_generator_module(["888", "--nrandom", "0", "--independent-m3"])
 
@@ -1281,7 +1393,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             0.9800665778412416 if low == generator.k1_min and high == generator.k1_max else low
         )
         generator.sample_approximate_resonant_masses = (
-            lambda delta, m1=125.09: (604.0, 300.0)
+            lambda delta: (604.0, 300.0)
         )
         generator.randsign = lambda: 1
         generator.np = SimpleNamespace(
