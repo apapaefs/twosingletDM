@@ -1,10 +1,19 @@
+import math
 import unittest
 
 import Higgs.predictions as HP
 import numpy as np
 
 from generate_trsm_info import generate_lams, vxzero_invisible_decay_info, vxzero_portal_couplings
-from test_trsm_higgstools import H1, H2, H3, analyze_parampoint, ensure_sum_unit, pred
+from test_trsm_higgstools import (
+    H1,
+    H2,
+    H3,
+    HIGGSTOOLS_WIDTH_FLOOR_GEV,
+    analyze_parampoint,
+    ensure_sum_unit,
+    pred,
+)
 
 
 def base_br_arrays():
@@ -152,6 +161,101 @@ class TestHiggsToolsInvisibleWidths(unittest.TestCase):
             H1.br(HP.Decay.directInv),
             invisible_width / (base_width + invisible_width),
         )
+
+    def test_manto_sub_floor_width_is_floored_only_inside_higgstools(self):
+        generated = generate_lams(
+            66666,
+            4.715,
+            8.199,
+            244.7,
+            0.0,
+            -0.001302,
+            0.0,
+            0.0,
+            False,
+            lX=2.791,
+            lPhiX=2.787466622584495e-06,
+            lSX=9.051469882942907e-06,
+        )
+        w1, w2 = generated[7], generated[8]
+        k122, k133 = generated[14], generated[18]
+        k1, k2, k3 = generated[19:22]
+        h1_brs, h2_brs, h3_brs = generated[22:25]
+        physical_h2_brs = h2_brs.copy()
+        _canonical_k133, k233 = vxzero_portal_couplings(
+            2.787466622584495e-06,
+            9.051469882942907e-06,
+            244.7,
+            -0.001302,
+        )
+        invisible = vxzero_invisible_decay_info(
+            125.09,
+            4.715,
+            8.199,
+            k133,
+            k233,
+            h1_brs[-1],
+            h2_brs[-1],
+            K122=k122,
+        )
+
+        self.assertEqual(w1, invisible["w1"])
+        self.assertEqual(w2, invisible["w2"])
+        self.assertEqual(w2, h2_brs[-1])
+        self.assertGreater(w2, 0.0)
+        self.assertLess(w2, HIGGSTOOLS_WIDTH_FLOOR_GEV)
+
+        analyze_parampoint(
+            pred,
+            H1,
+            H2,
+            H3,
+            125.09,
+            4.715,
+            8.199,
+            k1,
+            k2,
+            k3,
+            h1_brs,
+            h2_brs,
+            h3_brs,
+            h1_direct_invisible_width=invisible["h1_h3h3_width"],
+            h2_direct_invisible_width=invisible["h2_h3h3_width"],
+            h1_h2h2_width=invisible["h1_h2h2_width"],
+        )
+
+        self.assertEqual(H2.totalWidth(), HIGGSTOOLS_WIDTH_FLOOR_GEV)
+        np.testing.assert_array_equal(h2_brs, physical_h2_brs)
+        self.assertAlmostEqual(
+            H2.br(HP.Decay.tautau),
+            ensure_sum_unit(physical_h2_brs)[1],
+        )
+        self.assertTrue(math.isclose(w2, 2.5617824857956977e-11, rel_tol=1e-12))
+
+    def test_sub_floor_pure_invisible_width_keeps_unit_branching_ratio(self):
+        h1_brs, h2_brs, h3_brs = base_br_arrays()
+        h2_brs[:] = 0.0
+        true_invisible_width = 2.5e-11
+
+        analyze_parampoint(
+            pred,
+            H1,
+            H2,
+            H3,
+            125.09,
+            40.0,
+            10.0,
+            1.0,
+            0.0,
+            0.0,
+            h1_brs,
+            h2_brs,
+            h3_brs,
+            h2_direct_invisible_width=true_invisible_width,
+        )
+
+        self.assertEqual(H2.totalWidth(), HIGGSTOOLS_WIDTH_FLOOR_GEV)
+        self.assertEqual(H2.br(HP.Decay.directInv), 1.0)
 
     def test_pure_invisible_h2_clears_prior_nonzero_state(self):
         # Seed H2 with visible, cascade, and direct-invisible decays first.

@@ -98,19 +98,68 @@ _SM_DECAYS = (
 )
 
 
-def _set_base_decays(particle, brarray, include_h1h1=False):
-    """Set finite nonzero-width base decays after effectiveCouplingInput."""
-    if brarray[-1] == 0.0:
-        # effectiveCouplingInput already cleared the particle.  HiggsTools
-        # rejects setBr, including setBr(..., 0), for a zero-width particle.
+# HiggsTools treats any total width below its floating-point comparison
+# tolerance as exactly zero and then rejects branching-ratio input.  Use the
+# same lower bound only for the HiggsTools particle record.  The physical width
+# in brarray is deliberately left untouched for scan output and parameter
+# cards.
+HIGGSTOOLS_WIDTH_FLOOR_GEV = 1.0e-10
+
+
+def _higgstools_total_width(physical_width):
+    if physical_width == 0.0:
+        return 0.0
+    return max(float(physical_width), HIGGSTOOLS_WIDTH_FLOOR_GEV)
+
+
+def _set_decay_br(particle, decay, value):
+    if isinstance(decay, tuple):
+        particle.setBr(decay[0], decay[1], value)
+    else:
+        particle.setBr(decay, value)
+
+
+def _set_base_decays(
+    particle,
+    brarray,
+    include_h1h1=False,
+    extra_widths=(),
+):
+    """Set physical decay fractions with a provider-only total-width floor."""
+    base_width = float(brarray[-1])
+    extra_widths = tuple(
+        (decay, float(partial_width))
+        for decay, partial_width in extra_widths
+    )
+    physical_width = base_width + sum(
+        partial_width for _decay, partial_width in extra_widths
+    )
+    if physical_width == 0.0:
+        # HiggsTools rejects setBr, including setBr(..., 0), for a zero-width
+        # particle. setTotalWidth(0) also clears any prior-point state.
+        particle.setTotalWidth(0.0)
         return
+    provider_width = _higgstools_total_width(physical_width)
+    # A sub-epsilon width from effectiveCouplingInput has already been rounded
+    # to zero, so restore a nonzero provider width before calling setBr.
+    particle.setTotalWidth(provider_width)
     for decay in _SM_DECAYS:
         particle.setBr(decay, 0.0)
-    for index, decay in enumerate(_SM_DECAYS):
-        particle.setBr(decay, brarray[index])
     if include_h1h1:
-        particle.setBr('H1', 'H1', brarray[11])
-    particle.setTotalWidth(brarray[-1])
+        particle.setBr('H1', 'H1', 0.0)
+    for decay, _partial_width in extra_widths:
+        _set_decay_br(particle, decay, 0.0)
+
+    base_fraction = base_width / physical_width
+    for index, decay in enumerate(_SM_DECAYS):
+        particle.setBr(decay, brarray[index] * base_fraction)
+    if include_h1h1:
+        particle.setBr('H1', 'H1', brarray[11] * base_fraction)
+    for decay, partial_width in extra_widths:
+        _set_decay_br(particle, decay, partial_width / physical_width)
+    # Do not put the sub-floor physical width back here: HiggsTools would turn
+    # it into zero again and erase all branching ratios.
+    particle.setTotalWidth(provider_width)
 
 
 def _validated_direct_invisible_width(name, value):
@@ -400,17 +449,23 @@ def analyze_parampoint(
     # get the branching ratios
     HP.effectiveCouplingInput(H1, HP.scaledSMlikeEffCouplings(k1))
     HP.effectiveCouplingInput(H2, HP.scaledSMlikeEffCouplings(k2))
-    _set_base_decays(H1, h1_BRs)
-    _set_base_decays(H2, h2_BRs, include_h1h1=True)
-
-    # Set every scan-dependent exotic partial width explicitly, including
-    # zeroes, so state from the previous point cannot leak into this one.
-    H1.setDecayWidth("H2", "H2", h1_h2h2_width)
-
-    # Direct-invisible widths are applied last.  Each partial-width mutation
-    # adjusts the physical total width and rescales previously configured BRs.
-    H1.setDecayWidth(HP.Decay.directInv, h1_direct_invisible_width)
-    H2.setDecayWidth(HP.Decay.directInv, h2_direct_invisible_width)
+    # Construct every BR from the true partial widths. This keeps the
+    # provider-only floor from changing physical branching fractions and also
+    # explicitly clears scan-dependent channels from the previous point.
+    _set_base_decays(
+        H1,
+        h1_BRs,
+        extra_widths=(
+            (HP.Decay.directInv, h1_direct_invisible_width),
+            (("H2", "H2"), h1_h2h2_width),
+        ),
+    )
+    _set_base_decays(
+        H2,
+        h2_BRs,
+        include_h1h1=True,
+        extra_widths=((HP.Decay.directInv, h2_direct_invisible_width),),
+    )
 
     # get the HiggsBounds result
     resb = bounds(pred)

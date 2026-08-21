@@ -7,6 +7,7 @@ from scan_output import write_valid_point
 
 class TestScanOutput(unittest.TestCase):
     def test_write_valid_point_adds_header_and_mg5_xsecs(self):
+        true_sub_floor_width = 2.5617824857956977e-11
         point_info = {
             "M2": 300.0,
             "M3": 500.0,
@@ -19,7 +20,7 @@ class TestScanOutput(unittest.TestCase):
             "lPhiX": 0.3,
             "lSX": 0.4,
             "w1": 0.004,
-            "w2": 1.1,
+            "w2": true_sub_floor_width,
             "w3": 2.2,
             "h1_h3h3_width": 0.001,
             "h1_h3h3_br": 0.2,
@@ -83,6 +84,10 @@ class TestScanOutput(unittest.TestCase):
         self.assertIn("dm_omega", header)
         self.assertIn("dm_dir_det_limit", header)
         self.assertEqual(row[header.index("M2")], "300.0")
+        self.assertEqual(
+            row[header.index("w2")],
+            str(true_sub_floor_width),
+        )
         self.assertEqual(row[header.index("hs")], "False")
         self.assertEqual(row[header.index("K233")], "10.0")
         self.assertEqual(row[header.index("h1_h3h3_width")], "0.001")

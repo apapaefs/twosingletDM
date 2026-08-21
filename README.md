@@ -144,8 +144,15 @@ including below the 20 GeV lower edge of the SM Higgs tables. Whenever
 `2*M3 < M1` or `2*M3 < M2`, the generator includes the corresponding
 `h1/h2 -> h3 h3` invisible width in the physical total width supplied to
 HiggsTools and registers it as `HP.Decay.directInv`. The visible branching
-fractions passed to HiggsTools remain the pre-invisible/base values so that
-HiggsTools rescales them exactly once.
+fraction arrays remain the pre-invisible/base inputs; the HiggsTools adapter
+combines them with the true exotic partial widths before setting the physical
+branching fractions.
+
+HiggsTools internally treats positive total widths below `1e-10 GeV` as zero
+and otherwise rejects branching-ratio input for those points. Such widths are
+therefore floored to `1e-10 GeV` only in the HiggsTools particle record. The
+physical `w1`/`w2` values written to scan output and MadGraph parameter cards
+retain their unfloored values.
 
 When `2*M2 < M1`, the generator likewise includes the previously omitted
 `H1 -> H2 H2` partial width in the physical `H1` width and registers that
