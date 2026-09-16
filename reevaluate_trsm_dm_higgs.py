@@ -152,13 +152,26 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
             f"row {row_number} result is missing columns: {', '.join(missing)}"
         )
 
+    # micrOMEGAs can return a non-finite relic density for an otherwise valid
+    # scan point.  The original scan records that as DM-failed with all DM
+    # details unavailable; keep the same semantics while updating HiggsTools.
+    dm_unavailable = all(updates[column] is None for column in DM_COLUMNS)
+    if dm_unavailable and updates["dm"] is not False:
+        raise ReEvaluationError(
+            f"row {row_number} has unavailable DM details but is marked DM-passing"
+        )
+
     for column in BOOLEAN_RESULT_COLUMNS:
+        if dm_unavailable and column in DM_COLUMNS:
+            continue
         if type(updates[column]) is not bool:
             raise ReEvaluationError(
                 f"row {row_number} result {column!r} is not boolean"
             )
 
     for column in FINITE_RESULT_COLUMNS:
+        if dm_unavailable and column in DM_COLUMNS:
+            continue
         try:
             finite = math.isfinite(float(updates[column]))
         except (TypeError, ValueError):
@@ -193,64 +206,65 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
             raise ReEvaluationError(
                 f"row {row_number} result {br_column!r} is inconsistent with its widths"
             )
-    if float(updates["dm_mdm"]) <= 0.0:
-        raise ReEvaluationError(f"row {row_number} dark-matter mass is not positive")
-    if float(updates["dm_omega"]) < 0.0 or float(updates["dm_dir_det"]) < 0.0:
-        raise ReEvaluationError(f"row {row_number} has a negative core DM result")
-    if float(updates["dm_relic_upper_limit"]) <= 0.0:
-        raise ReEvaluationError(f"row {row_number} relic upper limit is not positive")
-    if float(updates["dm_dir_det_limit"]) <= 0.0:
-        raise ReEvaluationError(
-            f"row {row_number} direct-detection limit is not positive"
-        )
-
-    for column in ("dm_indirect_channels_seen", "dm_indirect_channels_used"):
-        value = updates[column]
-        try:
-            valid_integer = (
-                not isinstance(value, bool)
-                and int(value) == value
-                and int(value) >= 0
-            )
-        except (TypeError, ValueError, OverflowError):
-            valid_integer = False
-        if not valid_integer:
+    if not dm_unavailable:
+        if float(updates["dm_mdm"]) <= 0.0:
+            raise ReEvaluationError(f"row {row_number} dark-matter mass is not positive")
+        if float(updates["dm_omega"]) < 0.0 or float(updates["dm_dir_det"]) < 0.0:
+            raise ReEvaluationError(f"row {row_number} has a negative core DM result")
+        if float(updates["dm_relic_upper_limit"]) <= 0.0:
+            raise ReEvaluationError(f"row {row_number} relic upper limit is not positive")
+        if float(updates["dm_dir_det_limit"]) <= 0.0:
             raise ReEvaluationError(
-                f"row {row_number} result {column!r} is not a non-negative integer"
+                f"row {row_number} direct-detection limit is not positive"
             )
-    if int(updates["dm_indirect_channels_used"]) > int(
-        updates["dm_indirect_channels_seen"]
-    ):
-        raise ReEvaluationError(
-            f"row {row_number} uses more indirect channels than were seen"
-        )
 
-    if updates["dm_indirect_available"]:
-        for column in ("dm_indirect_energy", "dm_indirect_flux", "dm_indirect_limit"):
+        for column in ("dm_indirect_channels_seen", "dm_indirect_channels_used"):
+            value = updates[column]
             try:
-                finite = math.isfinite(float(updates[column]))
-            except (TypeError, ValueError):
-                finite = False
-            if not finite:
-                raise ReEvaluationError(
-                    f"row {row_number} available indirect result {column!r} is not finite"
+                valid_integer = (
+                    not isinstance(value, bool)
+                    and int(value) == value
+                    and int(value) >= 0
                 )
-    elif updates["dm_indirect_detection_excluded"]:
-        raise ReEvaluationError(
-            f"row {row_number} marks unavailable indirect data as excluded"
-        )
+            except (TypeError, ValueError, OverflowError):
+                valid_integer = False
+            if not valid_integer:
+                raise ReEvaluationError(
+                    f"row {row_number} result {column!r} is not a non-negative integer"
+                )
+        if int(updates["dm_indirect_channels_used"]) > int(
+            updates["dm_indirect_channels_seen"]
+        ):
+            raise ReEvaluationError(
+                f"row {row_number} uses more indirect channels than were seen"
+            )
 
-    component_pass = not (
-        updates["dm_relic_excluded"]
-        or updates["dm_direct_detection_excluded"]
-        or updates["dm_indirect_detection_excluded"]
-    )
-    if updates["dm"] != component_pass:
-        raise ReEvaluationError(
-            f"row {row_number} aggregate DM result disagrees with its components"
+        if updates["dm_indirect_available"]:
+            for column in ("dm_indirect_energy", "dm_indirect_flux", "dm_indirect_limit"):
+                try:
+                    finite = math.isfinite(float(updates[column]))
+                except (TypeError, ValueError):
+                    finite = False
+                if not finite:
+                    raise ReEvaluationError(
+                        f"row {row_number} available indirect result {column!r} is not finite"
+                    )
+        elif updates["dm_indirect_detection_excluded"]:
+            raise ReEvaluationError(
+                f"row {row_number} marks unavailable indirect data as excluded"
+            )
+
+        component_pass = not (
+            updates["dm_relic_excluded"]
+            or updates["dm_direct_detection_excluded"]
+            or updates["dm_indirect_detection_excluded"]
         )
-    if not isinstance(updates["dm_limit_model"], str) or not updates["dm_limit_model"]:
-        raise ReEvaluationError(f"row {row_number} has no DM limit-model provenance")
+        if updates["dm"] != component_pass:
+            raise ReEvaluationError(
+                f"row {row_number} aggregate DM result disagrees with its components"
+            )
+        if not isinstance(updates["dm_limit_model"], str) or not updates["dm_limit_model"]:
+            raise ReEvaluationError(f"row {row_number} has no DM limit-model provenance")
 
     for column in ("portal_convention", "micromegas_model_convention"):
         if updates[column] != EXPECTED_CONVENTION_ID:
@@ -438,6 +452,8 @@ class CoreEvaluator:
             raise ReEvaluationError(
                 f"input row {row_number} produced unusable DM results: {dm_info}"
             )
+        if dm_values and all(value is None for value in dm_values.values()):
+            print(f"Input row {row_number}: {dm_info}", flush=True)
 
         updates: dict[str, object] = {
             "K133": k133,
