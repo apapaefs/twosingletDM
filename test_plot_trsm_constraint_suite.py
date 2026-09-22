@@ -532,6 +532,28 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             ][0]
         )
 
+    def test_cmb_failures_and_legacy_unassessed_summary(self):
+        from trsm_cmb import CMB_COLUMNS, CMBSignal, assess_cmb_limit, cmb_diagnostics
+        records = []
+        for signal in (CMBSignal(True, 8, "ok", ""), CMBSignal(), CMBSignal(True, 0, "ok", "")):
+            row = list(ROWS[1])
+            result = assess_cmb_limit(signal, .05)
+            row[HEADER.index("dm")] = result.passed
+            records.append(row + ["nan" if value is None else value for value in cmb_diagnostics(result).values()])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cmb.tsv"
+            write_fixture(path, header=HEADER + list(CMB_COLUMNS), rows=records)
+            data = self.plotter.load_scan(path)
+            legacy = self.load_fixture(tmp)
+        self.assertEqual(data.derived["dm_failure"].tolist(), ["CMB only", "CMB unavailable", "pass"])
+        summary = {row.metric: row for row in self.plotter.build_summary(data, [])}
+        self.assertEqual(summary["dm_component_mismatch"].count, 0)
+        self.assertEqual(summary["cmb_excluded"].count, 1)
+        self.assertEqual(summary["cmb_unavailable"].count, 1)
+        self.assertEqual(summary["cmb_unassessed"].count, 0)
+        legacy_summary = {row.metric: row for row in self.plotter.build_summary(legacy, [])}
+        self.assertEqual(legacy_summary["cmb_unassessed"].count, len(legacy))
+
     def test_dm_failure_and_indirect_categories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data = self.load_fixture(tmpdir)

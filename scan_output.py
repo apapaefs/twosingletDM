@@ -1,4 +1,5 @@
 from pathlib import Path
+from trsm_cmb import CMB_COLUMNS
 
 
 POINT_COLUMNS = [
@@ -107,27 +108,30 @@ def format_output_value(value):
     return str(value)
 
 
-def output_columns(mg5xsecs):
+def output_columns(mg5xsecs, *, planck_cmb=False):
     if mg5xsecs is None:
         mg5xsecs = {}
-    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs)
+    cmb_columns = list(CMB_COLUMNS) if planck_cmb else []
+    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs) + cmb_columns
 
 
-def output_row(point_info, mg5xsecs=None):
+def output_row(point_info, mg5xsecs=None, *, planck_cmb=False):
     if mg5xsecs is None:
         mg5xsecs = {}
 
     values = [point_info.get(column) for column in POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS]
     values.extend(mg5xsecs[process] for process in mg5xsecs.keys())
+    if planck_cmb:
+        values.extend(point_info.get(column) for column in CMB_COLUMNS)
     return "\t".join(format_output_value(value) for value in values)
 
 
-def write_valid_point(outfile, point_info, mg5xsecs=None):
+def write_valid_point(outfile, point_info, mg5xsecs=None, *, planck_cmb=False):
     outfile = Path(outfile)
     outfile.parent.mkdir(parents=True, exist_ok=True)
     write_header = not outfile.exists() or outfile.stat().st_size == 0
 
     with outfile.open("a", encoding="ascii") as filestream:
         if write_header:
-            filestream.write("\t".join(output_columns(mg5xsecs)) + "\n")
-        filestream.write(output_row(point_info, mg5xsecs) + "\n")
+            filestream.write("\t".join(output_columns(mg5xsecs, planck_cmb=planck_cmb)) + "\n")
+        filestream.write(output_row(point_info, mg5xsecs, planck_cmb=planck_cmb) + "\n")

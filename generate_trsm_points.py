@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from trsm_direct_detection import direct_detection_configuration, load_si_limit_table
+from trsm_cmb import add_cmb_arguments, cmb_configuration, require_cmb_capability
 
 from trsm_micromegas import (
     DEFAULT_MICROMEGAS_VERSION,
@@ -161,6 +162,9 @@ def _hydrate_resume_args(parser, args, argv):
     args.resume_from = scan_path
     args.resume_metadata = metadata
     args.resume_metadata_path = metadata_path
+    # Old version 7 campaigns predate the CMB cut and retain their original physics.
+    if "planck_cmb" not in saved_options:
+        args.planck_cmb = False
     return args
 
 
@@ -177,6 +181,7 @@ def parse_args(argv=None):
             "random scan and evaluates that one point."
         )
     )
+    add_cmb_arguments(parser)
     parser.add_argument(
         "seed",
         nargs="?",
@@ -560,6 +565,8 @@ def parse_args(argv=None):
     parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
     args = parser.parse_args(raw_argv)
     args = _hydrate_resume_args(parser, args, raw_argv)
+    if args.planck_cmb is None:
+        args.planck_cmb = args.micromegas_version == "7.1.4"
     if args.micromegas_main is not None:
         args.micromegas_main = args.micromegas_main.expanduser().resolve()
     args._dm_limit_table = None
@@ -675,6 +682,8 @@ if cli_args.micromegas_version != DEFAULT_MICROMEGAS_VERSION:
     RunTag += '-mo' + cli_args.micromegas_version
 if cli_args.micromegas_main is not None:
     RunTag += '-customMO'
+if cli_args.planck_cmb:
+    RunTag += '-cmb-planck2018'
 if cli_args._dm_limit_table is not None:
     RunTag += f'-dd-{cli_args._dm_limit_table.label}-{cli_args._dm_limit_table.sha256[:12]}'
 
@@ -976,11 +985,13 @@ def add_mg5_signal_rates(point_info, mg5xsecs):
 # write the full accepted point record
 def write_valid_point(runtag, point_info, MG5xsecs=None):
     outfile = output_path(runtag)
-    write_valid_point_file(outfile, point_info, MG5xsecs)
+    options = {"planck_cmb": True} if getattr(cli_args, "planck_cmb", False) else {}
+    write_valid_point_file(outfile, point_info, MG5xsecs, **options)
 
 def write_dm_failed_point(runtag, point_info):
     outfile = dm_failed_output_path(runtag)
-    write_valid_point_file(outfile, point_info)
+    options = {"planck_cmb": True} if getattr(cli_args, "planck_cmb", False) else {}
+    write_valid_point_file(outfile, point_info, **options)
 
 def output_path(runtag, suffix=""):
     return OutputDir + 'trsm_points_' + runtag + suffix + '.dat'
@@ -1600,6 +1611,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         lX, lPhiX, lSX, M3, vs, a12, M2,
         micromegas_main=Path(micromegas_configuration(cli_args)["executable"]),
         limit_table=getattr(cli_args, "_dm_limit_table", None),
+        planck_cmb=getattr(cli_args, "planck_cmb", False),
     )
     if debug is True or report is True or print_info_enabled is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
@@ -2439,6 +2451,7 @@ def build_scan_metadata(
         "micromegas_model_convention": PORTAL_CONVENTION_ID,
         "micromegas": micromegas_configuration(args),
         "direct_detection": direct_detection_configuration(args),
+        "planck_cmb": cmb_configuration(args),
         "variable_ranges": variable_ranges,
         "fixed_parameters": fixed_parameters,
         "command_line": list(command_line or ORIGINAL_COMMAND_LINE),
@@ -2446,7 +2459,7 @@ def build_scan_metadata(
             {
                 key: value
                 for key, value in vars(args).items()
-                if key not in {"resume_metadata", "resume_metadata_path", "_dm_limit_table"}
+                if key not in {"resume_metadata", "resume_metadata_path", "_dm_limit_table", "_cmb_driver"}
             }
         ),
     }
@@ -2482,7 +2495,7 @@ def _resolved_path_value(value):
 def immutable_scan_configuration(args):
     mass_mode, _mass_description, mass_ranges = _mass_sampling_metadata(args)
     portal_mode, _portal_description, portal_ranges = _portal_sampling_metadata(args)
-    excluded = RESUME_RUNTIME_DESTS | {"resume_metadata", "resume_metadata_path", "_dm_limit_table"}
+    excluded = RESUME_RUNTIME_DESTS | {"resume_metadata", "resume_metadata_path", "_dm_limit_table", "_cmb_driver"}
     immutable_options = {}
     for key, value in sorted(vars(args).items()):
         if key in excluded:
@@ -2495,12 +2508,16 @@ def immutable_scan_configuration(args):
             continue
         if key == "dm_limit_table" and value is None:
             continue
+        if key == "planck_cmb" and not value:
+            continue
         if key in RESUME_PATH_OPTIONS:
             value = _resolved_path_value(value)
         immutable_options[key] = _json_safe(value)
     table = getattr(args, "_dm_limit_table", None)
     if table is not None:
         immutable_options["dm_limit_table_sha256"] = table.sha256
+    if getattr(args, "planck_cmb", False):
+        immutable_options["planck_cmb_configuration"] = cmb_configuration(args)
     mg5_template = (
         {process: None for process in MG5ProcessesToRun}
         if RunMG5
@@ -2535,7 +2552,7 @@ def immutable_scan_configuration(args):
             "portal_convention": PORTAL_CONVENTION_ID,
             "micromegas_model_convention": PORTAL_CONVENTION_ID,
         },
-        "output_columns": scan_output_columns(mg5_template),
+        "output_columns": scan_output_columns(mg5_template, planck_cmb=getattr(args, "planck_cmb", False)),
         "options": immutable_options,
     }
 
@@ -3173,6 +3190,17 @@ def main():
             f"{executable}. Install this version or supply --micromegas-main."
         )
     print(f"Using micrOMEGAs {backend['version']}: {executable}")
+    if cli_args.planck_cmb:
+        try:
+            cli_args._cmb_driver = require_cmb_capability(executable)
+        except (OSError, ValueError) as error:
+            raise CampaignStateError(str(error)) from error
+    cmb_config = cmb_configuration(cli_args)
+    if cli_args.resume_from is not None:
+        saved_cmb = cli_args.resume_metadata.get("planck_cmb", {"enabled": False})
+        if saved_cmb != cmb_config:
+            raise CampaignStateError("Planck CMB settings differ from the saved campaign")
+    print(f"Planck CMB constraint: {'enabled' if cli_args.planck_cmb else 'disabled'}")
     if cli_args.resume_from is not None:
         if has_explicit_point(cli_args):
             raise CampaignStateError("Explicit-point evaluations cannot be resumed")

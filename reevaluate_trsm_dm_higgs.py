@@ -19,6 +19,11 @@ import sqlite3
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from trsm_cmb import CMB_COLUMNS, add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, load_si_limit_table
+from trsm_micromegas import DEFAULT_MICROMEGAS_VERSION, MICROMEGAS_VERSIONS, micromegas_configuration, normalize_micromegas_version
+from trsm_scan_campaign import atomic_write_json
+
 
 EXPECTED_CONVENTION_ID = "trsm_vxzero_canonical_v1"
 M1_GEV = 125.09
@@ -152,10 +157,45 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
             f"row {row_number} result is missing columns: {', '.join(missing)}"
         )
 
+    cmb_pass = True
+    if any(name in updates for name in CMB_COLUMNS):
+        if any(name not in updates for name in CMB_COLUMNS):
+            raise ReEvaluationError(f"row {row_number} has incomplete CMB diagnostics")
+        enabled, available = updates["dm_cmb_enabled"], updates["dm_cmb_available"]
+        if type(enabled) is not bool or type(available) is not bool:
+            raise ReEvaluationError(f"row {row_number} has invalid CMB status flags")
+        if available:
+            if not enabled or updates["dm_cmb_status"] != "ok":
+                raise ReEvaluationError(f"row {row_number} has inconsistent CMB status")
+            for name in ("dm_cmb_ratio_raw", "dm_cmb_abundance_fraction", "dm_cmb_ratio"):
+                value = updates[name]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                    raise ReEvaluationError(f"row {row_number} has invalid {name}")
+            fraction = updates["dm_cmb_abundance_fraction"]
+            ratio = updates["dm_cmb_ratio"]
+            if fraction > 1 or not math.isclose(ratio, updates["dm_cmb_ratio_raw"] * fraction**2, rel_tol=1e-12):
+                raise ReEvaluationError(f"row {row_number} has inconsistent CMB rescaling")
+            if type(updates["dm_cmb_excluded"]) is not bool or updates["dm_cmb_excluded"] != (ratio > 1):
+                raise ReEvaluationError(f"row {row_number} has inconsistent CMB exclusion")
+        else:
+            if any(updates[name] is not None for name in ("dm_cmb_excluded", "dm_cmb_ratio_raw", "dm_cmb_ratio")):
+                raise ReEvaluationError(f"row {row_number} retains unavailable CMB results")
+            if not enabled and any(updates[name] != value for name, value in cmb_diagnostics().items()):
+                raise ReEvaluationError(f"row {row_number} retains disabled CMB results")
+            if enabled and (updates["dm_cmb_status"] in ("ok", "disabled", "") or not updates["dm_cmb_reason"]):
+                raise ReEvaluationError(f"row {row_number} has no CMB failure reason")
+        cmb_pass = not enabled or (available and not updates["dm_cmb_excluded"])
+
     # micrOMEGAs can return a non-finite relic density for an otherwise valid
     # scan point.  The original scan records that as DM-failed with all DM
     # details unavailable; keep the same semantics while updating HiggsTools.
     dm_unavailable = all(updates[column] is None for column in DM_COLUMNS)
+    if updates.get("dm_cmb_available"):
+        if dm_unavailable:
+            raise ReEvaluationError(f"row {row_number} has CMB results without core DM data")
+        expected_fraction = min(1.0, float(updates["dm_omega"]) / 0.12) if updates["dm_rescale"] else 1.0
+        if not math.isclose(updates["dm_cmb_abundance_fraction"], expected_fraction, rel_tol=1e-12):
+            raise ReEvaluationError(f"row {row_number} has inconsistent CMB abundance fraction")
     if dm_unavailable and updates["dm"] is not False:
         raise ReEvaluationError(
             f"row {row_number} has unavailable DM details but is marked DM-passing"
@@ -172,6 +212,8 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
     for column in FINITE_RESULT_COLUMNS:
         if dm_unavailable and column in DM_COLUMNS:
             continue
+        if column == "dm_dir_det_limit" and updates["dm_rescale"] and updates["dm_omega"] == 0 and updates[column] == math.inf:
+            continue  # At zero abundance, the relic-rescaled cross-section bound is unbounded.
         try:
             finite = math.isfinite(float(updates[column]))
         except (TypeError, ValueError):
@@ -259,7 +301,7 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
             or updates["dm_direct_detection_excluded"]
             or updates["dm_indirect_detection_excluded"]
         )
-        if updates["dm"] != component_pass:
+        if updates["dm"] != (component_pass and cmb_pass):
             raise ReEvaluationError(
                 f"row {row_number} aggregate DM result disagrees with its components"
             )
@@ -276,7 +318,7 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
 class CoreEvaluator:
     """Adapter around the production TRSM, HiggsTools, and microOMEGAs APIs."""
 
-    def __init__(self, micromegas_main: Path | None = None):
+    def __init__(self, micromegas_main: Path | None = None, *, planck_cmb=False, limit_table=None, limit_model=DEFAULT_LIMIT_MODEL):
         import generate_trsm_info as info
         import test_trsm_DM as dm_provider
         import test_trsm_higgstools as higgs_provider
@@ -306,6 +348,11 @@ class CoreEvaluator:
         self.info = info
         self.dm_provider = dm_provider
         self.higgs = higgs_provider
+        self.planck_cmb = planck_cmb
+        self.limit_table = limit_table
+        self.limit_model = limit_model
+        if planck_cmb:
+            require_cmb_capability(self.micromegas_main)
 
     def __call__(self, row: Mapping[str, str], point_index: int) -> dict[str, object]:
         row_number = point_index + 1
@@ -447,6 +494,9 @@ class CoreEvaluator:
             mass2,
             point_index=point_index,
             micromegas_main=self.micromegas_main,
+            planck_cmb=self.planck_cmb,
+            limit_table=self.limit_table,
+            limit_model=self.limit_model,
         )
         if type(dm_passed) is not bool or not isinstance(dm_values, dict):
             raise ReEvaluationError(
@@ -486,6 +536,8 @@ class CoreEvaluator:
             "micromegas_model_convention": EXPECTED_CONVENTION_ID,
         }
         updates.update(dm_values)
+        if not self.planck_cmb:
+            updates.update(cmb_diagnostics())
         validate_updates(updates, row_number)
         return updates
 
@@ -543,9 +595,11 @@ def input_identity(path: Path, header: Sequence[str], row_count: int) -> dict[st
     }
 
 
-def output_header(input_header: Sequence[str]) -> list[str]:
+def output_header(input_header: Sequence[str], *, planck_cmb=False) -> list[str]:
     result = list(input_header)
     result.extend(name for name in UPDATED_COLUMNS if name not in result)
+    if planck_cmb or any(name in result for name in CMB_COLUMNS):
+        result.extend(name for name in CMB_COLUMNS if name not in result)
     return result
 
 
@@ -574,15 +628,26 @@ def checkpoint_path(output: Path) -> Path:
 
 
 def checkpoint_metadata(
-    identity: Mapping[str, object], header: Sequence[str], output: Path
+    identity: Mapping[str, object], header: Sequence[str], output: Path,
+    evaluation_configuration=None,
 ) -> dict[str, object]:
-    return {
+    metadata = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
         "convention": EXPECTED_CONVENTION_ID,
         "input_identity": dict(identity),
         "output_header": list(header),
         "output_path": str(output.resolve()),
     }
+    if evaluation_configuration is not None:
+        metadata["schema_version"] = 2
+        metadata["evaluation_configuration"] = evaluation_configuration
+    return metadata
+
+
+def read_checkpoint_metadata(path):
+    # Read-only: a misspelled checkpoint must never create an empty database.
+    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+        return {key: json.loads(value) for key, value in connection.execute("SELECT key, value FROM metadata")}
 
 
 def create_checkpoint(path: Path, metadata: Mapping[str, object]) -> sqlite3.Connection:
@@ -619,7 +684,7 @@ def open_checkpoint(
         }
         if stored != dict(expected_metadata):
             raise ReEvaluationError(
-                "checkpoint does not match the current input, output, or convention"
+                "checkpoint does not match the current input, output, convention, or evaluation configuration"
             )
         count, minimum, maximum = connection.execute(
             "SELECT COUNT(*), MIN(row_index), MAX(row_index) FROM rows"
@@ -669,6 +734,7 @@ def reevaluate(
     *,
     resume: bool = False,
     checkpoint_every: int = 25,
+    evaluation_configuration=None,
 ) -> Path:
     input_path = input_path.expanduser().resolve()
     output = output.expanduser().resolve()
@@ -683,15 +749,33 @@ def reevaluate(
 
     header, rows = read_input(input_path)
     identity = input_identity(input_path, header, len(rows))
-    final_header = output_header(header)
-    metadata = checkpoint_metadata(identity, final_header, output)
+    planck_cmb = bool((evaluation_configuration or {}).get("planck_cmb", {}).get("enabled", False))
+    final_header = output_header(header, planck_cmb=planck_cmb)
+    metadata = checkpoint_metadata(identity, final_header, output, evaluation_configuration)
+    provenance_path = output.with_suffix(".metadata.json")
+    if evaluation_configuration is not None and provenance_path.exists():
+        raise FileExistsError(f"refusing to overwrite existing metadata: {provenance_path}")
     output.parent.mkdir(parents=True, exist_ok=True)
     partial = checkpoint_path(output)
 
     if resume:
         if not partial.is_file():
             raise FileNotFoundError(f"checkpoint not found: {partial}")
-        connection, completed = open_checkpoint(partial, metadata)
+        stored = read_checkpoint_metadata(partial)
+        legacy_metadata = None
+        if evaluation_configuration is not None and "evaluation_configuration" not in stored:
+            # Pre-CMB checkpoints used the default SI fit and did not save a backend identity.
+            if planck_cmb or evaluation_configuration["direct_detection"]["model"] != DEFAULT_LIMIT_MODEL:
+                raise ReEvaluationError("Legacy checkpoint requires CMB disabled and the original default SI fit")
+            legacy_metadata = checkpoint_metadata(identity, final_header, output)
+        connection, completed = open_checkpoint(partial, legacy_metadata or metadata)
+        if legacy_metadata is not None:
+            # Freeze the configuration on adoption so subsequent resumes can check it.
+            with connection:
+                connection.executemany(
+                    "INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)",
+                    [(key, compact_json(value)) for key, value in metadata.items()],
+                )
     else:
         if partial.exists():
             raise FileExistsError(
@@ -715,6 +799,11 @@ def reevaluate(
                 for index in range(batch_start, batch_stop):
                     current_index = index
                     updates = dict(evaluator(rows[index], index + 1))
+                    if any(name in final_header for name in CMB_COLUMNS):
+                        if planck_cmb and (any(name not in updates for name in CMB_COLUMNS) or updates["dm_cmb_enabled"] is not True):
+                            raise ReEvaluationError("CMB-enabled evaluator returned no complete, enabled CMB diagnostics")
+                        if not planck_cmb:
+                            updates.update(cmb_diagnostics())
                     validate_updates(updates, index + 2)
                     payload = merged_payload(rows[index], updates, final_header)
                     connection.execute(
@@ -734,6 +823,13 @@ def reevaluate(
         if input_identity(input_path, header, len(rows)) != identity:
             raise ReEvaluationError("input changed while re-evaluation was running")
         export_completed_output(connection, output, final_header, len(rows))
+        if evaluation_configuration is not None:
+            atomic_write_json(provenance_path, {
+                "schema": "trsm_reevaluation_metadata_v1",
+                "input_identity": identity, "scan_file": output.name,
+                "evaluation_configuration": evaluation_configuration,
+                **evaluation_configuration,
+            })
     finally:
         connection.close()
 
@@ -749,6 +845,13 @@ def parse_args(argv: Sequence[str] | None = None):
             "results in an existing vx=0 TRSM scan."
         )
     )
+    add_cmb_arguments(parser)
+    parser.add_argument("--micromegas-version", type=normalize_micromegas_version,
+                        choices=MICROMEGAS_VERSIONS, default=DEFAULT_MICROMEGAS_VERSION)
+    limits = parser.add_mutually_exclusive_group()
+    limits.add_argument("--dm-limit-table", type=Path, help="Override the SI table; otherwise recover the input's direct-detection treatment")
+    limits.add_argument("--dm-limit-model", choices=(DEFAULT_LIMIT_MODEL, "legacy-output"),
+                        help="Explicitly select an analytic SI fit instead of input provenance")
     parser.add_argument("input", type=Path, help="Existing TRSM scan TSV")
     parser.add_argument("--output", type=Path, required=True, help="New versioned TSV")
     parser.add_argument(
@@ -774,19 +877,78 @@ def parse_args(argv: Sequence[str] | None = None):
     return args
 
 
+def resolve_evaluation_configuration(args):
+    """Freeze backend, CMB settings and the input's SI treatment before any output."""
+    if args.planck_cmb is None:
+        partial = checkpoint_path(args.output.expanduser().resolve())
+        if args.resume and partial.is_file():
+            saved = read_checkpoint_metadata(partial)
+            args.planck_cmb = saved.get("evaluation_configuration", {}).get("planck_cmb", {}).get("enabled", False)
+        else:
+            args.planck_cmb = args.micromegas_version == "7.1.4"
+    backend = micromegas_configuration(args)
+    if args.planck_cmb:
+        args._cmb_driver = require_cmb_capability(backend["executable"])
+    path = args.input.expanduser().resolve()
+    _header, rows = read_input(path)
+    sidecar = path.with_suffix(".metadata.json")
+    source_metadata = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
+    dd = source_metadata.get("direct_detection", {})
+    row_models = {row.get("dm_limit_model", "") for row in rows} - {"", "nan", "None"}
+    explicit = args.dm_limit_table is not None or args.dm_limit_model is not None
+    if not explicit and len(row_models) > 1:
+        raise ReEvaluationError("Input mixes SI treatments; choose --dm-limit-table or --dm-limit-model explicitly")
+    inferred = dd.get("model") or next(iter(row_models), DEFAULT_LIMIT_MODEL)
+    if not explicit and row_models and row_models != {inferred}:
+        raise ReEvaluationError("Input SI provenance disagrees with its rows; select the intended limit explicitly")
+    table_path = args.dm_limit_table
+    if not explicit and inferred.startswith("table:"):
+        table_path = dd.get("table_path")
+        if not table_path or not dd.get("sha256"):
+            raise ReEvaluationError("Input used a tabulated SI limit; supply --dm-limit-table to recover it")
+        table_path = Path(table_path)
+        if not table_path.is_absolute():
+            table_path = sidecar.parent / table_path
+    table = None
+    if table_path is not None:
+        try:
+            table = load_si_limit_table(table_path)
+        except (OSError, ValueError) as error:
+            raise ReEvaluationError(f"Cannot recover SI table; supply --dm-limit-table: {error}") from error
+        if not explicit and (table.sha256 != dd["sha256"] or table.model_id != inferred):
+            raise ReEvaluationError("Recovered SI table differs from the input provenance; select the replacement explicitly")
+        for index, row in enumerate(rows, 2):
+            table.upper_limit_pb(require_float(row, "M3", index))
+        dd_configuration = table.metadata()
+        model = DEFAULT_LIMIT_MODEL
+    else:
+        model = args.dm_limit_model or inferred
+        if model not in (DEFAULT_LIMIT_MODEL, "legacy-output"):
+            raise ReEvaluationError(f"Unknown SI treatment {model!r}; select the intended limit explicitly")
+        dd_configuration = {"model": model}
+    configuration = {"micromegas": backend, "direct_detection": dd_configuration,
+                     "planck_cmb": cmb_configuration(args)}
+    return configuration, table, model
+
+
 def run(
     argv: Sequence[str] | None = None,
     *,
     evaluator_factory: Callable[[Path | None], CoreEvaluator] = CoreEvaluator,
 ) -> Path:
     args = parse_args(argv)
-    evaluator = evaluator_factory(args.micromegas_main)
+    configuration, table, model = resolve_evaluation_configuration(args)
+    evaluator = evaluator_factory(
+        Path(configuration["micromegas"]["executable"]), planck_cmb=args.planck_cmb,
+        limit_table=table, limit_model=model,
+    )
     return reevaluate(
         args.input,
         args.output,
         evaluator,
         resume=args.resume,
         checkpoint_every=args.checkpoint_every,
+        evaluation_configuration=configuration,
     )
 
 

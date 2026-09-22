@@ -102,9 +102,22 @@ are recorded in the metadata sidecar. Version 7 run tags include `-mo7.1.4`,
 so comparisons using the same date and seed have separate output files.
 Custom executable paths add `-customMO`.
 
+New version 7 scans enable the Planck CMB annihilation constraint by default
+and add `-cmb-planck2018` to the filename. Use `--no-planck-cmb` to disable
+it. Version 6 remains the default backend, with CMB disabled; explicit
+`--planck-cmb` requires a rebuilt, capable driver. The constraint uses the
+built-in low-velocity s-wave approximation and rescales its bound ratio by
+`min(1, Omega_h2 / 0.12)^2`. The existing relic-density upper cut remains
+0.121. An unavailable CMB result prevents aggregate DM acceptance while
+retaining valid relic-density and detection diagnostics. See
+[the CMB treatment and validation](DM/planck-cmb.md).
+
 Resume with `--resume-from` alone: the saved backend is restored and cannot
 be changed during a campaign. Older metadata/checkpoints without a backend
 selection retain their implicit 6.1.15 backend and remain compatible.
+Campaigns without saved CMB settings resume with CMB disabled, including
+older version 7 campaigns. Their column layouts and fingerprints are preserved.
+CMB settings cannot change during resume.
 
 The default samples `M2` uniformly over
 `[m2_min, min(m2_max, m3_max - mhiggs)]`, then samples `M3` over
@@ -874,6 +887,31 @@ checks that the partial file belongs to the same input before continuing.
 Existing theory, EWPO, W-mass, EWPT, MG5, and unknown columns are preserved.
 The output path must differ from the input and an existing completed output is
 not overwritten.
+
+For a full reevaluation with version 7 and its default CMB constraint:
+
+```bash
+trsmdm/bin/python reevaluate_trsm_dm_higgs.py \
+  output/trsm_points_OLD.dat \
+  --output output/trsm_points_OLD_mo7_cmb.dat \
+  --micromegas-version 7 --checkpoint-every 25
+```
+
+The same `--planck-cmb` / `--no-planck-cmb` controls apply. Reevaluation
+recovers the input's direct-detection treatment from its row provenance and
+metadata. A tabulated limit must have a recoverable, matching source file;
+otherwise supply `--dm-limit-table /path/to/limits.json` explicitly. This
+also preserves the temporary LZ 2026 approximation when it was selected.
+An intentional change of SI treatment can use `--dm-limit-table` or
+`--dm-limit-model lz2025-source` / `--dm-limit-model legacy-output`.
+
+Repeat the evaluation options when resuming. The checkpoint verifies the
+backend, SI-table hash and CMB treatment; the completed file has a metadata
+sidecar recording them. Legacy reevaluation checkpoints resume with CMB
+disabled and the original default SI fit, then record the selected backend
+for subsequent resumes. CMB fields in an input are always recomputed or
+cleared and marked disabled. Older files are shown as CMB-unassessed by the
+constraint plotting suite. No existing scan is reevaluated automatically.
 
 After completion, regenerate the constraint suite from the versioned file:
 

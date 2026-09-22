@@ -29,7 +29,7 @@ class TestMicromegasSelection(unittest.TestCase):
     def test_version_separates_run_tags_and_metadata(self):
         old = load_generator_module(["123", "--micromegas-version", "6"])
         new = load_generator_module(["123", "--micromegas-version", "7"])
-        self.assertEqual(new.RunTag, old.RunTag + "-mo7.1.4")
+        self.assertEqual(new.RunTag, old.RunTag + "-mo7.1.4-cmb-planck2018")
         metadata = new.build_scan_metadata(new.cli_args, new.RunTag, Path("scan.dat"))
         self.assertEqual(metadata["micromegas"]["version"], "7.1.4")
         self.assertEqual(metadata["micromegas"]["executable"], str(default_micromegas_main("7")))

@@ -9,6 +9,10 @@ from pathlib import Path
 
 from trsm_micromegas import default_micromegas_main
 from trsm_direct_detection import DEFAULT_LIMIT_MODEL, SILimitTable, load_si_limit_table
+from trsm_cmb import (
+    CMBSignal, CMBLimitResult, assess_cmb_limit, cmb_diagnostics,
+    parse_cmb_signal, require_cmb_capability,
+)
 
 
 __test__ = False
@@ -169,6 +173,7 @@ class MicromegasResult:
     omega: float
     dir_det: float
     indirect_line_channels: tuple[IndirectLineChannel, ...] = ()
+    cmb_signal: CMBSignal = CMBSignal()
 
 
 @dataclass(frozen=True)
@@ -192,6 +197,7 @@ class DMSummary:
     indirect_limit: IndirectLimitResult
     relic_excluded: bool
     direct_detection_excluded: bool
+    cmb_limit: CMBLimitResult | None = None
 
     @property
     def passed(self):
@@ -199,6 +205,7 @@ class DMSummary:
             self.relic_excluded
             or self.direct_detection_excluded
             or self.indirect_limit.excluded
+            or (self.cmb_limit is not None and not self.cmb_limit.passed)
         )
 
 
@@ -373,6 +380,7 @@ def parse_micromegas_output(text):
         omega=omega,
         dir_det=neutron_cross_section,
         indirect_line_channels=parse_indirect_line_channels(text),
+        cmb_signal=parse_cmb_signal(text),
     )
 
 
@@ -488,6 +496,7 @@ def summarize_dm_result(
     limit_model=DEFAULT_LIMIT_MODEL,
     rescale=True,
     limit_table=None,
+    planck_cmb=False,
 ):
     if not math.isfinite(result.mdm) or result.mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
@@ -522,12 +531,17 @@ def summarize_dm_result(
         indirect_limit=indirect_limit,
         relic_excluded=result.omega > relic_upper_limit,
         direct_detection_excluded=result.dir_det > dir_det_limit,
+        cmb_limit=assess_cmb_limit(result.cmb_signal, result.omega, rescale) if planck_cmb else None,
     )
 
 
-def run_micromegas(card_path, micromegas_main):
+def run_micromegas(card_path, micromegas_main, planck_cmb=False):
+    command = [str(micromegas_main), str(card_path)]
+    if planck_cmb:
+        require_cmb_capability(micromegas_main)
+        command.append("--planck-cmb")
     completed = subprocess.run(
-        [str(micromegas_main), str(card_path)],
+        command,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -544,6 +558,17 @@ def dm_info_string(summary):
         reasons.append("DirDet above rescaled direct-detection limit")
     if summary.indirect_limit.excluded:
         reasons.append("Fermi-LAT gamma-line flux above limit")
+    cmb_info = ""
+    if summary.cmb_limit is not None:
+        cmb = summary.cmb_limit
+        if not cmb.signal.available:
+            reasons.append("Planck CMB unavailable: " + cmb.signal.reason)
+        elif cmb.excluded:
+            reasons.append("Planck CMB energy injection above limit")
+        cmb_info = (
+            f"  CMBStatus={cmb.signal.status} CMBRatioRaw={format_value(cmb.signal.ratio_raw)} "
+            f"CMBFraction={format_value(cmb.fraction)} CMBRatio={format_value(cmb.ratio)}\n"
+        )
     if not reasons:
         reasons.append("all DM checks passed")
 
@@ -566,12 +591,13 @@ def dm_info_string(summary):
         f"IndirFlux={format_value(summary.indirect_limit.flux_cm2_s)} "
         f"IndirLimit={format_value(summary.indirect_limit.limit_cm2_s)} "
         f"IndirRatio={format_value(summary.indirect_limit.max_ratio)}\n"
+        f"{cmb_info}"
         f"  Reason: {', '.join(reasons)}"
     )
 
 
 def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
-    return {
+    diagnostics = {
         "dm_mdm": summary.result.mdm,
         "dm_omega": summary.result.omega,
         "dm_relic_upper_limit": relic_upper_limit,
@@ -591,6 +617,9 @@ def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
         "dm_limit_model": limit_model,
         "dm_rescale": rescale,
     }
+    if summary.cmb_limit is not None:
+        diagnostics.update(cmb_diagnostics(summary.cmb_limit))
+    return diagnostics
 
 
 def empty_dm_exclusion_info():
@@ -650,11 +679,12 @@ def test_dm(
     limit_model=DEFAULT_LIMIT_MODEL,
     rescale=True,
     limit_table=None,
+    planck_cmb=False,
 ):
     """Run one vx=0 TRSM dark-matter point through micrOMEGAs.
 
     Returns `(passed, info, exclusion_info)`, where `passed` is true only if the
-    relic-density, direct-detection, and indirect-detection checks pass. `info`
+    relic-density, direct-detection, indirect-detection, and enabled CMB checks pass. `info`
     is suitable for printing in debug mode, and `exclusion_info` contains the
     numerical values used in the DM exclusion. ``limit_table`` accepts a
     validated SILimitTable or a path to its normalized JSON source.
@@ -681,14 +711,14 @@ def test_dm(
                 with tempfile.TemporaryDirectory(prefix="trsm_dm_") as tmpdir:
                     card_path = Path(tmpdir) / f"MO_inp{point_index}.dat"
                     write_micromegas_card(point, card_path)
-                    raw_output = run_micromegas(card_path, main_path)
+                    raw_output = run_micromegas(card_path, main_path, planck_cmb=planck_cmb)
             else:
                 out_path = Path(output_dir)
                 out_path.mkdir(parents=True, exist_ok=True)
                 card_path = out_path / f"MO_inp{point_index}.dat"
                 raw_path = out_path / f"OUT_mO_{point_index}"
                 write_micromegas_card(point, card_path)
-                raw_output = run_micromegas(card_path, main_path)
+                raw_output = run_micromegas(card_path, main_path, planck_cmb=planck_cmb)
                 raw_path.write_text(raw_output, encoding="ascii")
 
         result = parse_micromegas_output(raw_output)
@@ -699,6 +729,7 @@ def test_dm(
             limit_model=limit_model,
             rescale=rescale,
             limit_table=limit_table,
+            planck_cmb=planck_cmb,
         )
         return (
             summary.passed,
@@ -711,7 +742,10 @@ def test_dm(
         )
 
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        return False, f"DM check: Error\n  Reason: {exc}", empty_dm_exclusion_info()
+        diagnostics = empty_dm_exclusion_info()
+        if planck_cmb:
+            diagnostics.update(cmb_diagnostics(enabled=True, reason=str(exc)))
+        return False, f"DM check: Error\n  Reason: {exc}", diagnostics
 
 
 if __name__ == "__main__":

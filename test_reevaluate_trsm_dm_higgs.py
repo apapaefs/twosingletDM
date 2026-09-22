@@ -1,10 +1,13 @@
 import csv
 import importlib.util
 import math
+import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from trsm_cmb import CMB_COLUMNS, CMBSignal, assess_cmb_limit, cmb_diagnostics
+from trsm_direct_detection import load_si_limit_table
 
 
 SCRIPT_PATH = Path(__file__).resolve().parent / "reevaluate_trsm_dm_higgs.py"
@@ -122,6 +125,144 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.module = load_module()
+
+    def test_cmb_rescaling_and_unavailable_aggregate_validation(self):
+        updates = valid_updates(self.module, 1)
+        updates.update(dm_omega=.06, dm_relic_excluded=False,
+                       dm_direct_detection_excluded=False)
+        updates.update(cmb_diagnostics(assess_cmb_limit(CMBSignal(True, 8, "ok", ""), .06)))
+        self.module.validate_updates(updates, 2)
+        updates["dm"] = True
+        with self.assertRaisesRegex(self.module.ReEvaluationError, "aggregate DM"):
+            self.module.validate_updates(updates, 2)
+        updates["dm"] = False
+        updates.update(cmb_diagnostics(assess_cmb_limit(CMBSignal(), .06)))
+        self.module.validate_updates(updates, 2)
+        updates.update(dm_omega=0, dm_dir_det_limit=math.inf, dm=True)
+        updates.update(cmb_diagnostics(assess_cmb_limit(CMBSignal(True, 8, "ok", ""), 0)))
+        self.module.validate_updates(updates, 2)
+        updates["dm_cmb_abundance_fraction"] = .5
+        with self.assertRaises(self.module.ReEvaluationError):
+            self.module.validate_updates(updates, 2)
+
+    def test_disabled_reevaluation_clears_old_cmb_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
+            write_input(source, count=1)
+            with source.open() as stream:
+                rows = list(csv.reader(stream, delimiter="\t"))
+            stale = cmb_diagnostics(assess_cmb_limit(CMBSignal(True, 100, "ok", ""), .12))
+            with source.open("w") as stream:
+                writer = csv.writer(stream, delimiter="\t")
+                writer.writerow(rows[0] + list(CMB_COLUMNS))
+                writer.writerow(rows[1] + list(stale.values()))
+            original = source.read_bytes()
+            self.module.reevaluate(source, output, RecordingEvaluator(self.module))
+            self.assertEqual(source.read_bytes(), original)
+            with output.open() as stream:
+                row = next(csv.DictReader(stream, delimiter="\t"))
+            self.assertEqual(row["dm_cmb_status"], "disabled")
+            self.assertEqual(row["dm_cmb_enabled"], "False")
+            self.assertNotEqual(row["dm_cmb_ratio_raw"], "100")
+
+    def test_new_checkpoint_rejects_changed_physics_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
+            write_input(source, count=2)
+            config = {"micromegas": {"version": "7.1.4", "executable": "/test/main"},
+                      "direct_detection": {"model": "lz2025-source"},
+                      "planck_cmb": {"enabled": True, "method": "test"}}
+            def evaluator(row, index):
+                if index == 2:
+                    raise RuntimeError("stop for resume")
+                updates = valid_updates(self.module, index)
+                updates.update(cmb_diagnostics(assess_cmb_limit(CMBSignal(True, 0, "ok", ""), .2)))
+                return updates
+            with self.assertRaisesRegex(self.module.ReEvaluationError, "stop for resume"):
+                self.module.reevaluate(source, output, evaluator, checkpoint_every=1, evaluation_configuration=config)
+            for key, change in (("planck_cmb", {"enabled": False}),
+                                ("direct_detection", {"model": "legacy-output"}),
+                                ("micromegas", {"version": "6.1.15", "executable": "/test/main"})):
+                with self.assertRaises(self.module.ReEvaluationError):
+                    self.module.reevaluate(source, output, evaluator, resume=True,
+                                           evaluation_configuration={**config, key: change})
+            def resumed(row, index):
+                self.assertEqual(index, 2)
+                updates = valid_updates(self.module, index)
+                updates.update(cmb_diagnostics(assess_cmb_limit(CMBSignal(True, 0, "ok", ""), .2)))
+                return updates
+            self.module.reevaluate(source, output, resumed, resume=True, evaluation_configuration=config)
+            self.assertEqual(json.loads(output.with_suffix(".metadata.json").read_text())["evaluation_configuration"], config)
+
+    def test_recovers_si_table_and_requires_explicit_replacement_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
+            write_input(source, count=1)
+            table_path = Path(tmp) / "limits.json"
+            reference = Path(__file__).parent / "DM/data/lz2026/lz2026-figs7-highmass-approx.json"
+            table_path.write_bytes(reference.read_bytes())
+            table = load_si_limit_table(table_path)
+            source.write_text(source.read_text().replace("300\t50\t", "300\t500\t"))
+            sidecar = source.with_suffix(".metadata.json")
+            sidecar.write_text(json.dumps({"direct_detection": table.metadata()}))
+            args = self.module.parse_args([str(source), "--output", str(output)])
+            config, recovered, _ = self.module.resolve_evaluation_configuration(args)
+            self.assertEqual(recovered.sha256, table.sha256)
+            self.assertEqual(config["direct_detection"], table.metadata())
+            self.assertFalse(config["planck_cmb"]["enabled"])
+            table_path.unlink()
+            with self.assertRaisesRegex(self.module.ReEvaluationError, "--dm-limit-table"):
+                self.module.resolve_evaluation_configuration(args)
+            args.dm_limit_table = reference
+            config, recovered, _ = self.module.resolve_evaluation_configuration(args)
+            self.assertEqual(recovered.sha256, table.sha256)
+
+    def test_legacy_checkpoint_adoption_freezes_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
+            write_input(source, count=2)
+            evaluator = RecordingEvaluator(self.module, fail_at=2)
+            with self.assertRaises(self.module.ReEvaluationError):
+                self.module.reevaluate(source, output, evaluator, checkpoint_every=1)
+            config = {"micromegas": {"version": "6.1.15", "executable": "/test/main"},
+                      "direct_detection": {"model": "lz2025-source"},
+                      "planck_cmb": {"enabled": False}}
+            with self.assertRaises(self.module.ReEvaluationError):
+                self.module.reevaluate(source, output, evaluator, resume=True, evaluation_configuration=config)
+            saved = self.module.read_checkpoint_metadata(self.module.checkpoint_path(output))
+            self.assertEqual(saved["evaluation_configuration"], config)
+            self.assertEqual(saved["schema_version"], 2)
+            changed = {**config, "micromegas": {"version": "7.1.4", "executable": "/test/main"}}
+            with self.assertRaisesRegex(self.module.ReEvaluationError, "configuration"):
+                self.module.reevaluate(source, output, evaluator, resume=True, evaluation_configuration=changed)
+
+    def test_reevaluation_defaults_overrides_and_outdated_driver_preflight(self):
+        from test_trsm_cmb import capable_driver
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
+            write_input(source, count=1)
+            driver = capable_driver(Path(tmp) / "main")
+            for options, enabled in (([], False), (["--micromegas-version", "7"], True),
+                                     (["--micromegas-version", "7", "--no-planck-cmb"], False),
+                                     (["--planck-cmb"], True)):
+                args = self.module.parse_args([str(source), "--output", str(output), "--micromegas-main", str(driver), *options])
+                config, _, _ = self.module.resolve_evaluation_configuration(args)
+                self.assertIs(config["planck_cmb"]["enabled"], enabled)
+            driver.write_text(f"#!{sys.executable}\nprint('old driver')\n")
+            with self.assertRaisesRegex(ValueError, "rebuilt TRSM driver"):
+                self.module.run([str(source), "--output", str(output), "--micromegas-version", "7", "--micromegas-main", str(driver)])
+            self.assertFalse(output.exists())
+            self.assertFalse(self.module.checkpoint_path(output).exists())
+
+    def test_stale_or_incomplete_cmb_results_cannot_validate(self):
+        updates = valid_updates(self.module, 1)
+        updates["dm_cmb_enabled"] = True
+        with self.assertRaisesRegex(self.module.ReEvaluationError, "incomplete CMB"):
+            self.module.validate_updates(updates, 2)
+        updates.update(cmb_diagnostics())
+        updates["dm_cmb_ratio_raw"] = 99
+        with self.assertRaisesRegex(self.module.ReEvaluationError, "unavailable CMB"):
+            self.module.validate_updates(updates, 2)
 
     def test_preserves_unknown_columns_and_replaces_recomputed_values(self):
         with tempfile.TemporaryDirectory() as tmpdir:

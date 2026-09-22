@@ -62,8 +62,26 @@
 
 int main(int argc,char** argv)
 {  int err;
+   int planckCMBEnabled=0;
    char cdmName[10];
    int spin2, charge3,cdim;
+
+   /* This query must not load a parameter card or modify the CalcHEP workspace. */
+   if(argc==2 && strcmp(argv[1],"--capabilities")==0)
+   {
+     printf("{\"schema\":\"trsm_driver_capabilities_v1\",\"planck_cmb\":{"
+            "\"method\":\"micromegas_planck2018_swave_v1\","
+            "\"pann_limit_cm3_s_GeV\":3.2e-28,\"spectrum_key\":7,"
+            "\"spectra_flag\":%d,\"vrot_km_s\":%.17g,"
+            "\"vz_decay\":0,\"vw_decay\":0}}\n",SpectraFlag,vRot);
+     return 0;
+   }
+   if(argc>2)
+   {
+     if(argc!=3 || strcmp(argv[2],"--planck-cmb")!=0)
+     { fprintf(stderr,"Usage: %s parameter-card [--planck-cmb]\n",argv[0]); return 2; }
+     planckCMBEnabled=1;
+   }
 
   ForceUG=0;  /* to Force Unitary Gauge assign 1 */
   //useSLHAwidth=0;
@@ -322,6 +340,30 @@ printf("\n==== Indirect detection =======\n");
                        2-includes gammas for 2->2+gamma
                        4-print cross sections             
     */
+  if(planckCMBEnabled)
+  {
+    const char *reason=NULL;
+    double cmbRatio=NAN;
+    if(err) reason="calcSpectrum_error";
+    else if(!isfinite(sigmaV) || sigmaV<0) reason="invalid_annihilation_rate";
+    else
+    {
+      for(i=0;i<NZ;i++)
+        if(!isfinite(SpA[i]) || !isfinite(SpE[i])) reason="nonfinite_spectrum";
+      if(SpA[0]<=0 || SpE[0]<=0) reason="invalid_spectrum_mass";
+      if(!reason)
+      {
+        cmbRatio=PlanckCMB(sigmaV,SpA,SpE);
+        if(!isfinite(cmbRatio) || cmbRatio<0) reason="invalid_cmb_ratio";
+      }
+    }
+    if(reason)
+      printf("TRSM_PlanckCMB_v1 {\"status\":\"error\",\"reason\":\"%s\","
+             "\"spectrum_error\":%d,\"ratio_raw\":null}\n",reason,err);
+    else
+      printf("TRSM_PlanckCMB_v1 {\"status\":\"ok\",\"ratio_raw\":%.17g,"
+             "\"sigma_v_cm3_s\":%.17g}\n",cmbRatio,sigmaV);
+  }
   /* --- Photon continuum diagnostic: not used for Fermi-LAT line exclusion --- */
   {
     double fi = 0.1, dfi = 0.05; /* old diagnostic cone */

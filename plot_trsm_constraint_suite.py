@@ -87,13 +87,18 @@ NULLABLE_BOOLEAN_COLUMNS = (
 
 OPTIONAL_BOOLEAN_COLUMNS = (
     "higgs_invisible_widths_included",
+    "dm_cmb_enabled",
+    "dm_cmb_available",
 )
 
 OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
     "ewpt_has_x_broken",
+    "dm_cmb_excluded",
 )
 
 OPTIONAL_TEXT_COLUMNS = (
+    "dm_cmb_status",
+    "dm_cmb_reason",
     "ewpt_status",
     "ewpt_error",
     "ewpt_global_phase_path",
@@ -116,6 +121,9 @@ NUMERIC_COLUMNS = (
 )
 
 OPTIONAL_NUMERIC_COLUMNS = (
+    "dm_cmb_ratio_raw",
+    "dm_cmb_abundance_fraction",
+    "dm_cmb_ratio",
     "w2",
     "ewpt_ew_jump_over_T",
     "ewpt_ew_step_index",
@@ -1801,6 +1809,11 @@ def dm_failure_categories(
     relic_excluded: np.ndarray,
     direct_excluded: np.ndarray,
     available: np.ndarray | None = None,
+    *,
+    cmb_enabled: np.ndarray | None = None,
+    cmb_available: np.ndarray | None = None,
+    cmb_excluded: np.ndarray | None = None,
+    indirect_excluded: np.ndarray | None = None,
 ) -> np.ndarray:
     dm = np.asarray(dm, dtype=bool)
     relic_excluded = np.asarray(relic_excluded, dtype=bool)
@@ -1817,6 +1830,18 @@ def dm_failure_categories(
     categories[failed & relic_excluded & ~direct_excluded] = "relic only"
     categories[failed & ~relic_excluded & direct_excluded] = "direct only"
     categories[failed & relic_excluded & direct_excluded] = "relic + direct"
+    if cmb_enabled is not None:
+        cmb_enabled, cmb_available, cmb_excluded, indirect_excluded = [
+            np.zeros(dm.shape, dtype=bool) if value is None else np.asarray(value, dtype=bool)
+            for value in (cmb_enabled, cmb_available, cmb_excluded, indirect_excluded)
+        ]
+        if any(value.shape != dm.shape for value in (cmb_enabled, cmb_available, cmb_excluded, indirect_excluded)):
+            raise ValueError("CMB failure-category arrays must have identical shapes")
+        cmb_fail = failed & cmb_enabled & cmb_available & cmb_excluded
+        other_fail = relic_excluded | direct_excluded | indirect_excluded
+        categories[cmb_fail & ~other_fail] = "CMB only"
+        categories[cmb_fail & other_fail] = "CMB + other"
+        categories[failed & cmb_enabled & ~cmb_available] = "CMB unavailable"
     return categories
 
 
@@ -1976,8 +2001,7 @@ def load_scan(
         raise ValueError(f"Input file has a header but no data rows: {path}")
     for column in OPTIONAL_BOOLEAN_COLUMNS:
         if column not in bools:
-            # Legacy scans predate explicit invisible-width provenance.  Such
-            # rows are intentionally treated as unmodelled, not as passing.
+            # Legacy scans have no assessment/provenance for these optional checks.
             bools[column] = np.zeros(len(floats["M2"]), dtype=bool)
     for column in OPTIONAL_NULLABLE_BOOLEAN_COLUMNS:
         if column not in bools:
@@ -2041,6 +2065,10 @@ def load_scan(
             bools["dm_relic_excluded"],
             bools["dm_direct_detection_excluded"],
             dm_result_available,
+            cmb_enabled=bools["dm_cmb_enabled"],
+            cmb_available=bools["dm_cmb_available"],
+            cmb_excluded=bools["dm_cmb_excluded"],
+            indirect_excluded=bools["dm_indirect_detection_excluded"],
         ),
         "indirect": indirect_categories(
             bools["dm_indirect_available"],
@@ -2371,6 +2399,13 @@ def category_styles(data: ScanData, scheme: str):
             styles["DM unavailable"] = CategoryStyle(
                 "DM evaluation unavailable", "#4D4D4D", "P", 34.0, 0.9, 4.5
             )
+        for category, color, marker in (
+            ("CMB only", "#009E73", "v"),
+            ("CMB + other", "#332288", "X"),
+            ("CMB unavailable", "#882255", "P"),
+        ):
+            if np.any(data.derived["dm_failure"] == category):
+                styles[category] = CategoryStyle(category, color, marker, 28.0, 0.9, 4.5)
         return data.derived["dm_failure"], styles
 
     if scheme in {"relic_pass", "direct_pass"}:
@@ -3265,15 +3300,17 @@ def render_ratio_plane(ax, data: ScanData, spec: PlotSpec, compact: bool = False
     ax.grid(True, which="both", alpha=0.16, linewidth=0.55)
     ax.legend(frameon=True, framealpha=0.82, edgecolor="none", fontsize=7.5)
 
-    failure = data.derived["dm_failure"]
+    available = data.derived["dm_result_available"]
+    relic_fail = data.bools["dm_relic_excluded"]
+    direct_fail = data.bools["dm_direct_detection_excluded"]
     annotations = (
-        ("pass", 0.02, 0.02, "Relic + direct pass"),
-        ("relic only", 0.60, 0.02, "Relic-only fail"),
-        ("direct only", 0.02, 0.91, "Direct-only fail"),
-        ("relic + direct", 0.60, 0.91, "Both fail"),
+        (available & ~relic_fail & ~direct_fail, 0.02, 0.02, "Relic + direct pass"),
+        (available & relic_fail & ~direct_fail, 0.60, 0.02, "Relic-only fail"),
+        (available & ~relic_fail & direct_fail, 0.02, 0.91, "Direct-only fail"),
+        (available & relic_fail & direct_fail, 0.60, 0.91, "Both fail"),
     )
-    for key, xpos, ypos, label in annotations:
-        count = int(np.count_nonzero(failure == key))
+    for mask, xpos, ypos, label in annotations:
+        count = int(np.count_nonzero(mask))
         ax.text(
             xpos,
             ypos,
@@ -4201,13 +4238,16 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         dm_failure_names.append("other DM failure")
     if np.any(data.derived["dm_failure"] == "DM unavailable"):
         dm_failure_names.append("DM unavailable")
+    for category in ("CMB only", "CMB + other", "CMB unavailable"):
+        if np.any(data.derived["dm_failure"] == category):
+            dm_failure_names.append(category)
     for category in dm_failure_names:
         rows.append(
             SummaryRow(
                 f"dm_failure_{category.replace(' ', '_').replace('+', 'and')}",
                 int(np.count_nonzero(data.derived["dm_failure"] == category)),
                 n,
-                "Stored DM result split by relic/direct flags",
+                "Stored DM result split by component exclusions and availability",
             )
         )
 
@@ -4512,10 +4552,24 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
             )
         )
 
+    cmb_enabled = data.bools["dm_cmb_enabled"]
+    cmb_available = cmb_enabled & data.bools["dm_cmb_available"]
+    for name, mask in (
+        ("enabled", cmb_enabled),
+        ("unassessed", ~cmb_enabled),
+        ("available", cmb_available),
+        ("unavailable", cmb_enabled & ~cmb_available),
+        ("excluded", cmb_available & data.bools["dm_cmb_excluded"]),
+    ):
+        rows.append(SummaryRow(
+            f"cmb_{name}", int(np.count_nonzero(mask)), n,
+            "Planck CMB constraint, built-in low-velocity s-wave approximation",
+        ))
     component_dm = (
         ~data.bools["dm_relic_excluded"]
         & ~data.bools["dm_direct_detection_excluded"]
         & ~data.bools["dm_indirect_detection_excluded"]
+        & (~cmb_enabled | (cmb_available & ~data.bools["dm_cmb_excluded"]))
     )
     component_mismatch = dm_result_available & (component_dm != data.bools["dm"])
     rows.append(
