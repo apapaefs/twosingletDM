@@ -1,0 +1,45 @@
+{
+  "schema": "trsm_si_upper_limit_v1",
+  "label": "lz2026-figs7-highmass-approx",
+  "source": "https://arxiv.org/abs/2609.02823v1, Fig. S7 at delta=0; approximate mass scaling",
+  "confidence_level": 0.9,
+  "interaction": "elastic_isoscalar_si",
+  "limit_kind": "observed_upper",
+  "cross_section": "per_nucleon",
+  "cross_section_unit": "cm2",
+  "provenance": {
+    "status": "temporary_high_mass_approximation",
+    "official_LZ_mass_table": false,
+    "published_anchor_mass_GeV": 1000.0,
+    "published_anchor_delta_keV": 0.0,
+    "extracted_anchor_sigma_cm2": 4.555550922859362e-47,
+    "rounded_anchor_sigma_cm2": 4.56e-47,
+    "assumed_mass_dependence": "sigma_limit(m) = sigma_limit(1000 GeV) * m / (1000 GeV)",
+    "validity_range_GeV": [
+      400.0,
+      4000.0
+    ],
+    "motivation": "Heavy-WIMP fixed-shape rate scales approximately as sigma/m. The paper notes nearly degenerate recoil shapes above 400 GeV in its look-elsewhere calculation.",
+    "limitation": "The mass dependence is assumed, not a published LZ limit curve or a likelihood recast. Its uncertainty and coverage away from the 1 TeV anchor have not been validated.",
+    "event_treatment": "Published observed upper endpoint; no event removal and no signal/lower-bound requirement",
+    "extraction_report": "figure-s7-o1-1tev-digitized.json",
+    "source_files_sha256": {
+      "FigS7_O1_as_SI.pdf": "1f9624781aeb4e4e174fe532786fda0e3648960da7a5427fce956f8530a9fed1",
+      "Fig6_O1_L10_limit_stacked.pdf": "034f64d8eb8206d2379e274c7fb12057b47f9e2987e6a37f597cc9a67856aee4"
+    }
+  },
+  "points": [
+    {
+      "mass_GeV": 400.0,
+      "upper_limit": 1.824e-47
+    },
+    {
+      "mass_GeV": 1000.0,
+      "upper_limit": 4.56e-47
+    },
+    {
+      "mass_GeV": 4000.0,
+      "upper_limit": 1.824e-46
+    }
+  ]
+}

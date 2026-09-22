@@ -11,6 +11,15 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from trsm_direct_detection import direct_detection_configuration, load_si_limit_table
+
+from trsm_micromegas import (
+    DEFAULT_MICROMEGAS_VERSION,
+    MICROMEGAS_VERSIONS,
+    micromegas_configuration,
+    normalize_micromegas_version,
+)
+
 from trsm_scan_campaign import (
     CHECKPOINT_SCHEMA,
     SAMPLING_ALGORITHM_VERSION,
@@ -37,6 +46,8 @@ EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
 SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
 ORIGINAL_COMMAND_LINE = (Path(sys.argv[0]).name, *sys.argv[1:])
 RESUME_PATH_OPTIONS = {
+    "dm_limit_table",
+    "micromegas_main",
     "ewpt_executable",
     "ewpt_minima_executable",
     "ewpt_workdir",
@@ -186,6 +197,30 @@ def parse_args(argv=None):
     parser.add_argument("--lx", type=float)
     parser.add_argument("--lphix", type=float)
     parser.add_argument("--lsx", type=float)
+    parser.add_argument(
+        "--micromegas-version",
+        type=normalize_micromegas_version,
+        choices=MICROMEGAS_VERSIONS,
+        default=DEFAULT_MICROMEGAS_VERSION,
+        help="micrOMEGAs release (6/6.1.15 or 7/7.1.4; default: 6.1.15).",
+    )
+    parser.add_argument(
+        "--micromegas-main",
+        type=Path,
+        help=(
+            "Override the TRSM executable for the selected micrOMEGAs version; "
+            "default: ../micromegas_<version>/TRSM/main relative to this script."
+        ),
+    )
+    parser.add_argument(
+        "--dm-limit-table",
+        type=Path,
+        help=(
+            "Normalized JSON table of published 90%% observed elastic SI "
+            "per-nucleon upper limits (see DM/direct-detection.md). "
+            "Default: retain the existing lz2025-source fit."
+        ),
+    )
     range_group = parser.add_argument_group(
         "random-scan range overrides",
         (
@@ -525,6 +560,15 @@ def parse_args(argv=None):
     parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
     args = parser.parse_args(raw_argv)
     args = _hydrate_resume_args(parser, args, raw_argv)
+    if args.micromegas_main is not None:
+        args.micromegas_main = args.micromegas_main.expanduser().resolve()
+    args._dm_limit_table = None
+    if args.dm_limit_table is not None:
+        args.dm_limit_table = args.dm_limit_table.expanduser().resolve()
+        try:
+            args._dm_limit_table = load_si_limit_table(args.dm_limit_table)
+        except (OSError, ValueError) as error:
+            parser.error(f"--dm-limit-table: {error}")
 
     provided = [name for name in TRSM_POINT_ARGS if getattr(args, name) is not None]
     if args.nrandom < 0:
@@ -627,6 +671,12 @@ mhiggs = 125.
 RunTag = str(Energy) + '-' + str(date.today()).replace('-','') + '-' + str(ini_seed) + '-' + str(RunMG5)
 if RunMG5 and cli_args.mg5_without_dm:
     RunTag += '-noDM'
+if cli_args.micromegas_version != DEFAULT_MICROMEGAS_VERSION:
+    RunTag += '-mo' + cli_args.micromegas_version
+if cli_args.micromegas_main is not None:
+    RunTag += '-customMO'
+if cli_args._dm_limit_table is not None:
+    RunTag += f'-dd-{cli_args._dm_limit_table.label}-{cli_args._dm_limit_table.sha256[:12]}'
 
 # Directory for output:
 OutputDir = 'output/'
@@ -1546,7 +1596,11 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
         and print_info_enabled is False
     ):
         return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
-    dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2)
+    dm = test_dm(
+        lX, lPhiX, lSX, M3, vs, a12, M2,
+        micromegas_main=Path(micromegas_configuration(cli_args)["executable"]),
+        limit_table=getattr(cli_args, "_dm_limit_table", None),
+    )
     if debug is True or report is True or print_info_enabled is True:
         print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
         print_dm_info(dm[1])
@@ -2383,6 +2437,8 @@ def build_scan_metadata(
         },
         "portal_convention": PORTAL_CONVENTION_ID,
         "micromegas_model_convention": PORTAL_CONVENTION_ID,
+        "micromegas": micromegas_configuration(args),
+        "direct_detection": direct_detection_configuration(args),
         "variable_ranges": variable_ranges,
         "fixed_parameters": fixed_parameters,
         "command_line": list(command_line or ORIGINAL_COMMAND_LINE),
@@ -2390,7 +2446,7 @@ def build_scan_metadata(
             {
                 key: value
                 for key, value in vars(args).items()
-                if key not in {"resume_metadata", "resume_metadata_path"}
+                if key not in {"resume_metadata", "resume_metadata_path", "_dm_limit_table"}
             }
         ),
     }
@@ -2426,14 +2482,25 @@ def _resolved_path_value(value):
 def immutable_scan_configuration(args):
     mass_mode, _mass_description, mass_ranges = _mass_sampling_metadata(args)
     portal_mode, _portal_description, portal_ranges = _portal_sampling_metadata(args)
-    excluded = RESUME_RUNTIME_DESTS | {"resume_metadata", "resume_metadata_path"}
+    excluded = RESUME_RUNTIME_DESTS | {"resume_metadata", "resume_metadata_path", "_dm_limit_table"}
     immutable_options = {}
     for key, value in sorted(vars(args).items()):
         if key in excluded:
             continue
+        # The implicit 6.1.15 backend predates these options. Omit its defaults
+        # so existing checkpoint fingerprints still describe the same physics.
+        if key == "micromegas_version" and value == DEFAULT_MICROMEGAS_VERSION:
+            continue
+        if key == "micromegas_main" and value is None:
+            continue
+        if key == "dm_limit_table" and value is None:
+            continue
         if key in RESUME_PATH_OPTIONS:
             value = _resolved_path_value(value)
         immutable_options[key] = _json_safe(value)
+    table = getattr(args, "_dm_limit_table", None)
+    if table is not None:
+        immutable_options["dm_limit_table_sha256"] = table.sha256
     mg5_template = (
         {process: None for process in MG5ProcessesToRun}
         if RunMG5
@@ -3073,6 +3140,39 @@ def main():
     global OutputDir, RunTag
 
     print('\nScanning TRSM parameter space')
+    dd_configuration = direct_detection_configuration(cli_args)
+    if cli_args.resume_from is not None:
+        saved_dd = cli_args.resume_metadata.get("direct_detection")
+        if saved_dd is not None and saved_dd != dd_configuration:
+            raise CampaignStateError(
+                "The direct-detection limit table or its contents differ from the saved campaign"
+            )
+    table = getattr(cli_args, "_dm_limit_table", None)
+    if table is not None:
+        _mode, _description, mass_ranges = _mass_sampling_metadata(cli_args)
+        m3_range = next(item for item in mass_ranges if item["variable"] == "M3")
+        try:
+            table.upper_limit_pb(m3_range["effective_min"])
+            table.upper_limit_pb(m3_range["effective_max"])
+        except ValueError as error:
+            raise CampaignStateError(
+                f"The selected direct-detection table does not cover the requested M3 range: {error}"
+            ) from error
+    print(f"Using direct-detection limit: {dd_configuration['model']}")
+    backend = micromegas_configuration(cli_args)
+    if cli_args.resume_from is not None:
+        saved_backend = cli_args.resume_metadata.get("micromegas")
+        if saved_backend is not None and saved_backend != backend:
+            raise CampaignStateError(
+                "The micrOMEGAs version or executable differs from the saved campaign"
+            )
+    executable = Path(backend["executable"])
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise CampaignStateError(
+            f"micrOMEGAs {backend['version']} executable not found or not executable: "
+            f"{executable}. Install this version or supply --micromegas-main."
+        )
+    print(f"Using micrOMEGAs {backend['version']}: {executable}")
     if cli_args.resume_from is not None:
         if has_explicit_point(cli_args):
             raise CampaignStateError("Explicit-point evaluations cannot be resumed")

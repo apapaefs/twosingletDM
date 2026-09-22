@@ -251,6 +251,34 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
         ):
             self.module.validate_updates(updates, 2)
 
+    def test_unavailable_dm_is_recorded_as_failed_without_losing_higgs_results(self):
+        updates = valid_updates(self.module, 1)
+        for column in self.module.DM_COLUMNS:
+            updates[column] = None
+        self.module.validate_updates(updates, 2)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            source = tmpdir / "legacy.dat"
+            output = tmpdir / "canonical.dat"
+            write_input(source, count=1)
+            self.module.reevaluate(
+                source, output, lambda _row, _index: updates, checkpoint_every=1
+            )
+            with output.open(encoding="utf-8", newline="") as stream:
+                row = next(csv.DictReader(stream, delimiter="\t"))
+            self.assertEqual(row["dm"], "False")
+            self.assertEqual(row["dm_omega"], "nan")
+            self.assertEqual(row["dm_relic_excluded"], "nan")
+            self.assertEqual(row["hs"], "True")
+            self.assertEqual(row["higgstools_hs_chi2"], "150.0")
+
+        updates["dm"] = True
+        with self.assertRaisesRegex(
+            self.module.ReEvaluationError, "unavailable DM details but is marked DM-passing"
+        ):
+            self.module.validate_updates(updates, 2)
+
     def test_cli_requires_versioned_output_and_positive_checkpoint(self):
         args = self.module.parse_args(
             ["legacy.dat", "--output", "canonical.dat", "--resume"]
