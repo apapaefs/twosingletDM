@@ -93,15 +93,25 @@ OPTIONAL_BOOLEAN_COLUMNS = (
 
 OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
     "ewpt_has_x_broken",
+    "ewpt_ew_entry_percolated",
+    "ewpt_ew_entry_completed",
+    "ewpt_baryo_candidate",
+    "ewpt_gw_candidate",
     "dm_cmb_excluded",
+    "ewpt_x_broken_at_or_after_freezeout",
+    "dm_relic_z2_freezeout_compatible",
 )
 
 OPTIONAL_TEXT_COLUMNS = (
+    "ewpt_x_broken_intervals_GeV",
+    "ewpt_x_phase_at_freezeout",
     "dm_cmb_status",
     "dm_cmb_reason",
     "ewpt_status",
     "ewpt_error",
     "ewpt_global_phase_path",
+    "ewpt_ew_entry_temperature_kind",
+    "ewpt_gw_max_temperature_kind",
 )
 
 NUMERIC_COLUMNS = (
@@ -121,11 +131,34 @@ NUMERIC_COLUMNS = (
 )
 
 OPTIONAL_NUMERIC_COLUMNS = (
+    "dm_xf",
+    "dm_freezeout_temperature_GeV",
+    "ewpt_x_broken_min_T_GeV",
+    "ewpt_x_broken_max_T_GeV",
+    "ewpt_x_final_restoration_low_T_GeV",
+    "ewpt_x_final_restoration_high_T_GeV",
     "dm_cmb_ratio_raw",
     "dm_cmb_abundance_fraction",
     "dm_cmb_ratio",
     "w2",
     "ewpt_ew_jump_over_T",
+    "ewpt_ew_entry_true_over_T",
+    "ewpt_ew_entry_false_over_T",
+    "ewpt_ew_entry_jump_over_T",
+    "ewpt_ew_entry_temperature_GeV",
+    "ewpt_ew_entry_transition_index",
+    "ewpt_ew_entry_nucl_jump_over_T",
+    "ewpt_ew_entry_nucl_temperature_GeV",
+    "ewpt_ew_entry_perc_jump_over_T",
+    "ewpt_ew_entry_perc_temperature_GeV",
+    "ewpt_gw_crit_field_jump_over_T",
+    "ewpt_gw_crit_temperature_GeV",
+    "ewpt_gw_nucl_field_jump_over_T",
+    "ewpt_gw_nucl_temperature_GeV",
+    "ewpt_gw_perc_field_jump_over_T",
+    "ewpt_gw_perc_temperature_GeV",
+    "ewpt_gw_max_field_jump_over_T",
+    "ewpt_gw_max_transition_index",
     "ewpt_ew_step_index",
     "vs",
     "vx",
@@ -376,6 +409,35 @@ BSMPT_STATUS_STYLES = OrderedDict(
                 0.35,
             ),
         ),
+    ]
+)
+
+BSMPT_EW_ENTRY_STYLES = OrderedDict(
+    [
+        (
+            "not run",
+            CategoryStyle("Not run", "#BDBDBD", "o", 7.0, 0.14, 1.0),
+        ),
+        (
+            "failed",
+            CategoryStyle("BSMPT failed", "#D55E00", "X", 34.0, 0.9, 6.0),
+        ),
+        (
+            "no recorded EW entry",
+            CategoryStyle("No recorded EW-entry FOPT", "#4D4D4D", "o", 15.0, 0.65, 2.0),
+        ),
+        ("EW entry weak", CategoryStyle(r"EW entry: $\Delta v_{\rm EW}/T_c\leq1$", "#E69F00", "^", 38.0, 0.91, 7.0, "#202020", 0.25)),
+        ("baryogenesis candidate", CategoryStyle(r"EW entry: $\Delta v_{\rm EW}/T_c>1$", "#009E73", "*", 62.0, 0.98, 8.0, "#202020", 0.35)),
+    ]
+)
+
+BSMPT_GW_STYLES = OrderedDict(
+    [
+        ("not run", CategoryStyle("Not run", "#BDBDBD", "o", 7.0, 0.14, 1.0)),
+        ("failed", CategoryStyle("BSMPT failed", "#D55E00", "X", 34.0, 0.9, 6.0)),
+        ("no recorded FOPT", CategoryStyle("No recorded FOPT", "#4D4D4D", "o", 15.0, 0.65, 2.0)),
+        ("GW weak", CategoryStyle(r"Any-field $\Delta\phi/T\leq1$", "#E69F00", "^", 38.0, 0.91, 7.0, "#202020", 0.25)),
+        ("GW candidate", CategoryStyle(r"Any-field $\Delta\phi/T>1$", "#009E73", "*", 62.0, 0.98, 8.0, "#202020", 0.35)),
     ]
 )
 
@@ -781,6 +843,49 @@ PLOT_SPECS = (
         required_columns=("ewpt_ew_jump_over_T",),
     ),
     PlotSpec(
+        "31c_bsmpt_ew_entry_jump_over_t_m2_m3",
+        r"First-order EW-entry jump at $T_c$",
+        "continuous_mass",
+        scheme="bsmpt_phase",
+        value="ewpt_ew_entry_jump_over_T",
+        norm_kind="threshold1",
+        cmap="RdBu_r",
+        colorbar_label=r"$\Delta v_{\rm EW}(T_c)/T_c$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_ew_entry_jump_over_T", "ewpt_baryo_candidate"),
+    ),
+    PlotSpec(
+        "31d_bsmpt_ew_entry_status_m2_m3",
+        "Baryogenesis candidate: EW-entry jump at critical temperature",
+        "categorical_mass",
+        scheme="bsmpt_ew_entry",
+        requires_bsmpt=True,
+        required_columns=(
+            "ewpt_ew_entry_jump_over_T",
+            "ewpt_baryo_candidate",
+        ),
+    ),
+    PlotSpec(
+        "31e_bsmpt_gw_max_jump_over_t_m2_m3",
+        r"Largest any-field FOPT jump at $T_c$, $T_n$, or $T_p$",
+        "continuous_mass",
+        scheme="bsmpt_gw",
+        value="ewpt_gw_max_field_jump_over_T",
+        norm_kind="threshold1",
+        cmap="RdBu_r",
+        colorbar_label=r"$\max \Delta\phi/T$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_gw_max_field_jump_over_T", "ewpt_gw_candidate"),
+    ),
+    PlotSpec(
+        "31f_bsmpt_gw_status_m2_m3",
+        "Gravitational-wave FOPT candidate status",
+        "categorical_mass",
+        scheme="bsmpt_gw",
+        requires_bsmpt=True,
+        required_columns=("ewpt_gw_max_field_jump_over_T", "ewpt_gw_candidate"),
+    ),
+    PlotSpec(
         "32_bsmpt_phase_history_m2_m3",
         "BSMPT global phase history",
         "categorical_mass",
@@ -806,6 +911,18 @@ PLOT_SPECS = (
         requires_bsmpt=True,
     ),
     PlotSpec(
+        "34b_bsmpt_ew_entry_strength_vs_m2",
+        r"EW-entry critical jump versus $M_2$",
+        "bsmpt_strength_xy",
+        scheme="bsmpt_ew_entry",
+        x="M2",
+        y="ewpt_ew_entry_jump_over_T",
+        xlabel=r"$M_2$ [GeV]",
+        ylabel=r"$\Delta v_{\rm EW}(T_c)/T_c$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_ew_entry_jump_over_T", "ewpt_baryo_candidate"),
+    ),
+    PlotSpec(
         "35_bsmpt_strength_vs_m3",
         r"Selected BSMPT order parameter versus $M_3$",
         "bsmpt_strength_xy",
@@ -815,6 +932,89 @@ PLOT_SPECS = (
         xlabel=r"$M_3$ [GeV]",
         ylabel=r"$v_{\rm EW,true}(T_*)/T_*$",
         requires_bsmpt=True,
+    ),
+    PlotSpec(
+        "35b_bsmpt_ew_entry_strength_vs_m3",
+        r"EW-entry critical jump versus $M_3$",
+        "bsmpt_strength_xy",
+        scheme="bsmpt_ew_entry",
+        x="M3",
+        y="ewpt_ew_entry_jump_over_T",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\Delta v_{\rm EW}(T_c)/T_c$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_ew_entry_jump_over_T", "ewpt_baryo_candidate"),
+    ),
+    PlotSpec(
+        "35c_bsmpt_selected_vs_ew_entry_jump",
+        "Selected true EW VEV versus EW-entry critical jump",
+        "bsmpt_entry_comparison_xy",
+        scheme="bsmpt_ew_entry",
+        x="ewpt_ew_true_over_T",
+        y="ewpt_ew_entry_jump_over_T",
+        xlabel=r"Selected transition $v_{\rm EW,true}(T_*)/T_*$",
+        ylabel=r"EW entry $\Delta v_{\rm EW}(T_c)/T_c$",
+        requires_bsmpt=True,
+        required_columns=(
+            "ewpt_ew_true_over_T",
+            "ewpt_ew_entry_jump_over_T",
+            "ewpt_baryo_candidate",
+        ),
+    ),
+    PlotSpec(
+        "35d_bsmpt_gw_max_jump_vs_m3",
+        r"Largest any-field FOPT jump versus $M_3$",
+        "bsmpt_strength_xy",
+        scheme="bsmpt_gw",
+        x="M3",
+        y="ewpt_gw_max_field_jump_over_T",
+        xlabel=r"$M_3$ [GeV]",
+        ylabel=r"$\max_{T_c,T_n,T_p}\Delta\phi/T$",
+        requires_bsmpt=True,
+        required_columns=("ewpt_gw_max_field_jump_over_T", "ewpt_gw_candidate"),
+    ),
+    PlotSpec(
+        "35e_bsmpt_ew_entry_temperature_jumps",
+        "EW-entry jump at nucleation and percolation versus critical",
+        "bsmpt_temperature_comparison_xy",
+        x="ewpt_ew_entry_jump_over_T",
+        y="ewpt_ew_entry_nucl_jump_over_T",
+        value="ewpt_ew_entry_perc_jump_over_T",
+        xlabel=r"$\Delta v_{\rm EW}(T_c)/T_c$",
+        ylabel=r"$\Delta v_{\rm EW}(T_{n,p})/T_{n,p}$",
+        requires_bsmpt=True,
+        required_columns=(
+            "ewpt_ew_entry_jump_over_T",
+            "ewpt_ew_entry_nucl_jump_over_T",
+            "ewpt_ew_entry_perc_jump_over_T",
+        ),
+    ),
+    PlotSpec(
+        "35f_bsmpt_gw_temperature_jumps",
+        "Any-field FOPT jump at nucleation and percolation versus critical",
+        "bsmpt_temperature_comparison_xy",
+        x="ewpt_gw_crit_field_jump_over_T",
+        y="ewpt_gw_nucl_field_jump_over_T",
+        value="ewpt_gw_perc_field_jump_over_T",
+        xlabel=r"$\max_{\rm FOPTs}\Delta\phi(T_c)/T_c$",
+        ylabel=r"$\max_{\rm FOPTs}\Delta\phi(T_{n,p})/T_{n,p}$",
+        requires_bsmpt=True,
+        required_columns=(
+            "ewpt_gw_crit_field_jump_over_T",
+            "ewpt_gw_nucl_field_jump_over_T",
+            "ewpt_gw_perc_field_jump_over_T",
+        ),
+    ),
+    PlotSpec(
+        "35g_freezeout_vs_x_broken_window",
+        "Freeze-out versus sampled global X-breaking temperatures",
+        "x_window_freezeout_xy",
+        requires_bsmpt=True,
+        required_columns=(
+            "dm_freezeout_temperature_GeV",
+            "ewpt_x_broken_min_T_GeV",
+            "ewpt_x_broken_max_T_GeV",
+        ),
     ),
     PlotSpec(
         "36_bsmpt_counts",
@@ -1227,11 +1427,11 @@ DASHBOARDS = OrderedDict(
             "dashboard_bsmpt_summary",
             (
                 "30_bsmpt_status_m2_m3",
-                "31_bsmpt_ew_true_over_t_m2_m3",
-                "31b_bsmpt_ew_jump_over_t_m2_m3",
+                "31c_bsmpt_ew_entry_jump_over_t_m2_m3",
+                "31d_bsmpt_ew_entry_status_m2_m3",
+                "31e_bsmpt_gw_max_jump_over_t_m2_m3",
+                "31f_bsmpt_gw_status_m2_m3",
                 "32_bsmpt_phase_history_m2_m3",
-                "33_bsmpt_ew_entry_step_m2_m3",
-                "36_bsmpt_counts",
             ),
         ),
         (
@@ -1743,6 +1943,37 @@ def derive_bsmpt_results(
     }
 
 
+def derive_ew_entry_status(
+    success: np.ndarray,
+    failed: np.ndarray,
+    strength: np.ndarray,
+    candidate: np.ndarray,
+) -> np.ndarray:
+    """Categorize the critical-temperature EW-entry jump."""
+    categories = np.full(success.shape, "not run", dtype=object)
+    categories[failed] = "failed"
+    categories[success] = "no recorded EW entry"
+    entry = success & np.isfinite(strength)
+    categories[entry] = "EW entry weak"
+    categories[entry & candidate] = "baryogenesis candidate"
+    return categories
+
+
+def derive_gw_status(
+    success: np.ndarray,
+    failed: np.ndarray,
+    strength: np.ndarray,
+    candidate: np.ndarray,
+) -> np.ndarray:
+    categories = np.full(success.shape, "not run", dtype=object)
+    categories[failed] = "failed"
+    categories[success] = "no recorded FOPT"
+    transition = success & np.isfinite(strength)
+    categories[transition] = "GW weak"
+    categories[transition & candidate] = "GW candidate"
+    return categories
+
+
 def has_bsmpt_results(data: ScanData) -> bool:
     return bool(np.any(data.b("bsmpt_attempted")))
 
@@ -2048,6 +2279,26 @@ def load_scan(
         bools["ewpt_has_x_broken"],
         nullable_available["ewpt_has_x_broken"],
     )
+    entry_strength = floats.get(
+        "ewpt_ew_entry_jump_over_T",
+        np.full(len(floats["M2"]), np.nan, dtype=float),
+    )
+    bsmpt_results["bsmpt_ew_entry"] = derive_ew_entry_status(
+        bsmpt_results["bsmpt_success"],
+        bsmpt_results["bsmpt_failed"],
+        entry_strength,
+        bools["ewpt_baryo_candidate"],
+    )
+    gw_strength = floats.get(
+        "ewpt_gw_max_field_jump_over_T",
+        np.full(len(floats["M2"]), np.nan, dtype=float),
+    )
+    bsmpt_results["bsmpt_gw"] = derive_gw_status(
+        bsmpt_results["bsmpt_success"],
+        bsmpt_results["bsmpt_failed"],
+        gw_strength,
+        bools["ewpt_gw_candidate"],
+    )
 
     derived = {
         "theory": theory,
@@ -2059,6 +2310,9 @@ def load_scan(
         "relic_available": relic_available,
         "direct_available": direct_available,
         "dm_result_available": dm_result_available,
+        "ewpt_x_broken_at_or_after_freezeout_available": nullable_available[
+            "ewpt_x_broken_at_or_after_freezeout"
+        ],
         "fourway": four_way_categories(bools["dm"], experimental),
         "dm_failure": dm_failure_categories(
             bools["dm"],
@@ -2344,6 +2598,10 @@ def category_styles(data: ScanData, scheme: str):
         return data.derived["fourway"], FOURWAY_STYLES
     if scheme == "bsmpt_status":
         return data.derived["bsmpt_status"], BSMPT_STATUS_STYLES
+    if scheme == "bsmpt_ew_entry":
+        return data.derived["bsmpt_ew_entry"], BSMPT_EW_ENTRY_STYLES
+    if scheme == "bsmpt_gw":
+        return data.derived["bsmpt_gw"], BSMPT_GW_STYLES
     if scheme == "bsmpt_phase":
         return data.derived["bsmpt_phase"], BSMPT_PHASE_STYLES
     if scheme == "bsmpt_step":
@@ -2632,6 +2890,16 @@ def render_categorical_mass(
             + r"$v_{\rm EW,true}(T_*)/T_*\geq1$",
             fontsize=8.8 if compact else 11.2,
         )
+    elif spec.scheme == "bsmpt_ew_entry":
+        ax.set_title(
+            spec.title + "\n" + r"EW entry: $\Delta v_{\rm EW}(T_c)/T_c>1$",
+            fontsize=8.8 if compact else 11.2,
+        )
+    elif spec.scheme == "bsmpt_gw":
+        ax.set_title(
+            spec.title + "\n" + r"Any FOPT: $\max_{T_c,T_n,T_p}\Delta\phi/T>1$",
+            fontsize=8.8 if compact else 11.2,
+        )
     elif spec.scheme == "bsmpt_phase":
         ax.set_title(
             spec.title + "\nGlobal-minimum route on cooling",
@@ -2713,7 +2981,11 @@ def render_continuous_mass(
 
     style_mass_axis(ax, data)
     title = spec.title
-    if spec.norm_kind == "threshold1":
+    if spec.value == "ewpt_ew_entry_jump_over_T":
+        title += "\n" + r"EW-symmetric to broken at $T_c$; completion not required"
+    elif spec.value == "ewpt_gw_max_field_jump_over_T":
+        title += "\n" + r"Maximum over all FOPTs at $T_c$, $T_n$, and $T_p$"
+    elif spec.norm_kind == "threshold1":
         title += (
             "\n"
             + r"$T_*$ priority: nucleation, percolation, completion, critical"
@@ -3168,8 +3440,15 @@ def render_bsmpt_strength_xy(
     x = data.f(spec.x)
     strength = data.f(spec.y)
     valid = finite_mask(x, strength) & (strength >= 0.0)
+    candidate_strength = spec.y in {
+        "ewpt_ew_entry_jump_over_T",
+        "ewpt_gw_max_field_jump_over_T",
+    }
+    if candidate_strength:
+        valid &= data.b("bsmpt_success")
     if not np.any(valid):
-        raise PlotUnavailable("no finite selected BSMPT FOPT strengths")
+        label = "candidate FOPT" if candidate_strength else "selected BSMPT FOPT"
+        raise PlotUnavailable(f"no finite {label} strengths")
 
     categories, styles = category_styles(data, spec.scheme)
     for key, style in styles.items():
@@ -3212,12 +3491,13 @@ def render_bsmpt_strength_xy(
     )
     ax.set_xlabel(spec.xlabel)
     ax.set_ylabel(spec.ylabel)
-    ax.set_title(
-        spec.title
-        + "\n"
-        + r"$T_*$ priority: nucleation, percolation, completion, critical",
-        fontsize=8.8 if compact else 11.2,
-    )
+    if spec.y == "ewpt_ew_entry_jump_over_T":
+        subtitle = r"EW entry at $T_c$; completion not required"
+    elif spec.y == "ewpt_gw_max_field_jump_over_T":
+        subtitle = r"Any FOPT, maximum at $T_c$, $T_n$, or $T_p$"
+    else:
+        subtitle = r"$T_*$ priority: nucleation, percolation, completion, critical"
+    ax.set_title(spec.title + "\n" + subtitle, fontsize=8.8 if compact else 11.2)
     ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
     handles = category_legend_handles(
         categories[valid],
@@ -3235,6 +3515,183 @@ def render_bsmpt_strength_xy(
         handletextpad=0.4,
         borderpad=0.4,
     )
+
+
+def render_bsmpt_entry_comparison_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    selected = data.f(spec.x)
+    entry = data.f(spec.y)
+    valid = (
+        data.b("bsmpt_success")
+        & finite_mask(selected, entry)
+        & (selected > 0.0)
+        & (entry > 0.0)
+    )
+    if not np.any(valid):
+        raise PlotUnavailable("no finite selected/EW-entry critical pairs")
+
+    categories, styles = category_styles(data, spec.scheme)
+    for key, style in styles.items():
+        mask = valid & (categories == key)
+        if not np.any(mask):
+            continue
+        ax.scatter(
+            selected[mask],
+            entry[mask],
+            s=style.size * (0.82 if compact else 1.0),
+            c=style.color,
+            marker=style.marker,
+            alpha=style.alpha,
+            edgecolors=style.edgecolor,
+            linewidths=style.linewidth,
+            rasterized=True,
+            zorder=style.zorder,
+        )
+
+    lower = min(float(np.min(selected[valid])), float(np.min(entry[valid])), 1.0)
+    upper = max(float(np.max(selected[valid])), float(np.max(entry[valid])), 1.0)
+    limits = (lower / 1.5, upper * 1.5)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(limits)
+    ax.set_ylim(limits)
+    ax.plot(limits, limits, color="#666666", linestyle=":", linewidth=1.0, zorder=0.5)
+    ax.axvline(1.0, color="#222222", linestyle="--", linewidth=0.8, alpha=0.7)
+    ax.axhline(1.0, color="#222222", linestyle="--", linewidth=0.8, alpha=0.7)
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    ax.set_title(spec.title, fontsize=8.8 if compact else 11.2)
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    misleading = int(np.count_nonzero(valid & (selected > 1.0) & (entry <= 1.0)))
+    ax.text(
+        0.02,
+        0.98,
+        f"Selected $v/T>1$, EW jump $\\Delta v/T_c\\leq1$: {misleading:,}",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=6.7 if compact else 8.0,
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.78, "pad": 2.0},
+    )
+    handles = category_legend_handles(
+        categories[valid], styles, int(np.count_nonzero(valid)), include_empty=False
+    )
+    handles.append(Line2D([0], [0], color="#666666", linestyle=":", label=r"Equal $v/T$"))
+    ax.legend(
+        handles=handles,
+        loc="best",
+        frameon=True,
+        framealpha=0.82,
+        edgecolor="none",
+        fontsize=5.9 if compact else 7.2,
+    )
+
+
+def render_bsmpt_temperature_comparison_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    critical = data.f(spec.x)
+    series = (
+        (data.f(spec.y), r"Nucleation $T_n$", "#0072B2", "o"),
+        (data.f(spec.value), r"Percolation $T_p$", "#D55E00", "D"),
+    )
+    masks = [
+        data.b("bsmpt_success")
+        & finite_mask(critical, values)
+        & (critical > 0.0)
+        & (values > 0.0)
+        for values, _, _, _ in series
+    ]
+    if not any(np.any(mask) for mask in masks):
+        raise PlotUnavailable("no finite critical/nucleation or critical/percolation pairs")
+    all_values = np.concatenate(
+        [critical[mask] for mask in masks if np.any(mask)]
+        + [values[mask] for (values, _, _, _), mask in zip(series, masks) if np.any(mask)]
+    )
+    limits = (min(float(np.min(all_values)), 1.0) / 1.5,
+              max(float(np.max(all_values)), 1.0) * 1.5)
+    for (values, label, color, marker), mask in zip(series, masks):
+        if np.any(mask):
+            ax.scatter(
+                critical[mask], values[mask], label=f"{label} (N={np.count_nonzero(mask)})",
+                color=color, marker=marker, s=28 if compact else 42,
+                alpha=0.82, edgecolors="#202020", linewidths=0.25,
+                rasterized=True,
+            )
+    ax.plot(limits, limits, color="#666666", linestyle=":", linewidth=1.0,
+            label="Equal ratio")
+    ax.axvline(1.0, color="#222222", linestyle="--", linewidth=0.8)
+    ax.axhline(1.0, color="#222222", linestyle="--", linewidth=0.8)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(limits)
+    ax.set_ylim(limits)
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    subtitle = (
+        "Same EW-entry transition in each temperature series"
+        if spec.x == "ewpt_ew_entry_jump_over_T"
+        else "Per-temperature maxima may refer to different FOPTs"
+    )
+    ax.set_title(spec.title + "\n" + subtitle,
+                 fontsize=8.8 if compact else 11.2)
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    ax.legend(loc="best", frameon=True, fontsize=6.5 if compact else 8.0)
+
+
+def render_x_window_freezeout_xy(
+    ax, data: ScanData, spec: PlotSpec, compact: bool = False
+) -> None:
+    freezeout = data.f("dm_freezeout_temperature_GeV")
+    lower = data.f("ewpt_x_broken_min_T_GeV")
+    upper = data.f("ewpt_x_broken_max_T_GeV")
+    valid = (
+        data.b("bsmpt_success")
+        & finite_mask(freezeout, lower, upper)
+        & (freezeout > 0.0) & (lower >= 0.0) & (upper >= lower)
+    )
+    if not np.any(valid):
+        raise PlotUnavailable("no finite freeze-out/X-breaking temperature pairs")
+
+    overlap = data.b("ewpt_x_broken_at_or_after_freezeout")
+    assessed = data.b("ewpt_x_broken_at_or_after_freezeout_available")
+    categories = (
+        (valid & assessed & ~overlap, "No sampled X breaking at/after freeze-out", "#009E73"),
+        (valid & assessed & overlap, "Sampled X breaking at/after freeze-out", "#D55E00"),
+        (valid & ~assessed, "Comparison unresolved", "#7F7F7F"),
+    )
+    for mask, label, color in categories:
+        if not np.any(mask):
+            continue
+        ax.scatter(
+            freezeout[mask], lower[mask], marker="o", color=color,
+            s=26 if compact else 38, alpha=0.82, edgecolors="#202020",
+            linewidths=0.3, rasterized=True,
+            label=f"{label} (N={np.count_nonzero(mask)})",
+        )
+        ax.scatter(
+            freezeout[mask], upper[mask], marker="^", color=color,
+            s=29 if compact else 43, alpha=0.65, edgecolors="#202020",
+            linewidths=0.3, rasterized=True,
+        )
+
+    limit = 1.15 * max(float(np.max(freezeout[valid])), float(np.max(upper[valid])), 1.0)
+    ax.plot([0, limit], [0, limit], color="#333333", linestyle=":", linewidth=1.0)
+    ax.set_xscale("symlog", linthresh=1.0)
+    ax.set_yscale("symlog", linthresh=1.0)
+    ax.set_xlim(0, limit)
+    ax.set_ylim(0, limit)
+    ax.set_xlabel(r"micrOMEGAs $T_f=M_{\rm DM}/X_f$ [GeV]")
+    ax.set_ylabel(r"Sampled global $X$-broken temperature [GeV]")
+    ax.set_title(spec.title + "\nCircles: lowest; triangles: highest sampled $T$",
+                 fontsize=8.8 if compact else 11.2)
+    ax.grid(True, which="both", alpha=0.18, linewidth=0.6)
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(Line2D([0], [0], color="#333333", linestyle=":"))
+    labels.append(r"$T_X=T_f$")
+    ax.legend(handles, labels, loc="best", frameon=True,
+              fontsize=5.9 if compact else 7.2)
 
 
 def render_ratio_plane(ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> None:
@@ -3360,7 +3817,7 @@ def bsmpt_bar_metrics(data: ScanData):
     success = data.b("bsmpt_success")
     selected = data.b("bsmpt_selected_fopt")
     no_selected = success & ~selected
-    return (
+    metrics = [
         (
             "BSMPT attempted",
             int(np.count_nonzero(attempted)),
@@ -3409,7 +3866,35 @@ def bsmpt_bar_metrics(data: ScanData):
             "#CC79A7",
             "xx",
         ),
-    )
+    ]
+    if "ewpt_baryo_candidate" in data.columns:
+        metrics.insert(
+            -1,
+            (
+                r"EW entry: $\Delta v_{\rm EW}/T_c>1$",
+                int(
+                    np.count_nonzero(
+                        data.b("bsmpt_success")
+                        & data.b("ewpt_baryo_candidate")
+                    )
+                ),
+                "#009E73",
+                "//",
+            ),
+        )
+    if "ewpt_gw_candidate" in data.columns:
+        metrics.insert(
+            -1,
+            (
+                r"Any-field FOPT: $\Delta\phi/T>1$",
+                int(np.count_nonzero(
+                    data.b("bsmpt_success") & data.b("ewpt_gw_candidate")
+                )),
+                "#56B4E9",
+                "xx",
+            ),
+        )
+    return tuple(metrics)
 
 
 def render_bsmpt_bars(
@@ -3955,6 +4440,12 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         render_cumulative_xy(ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_strength_xy":
         render_bsmpt_strength_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "bsmpt_entry_comparison_xy":
+        render_bsmpt_entry_comparison_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "bsmpt_temperature_comparison_xy":
+        render_bsmpt_temperature_comparison_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "x_window_freezeout_xy":
+        render_x_window_freezeout_xy(ax, data, spec, compact=compact)
     elif spec.kind == "ratio_plane":
         render_ratio_plane(ax, data, spec, compact=compact)
     elif spec.kind == "bars":
@@ -4006,6 +4497,54 @@ def spec_unavailable_reason(data: ScanData, spec: PlotSpec) -> str | None:
     ]
     if missing:
         return "missing scan column(s): " + ", ".join(missing)
+    if spec.scheme in {"bsmpt_ew_entry", "bsmpt_gw"}:
+        missing_raw = [
+            column for column in spec.required_columns if column not in data.columns
+        ]
+        if missing_raw:
+            return "missing scan column(s): " + ", ".join(missing_raw)
+    if (
+        spec.value in {"ewpt_ew_entry_jump_over_T", "ewpt_gw_max_field_jump_over_T"}
+        or spec.y in {"ewpt_ew_entry_jump_over_T", "ewpt_gw_max_field_jump_over_T"}
+    ):
+        column = spec.value if spec.value in {
+            "ewpt_ew_entry_jump_over_T", "ewpt_gw_max_field_jump_over_T"
+        } else spec.y
+        if not np.any(
+            data.b("bsmpt_success")
+            & np.isfinite(data.f(column))
+        ):
+            return f"no finite {column} is recorded"
+    if spec.kind == "bsmpt_entry_comparison_xy":
+        selected = data.f("ewpt_ew_true_over_T")
+        entry = data.f("ewpt_ew_entry_jump_over_T")
+        if not np.any(
+            data.b("bsmpt_success")
+            & finite_mask(selected, entry)
+            & (selected > 0.0)
+            & (entry > 0.0)
+        ):
+            return "no finite selected/EW-entry critical pairs are recorded"
+    if spec.kind == "bsmpt_temperature_comparison_xy":
+        critical = data.f(spec.x)
+        for column in (spec.y, spec.value):
+            values = data.f(column)
+            if np.any(
+                data.b("bsmpt_success") & finite_mask(critical, values)
+                & (critical > 0.0) & (values > 0.0)
+            ):
+                break
+        else:
+            return "no finite critical/nucleation or critical/percolation pairs"
+    if spec.kind == "x_window_freezeout_xy":
+        freezeout = data.f("dm_freezeout_temperature_GeV")
+        lower = data.f("ewpt_x_broken_min_T_GeV")
+        upper = data.f("ewpt_x_broken_max_T_GeV")
+        if not np.any(
+            data.b("bsmpt_success") & finite_mask(freezeout, lower, upper)
+            & (freezeout > 0.0) & (lower >= 0.0) & (upper >= lower)
+        ):
+            return "no finite freeze-out/X-breaking temperature pairs"
     if spec.kind == "rate_xy":
         try:
             x = data.f(spec.x)
@@ -4332,7 +4871,7 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
                 bsmpt_strong,
                 bsmpt_selected,
                 (
-                    "Conventional strong-FOPT diagnostic: "
+                    "Selected-transition diagnostic (may be broken-to-broken): "
                     f"v_EW,true(T*)/T* >= {BSMPT_STRONG_EWPT_THRESHOLD:g}; "
                     "not an additional scan constraint"
                 ),
@@ -4379,6 +4918,94 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
             ),
         ]
     )
+    if "dm_freezeout_temperature_GeV" in data.columns:
+        available = np.isfinite(data.f("dm_freezeout_temperature_GeV")) & (
+            data.f("dm_freezeout_temperature_GeV") > 0.0
+        )
+        rows.append(SummaryRow(
+            "dm_freezeout_temperature_available",
+            int(np.count_nonzero(available)), n,
+            "micrOMEGAs returned Xf and a positive nominal freeze-out temperature",
+        ))
+    if "ewpt_x_broken_at_or_after_freezeout" in data.columns:
+        assessed = (
+            data.b("bsmpt_success")
+            & data.b("ewpt_x_broken_at_or_after_freezeout_available")
+        )
+        rows.extend([
+            SummaryRow(
+                "bsmpt_x_freezeout_comparison_assessed",
+                int(np.count_nonzero(assessed)), bsmpt_success,
+                "Sampled global X history can be compared with nominal freeze-out",
+            ),
+            SummaryRow(
+                "bsmpt_x_broken_at_or_after_freezeout",
+                int(np.count_nonzero(
+                    assessed & data.b("ewpt_x_broken_at_or_after_freezeout")
+                )),
+                int(np.count_nonzero(assessed)),
+                "At least one global X-broken sample is at or below nominal Tf; diagnostic only",
+            ),
+        ])
+    if "ewpt_ew_entry_jump_over_T" in data.columns:
+        entry_mask = data.b("bsmpt_success") & np.isfinite(
+            data.f("ewpt_ew_entry_jump_over_T")
+        )
+        percolated_mask = entry_mask & data.b("ewpt_ew_entry_percolated")
+        completed_mask = entry_mask & data.b("ewpt_ew_entry_completed")
+        strong_mask = entry_mask & data.b("ewpt_baryo_candidate")
+        entry_available = int(np.count_nonzero(entry_mask))
+        entry_percolated = int(np.count_nonzero(percolated_mask))
+        entry_completed = int(np.count_nonzero(completed_mask))
+        entry_strong = int(np.count_nonzero(strong_mask))
+        rows.extend(
+            [
+                SummaryRow(
+                    "bsmpt_ew_entry_fopt_identified",
+                    entry_available,
+                    bsmpt_success,
+                    "CalcTemps critical FOPT crosses from EW-symmetric to EW-broken",
+                ),
+                SummaryRow(
+                    "bsmpt_ew_entry_percolated",
+                    entry_percolated,
+                    entry_available,
+                    "Selected EW-entry FOPT has BSMPT percolation or completion data",
+                ),
+                SummaryRow(
+                    "bsmpt_ew_entry_completed",
+                    entry_completed,
+                    entry_available,
+                    "Selected EW-entry FOPT has BSMPT completion data",
+                ),
+                SummaryRow(
+                    "bsmpt_baryogenesis_candidates",
+                    entry_strong,
+                    entry_available,
+                    "EW-entry FOPT with doublet jump/Tc > 1; no completion gate",
+                ),
+            ]
+        )
+    if "ewpt_gw_max_field_jump_over_T" in data.columns:
+        gw_mask = data.b("bsmpt_success") & np.isfinite(
+            data.f("ewpt_gw_max_field_jump_over_T")
+        )
+        rows.extend(
+            [
+                SummaryRow(
+                    "bsmpt_gw_fopt_identified",
+                    int(np.count_nonzero(gw_mask)),
+                    bsmpt_success,
+                    "A finite any-field FOPT jump at critical, nucleation, or percolation",
+                ),
+                SummaryRow(
+                    "bsmpt_gw_candidates",
+                    int(np.count_nonzero(gw_mask & data.b("ewpt_gw_candidate"))),
+                    int(np.count_nonzero(gw_mask)),
+                    "At least one FOPT with total field-space VEV jump/T > 1",
+                ),
+            ]
+        )
     for category in BSMPT_PHASE_STYLES:
         rows.append(
             SummaryRow(
@@ -4888,17 +5515,20 @@ def write_plot_index(
             if spec.requires_bsmpt
         )
         bsmpt_section = (
-            '<section id="bsmpt"><h2>BSMPT electroweak phase-transition plots</h2>'
-            "<p>The selected order parameter uses the first available temperature "
-            "in the priority nucleation, percolation, completion, then critical. "
+            '<section id="bsmpt"><h2>BSMPT phase-transition candidates</h2>'
+            "<p>The baryogenesis candidate flag requires an EW-entry jump "
+            r"$\Delta v_{\rm EW}(T_c)/T_c>1$; "
+            "the gravitational-wave FOPT flag requires the total field-space jump "
+            r"$\Delta\phi/T>1$ at $T_c$, $T_n$, or $T_p$. "
+            "Nucleation and percolation values are shown as diagnostics. "
             f"The suite records {bsmpt_attempted:,} attempted BSMPT evaluations; "
-            r"$v_{\rm EW,true}(T_*)/T_*\geq1$ is shown as a conventional strong-FOPT "
-            "diagnostic, not as an additional scan constraint.</p>"
+            r"the legacy selected $v_{\rm EW,true}(T_*)/T_*$ remains a separate "
+            "diagnostic.</p>"
             f'<div class="grid">{"".join(bsmpt_cards)}</div></section>'
         )
     else:
         bsmpt_section = (
-            '<section id="bsmpt"><h2>BSMPT electroweak phase-transition plots</h2>'
+            '<section id="bsmpt"><h2>BSMPT phase-transition candidates</h2>'
             '<div class="notice warning"><strong>No stored BSMPT evaluations.</strong> '
             "These plots are generated automatically when at least one row contains "
             "a BSMPT status, selected EWPT strength, phase history, or EW-entry "

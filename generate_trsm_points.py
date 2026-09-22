@@ -11,6 +11,7 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from dm_thermal_relic_diagnostic import resonance_proximity_updates, thermal_vev_updates
 from trsm_direct_detection import direct_detection_configuration, load_si_limit_table
 from trsm_cmb import add_cmb_arguments, cmb_configuration, require_cmb_capability
 
@@ -935,6 +936,10 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
             )
     if dm_exclusion_info is not None:
         point_info.update(dm_exclusion_info)
+    if vx == 0:
+        point_info.update(resonance_proximity_updates(
+            M2, M3, point_info.get("dm_freezeout_temperature_GeV")
+        ))
     return point_info
 
 
@@ -1270,7 +1275,15 @@ def add_ewpt_strength_info(point_info, payload):
     )
 
 
+def add_ewpt_entry_info(point_info, payload, *, w1_threshold=5.0):
+    from ewpt_entry_criterion import ew_entry_updates
+
+    point_info.update(ew_entry_updates(payload, w1_threshold=w1_threshold))
+
+
 def add_ewpt_phase_history_info(point_info, payload):
+    from ewpt_x_history import x_history_updates
+
     minimatracer = payload.get("minimatracer") or {}
     global_phase_path = minimatracer.get("global_phase_path") or []
     if isinstance(global_phase_path, str):
@@ -1283,12 +1296,15 @@ def add_ewpt_phase_history_info(point_info, payload):
     ew_step_index = minimatracer.get("ew_step_index")
     if ew_step_index is not None:
         point_info["ewpt_ew_step_index"] = ew_step_index
+    point_info.update(x_history_updates(payload, point_info.get("dm_freezeout_temperature_GeV")))
+    point_info.update(thermal_vev_updates(payload, point_info.get("dm_freezeout_temperature_GeV")))
 
 
-def add_ewpt_info(point_info, payload):
+def add_ewpt_info(point_info, payload, *, w1_threshold=5.0):
     point_info["ewpt_status"] = "success"
     point_info["ewpt_error"] = ""
     add_ewpt_strength_info(point_info, payload)
+    add_ewpt_entry_info(point_info, payload, w1_threshold=w1_threshold)
     add_ewpt_phase_history_info(point_info, payload)
 
 
@@ -1380,7 +1396,7 @@ def run_ewpt_if_requested(
 
     summary = ewpt_module.summarize_result(result)
     payload = ewpt_module.result_to_json(result)
-    add_ewpt_info(point_info, payload)
+    add_ewpt_info(point_info, payload, w1_threshold=config.w1_threshold)
     print(summary)
     (workdir / "ewpt_summary.txt").write_text(summary + "\n", encoding="utf-8")
     (workdir / "ewpt_result.json").write_text(

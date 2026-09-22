@@ -82,6 +82,7 @@ class TestTrsmDM(unittest.TestCase):
 
         self.assertTrue(math.isclose(result.mdm, 1000.0))
         self.assertTrue(math.isclose(result.omega, 0.049))
+        self.assertTrue(math.isclose(result.xf, 26.1))
         self.assertTrue(math.isclose(result.dir_det, 1.218e-9))
         self.assertEqual(result.indirect_line_channels, ())
 
@@ -131,6 +132,8 @@ class TestTrsmDM(unittest.TestCase):
         self.assertIn("DirDet above rescaled direct-detection limit", info)
         self.assertTrue(math.isclose(dm_exclusion_info["dm_mdm"], 1000.0))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_omega"], 0.049))
+        self.assertTrue(math.isclose(dm_exclusion_info["dm_xf"], 26.1))
+        self.assertTrue(math.isclose(dm_exclusion_info["dm_freezeout_temperature_GeV"], 1000.0 / 26.1))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_relic_upper_limit"], 0.121))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_dir_det"], 1.218e-9))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_dir_det_limit"], 7.390000738711997e-11, rel_tol=1e-5))
@@ -188,6 +191,20 @@ class TestTrsmDM(unittest.TestCase):
         self.assertIs(passed, False)
         self.assertIn("Relic density Omega must be finite and non-negative", info)
         self.assertIsNone(dm_exclusion_info["dm_omega"])
+        self.assertIsNone(dm_exclusion_info["dm_freezeout_temperature_GeV"])
+
+    def test_missing_or_invalid_xf_does_not_invent_a_freezeout_temperature(self):
+        for raw_output in (
+            MICROMEGAS_OUTPUT.replace("Xf=2.61e+01 ", ""),
+            MICROMEGAS_OUTPUT.replace("Xf=2.61e+01", "Xf=0"),
+        ):
+            with self.subTest(raw_output=raw_output):
+                passed, _, diagnostics = test_dm(
+                    .2, .1, .5, 1000, 500, .3, 500, raw_output=raw_output,
+                )
+                self.assertFalse(passed)  # This point fails direct detection.
+                self.assertIsNone(diagnostics["dm_xf"])
+                self.assertIsNone(diagnostics["dm_freezeout_temperature_GeV"])
 
     def test_indirect_detection_failure_fails_dm_check(self):
         passed, info, dm_exclusion_info = test_dm(

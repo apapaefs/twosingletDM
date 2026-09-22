@@ -74,6 +74,8 @@ def valid_updates(module, point_index):
         "dm": False,
         "dm_mdm": 50.0 + point_index,
         "dm_omega": 0.2,
+        "dm_xf": 25.0,
+        "dm_freezeout_temperature_GeV": (50.0 + point_index) / 25.0,
         "dm_relic_upper_limit": 0.121,
         "dm_dir_det": 2.0e-9,
         "dm_dir_det_limit": 1.0e-9,
@@ -291,6 +293,34 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
                 rows[0]["portal_convention"], self.module.EXPECTED_CONVENTION_ID
             )
             self.assertEqual(len(rows[0]), len(set(rows[0])))
+
+    def test_dm_reevaluation_clears_stale_freezeout_phase_flags(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "with_ewpt.dat"
+            output = root / "updated.dat"
+            write_input(source, count=1)
+            with source.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream, delimiter="\t"))
+            rows[0].update({
+                "ewpt_x_broken_min_T_GeV": "51.0",
+                "ewpt_x_phase_at_freezeout": "broken",
+                "ewpt_x_broken_at_or_after_freezeout": "True",
+                "dm_relic_z2_freezeout_compatible": "False",
+            })
+            rows[0].update({column: "stale" for column in self.module.THERMAL_VEV_COLUMNS})
+            with source.open("w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=rows[0], delimiter="\t")
+                writer.writeheader()
+                writer.writerows(rows)
+
+            self.module.reevaluate(source, output, RecordingEvaluator(self.module))
+            with output.open(encoding="utf-8", newline="") as stream:
+                updated = next(csv.DictReader(stream, delimiter="\t"))
+            self.assertEqual(updated["ewpt_x_broken_min_T_GeV"], "51.0")
+            self.assertEqual(updated["dm_resonance_nearest_mediator"], "h1")
+            for column in self.module.FREEZEOUT_DEPENDENT_COLUMNS:
+                self.assertEqual(updated[column], "nan")
 
     def test_failure_leaves_no_final_output_and_resume_skips_committed_rows(self):
         with tempfile.TemporaryDirectory() as tmpdir:

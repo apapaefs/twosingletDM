@@ -277,11 +277,43 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertIn("dm_indirect_detection_excluded", scan_output.output_columns({}))
         self.assertIn("dm_limit_model", scan_output.output_columns({}))
         self.assertIn("dm_rescale", scan_output.output_columns({}))
+        self.assertIn("dm_xf", scan_output.output_columns({}))
+        self.assertIn("dm_freezeout_temperature_GeV", scan_output.output_columns({}))
+        self.assertIn("dm_resonance_h1_mass_gap_GeV", scan_output.output_columns({}))
+        self.assertIn("dm_resonance_h2_abs_gap_over_Tf", scan_output.output_columns({}))
+        self.assertIn("dm_relic_thermal_ew_vev_max_fractional_shift", scan_output.output_columns({}))
+        self.assertIn("dm_relic_thermal_vev_shift_ge_10pct", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_true_over_T", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_jump_over_T", scan_output.output_columns({}))
+        self.assertIn("ewpt_ew_entry_true_over_T", scan_output.output_columns({}))
+        self.assertIn("ewpt_ew_entry_completed", scan_output.output_columns({}))
+        self.assertIn("ewpt_baryo_candidate", scan_output.output_columns({}))
+        self.assertIn("ewpt_gw_candidate", scan_output.output_columns({}))
+        self.assertIn("ewpt_ew_entry_nucl_jump_over_T", scan_output.output_columns({}))
         self.assertIn("ewpt_global_phase_path", scan_output.output_columns({}))
         self.assertIn("ewpt_has_x_broken", scan_output.output_columns({}))
         self.assertIn("ewpt_ew_step_index", scan_output.output_columns({}))
+        self.assertIn("ewpt_x_broken_min_T_GeV", scan_output.output_columns({}))
+        self.assertIn("ewpt_x_broken_at_or_after_freezeout", scan_output.output_columns({}))
+        self.assertIn("dm_relic_z2_freezeout_compatible", scan_output.output_columns({}))
+
+    def test_ewpt_history_compares_global_x_restoration_with_freezeout(self):
+        generator = load_generator_module()
+        point_info = {"dm_freezeout_temperature_GeV": 5.0}
+        payload = {"minimatracer": {
+            "global_phase_path": ["SYM", "X_BROKEN", "EW"],
+            "global_branch": [
+                {"temp": 0.0, "label": "EW"},
+                {"temp": 8.0, "label": "EW"},
+                {"temp": 10.0, "label": "X_BROKEN"},
+                {"temp": 20.0, "label": "X_BROKEN"},
+                {"temp": 30.0, "label": "SYM"},
+            ],
+        }}
+        generator.add_ewpt_phase_history_info(point_info, payload)
+        self.assertEqual(point_info["ewpt_x_final_restoration_low_T_GeV"], 8.0)
+        self.assertEqual(point_info["ewpt_x_final_restoration_high_T_GeV"], 10.0)
+        self.assertIs(point_info["dm_relic_z2_freezeout_compatible"], True)
 
     def test_vxzero_low_m3_is_recorded_as_stable_with_finite_outputs(self):
         import generate_trsm_info
@@ -945,6 +977,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             True,
             True,
             True,
+            dm_exclusion_info={"dm_freezeout_temperature_GeV": 10.0},
         )
 
         self.assertAlmostEqual(point_info["K233"], expected_k233)
@@ -956,6 +989,9 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
         self.assertEqual(point_info["h1_h3h3_width"], 0.0)
         self.assertEqual(point_info["h2_h3h3_width"], 0.0)
+        self.assertEqual(point_info["dm_resonance_nearest_mediator"], "h2")
+        self.assertEqual(point_info["dm_resonance_h2_mass_gap_GeV"], -900.0)
+        self.assertEqual(point_info["dm_resonance_h2_abs_gap_over_Tf"], 90.0)
 
     def test_mg5_signal_rates_multiply_h2_invisible_branching_ratio(self):
         generator = load_generator_module()
@@ -2008,6 +2044,55 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
         self.assertTrue(point_info["ewpt_has_x_broken"])
         self.assertEqual(point_info["ewpt_ew_step_index"], 2)
+
+    def test_ewpt_hook_records_entry_separately_from_later_large_strength(self):
+        generator = load_generator_module()
+        payload = {
+            "transition_strengths": [
+                {
+                    "transition_index": 0,
+                    "temperature_kind": "crit",
+                    "temperature": 150.0,
+                    "false_vev": {"w1": 0.0, "wx": 0.0, "ws": 0.0},
+                    "true_vev": {"w1": 25.0, "wx": 0.0, "ws": 0.0},
+                    "ew_true_over_T": 25.0 / 150.0,
+                    "ew_jump_over_T": 25.0 / 150.0,
+                },
+                {
+                    "transition_index": 0,
+                    "temperature_kind": "perc",
+                    "temperature": 140.0,
+                    "false_vev": {"w1": 0.0},
+                    "true_vev": {"w1": 28.0},
+                    "ew_true_over_T": 0.2,
+                    "ew_jump_over_T": 0.2,
+                },
+                {
+                    "transition_index": 0,
+                    "temperature_kind": "compl",
+                    "temperature": 139.0,
+                    "false_vev": {"w1": 0.0},
+                    "true_vev": {"w1": 29.0},
+                    "ew_true_over_T": 29.0 / 139.0,
+                    "ew_jump_over_T": 29.0 / 139.0,
+                },
+                {
+                    "transition_index": 1,
+                    "temperature_kind": "nucl",
+                    "temperature": 80.0,
+                    "false_vev": {"w1": 230.0},
+                    "true_vev": {"w1": 232.0},
+                    "ew_true_over_T": 2.9,
+                    "ew_jump_over_T": 0.025,
+                },
+            ]
+        }
+        point_info = {}
+        generator.add_ewpt_info(point_info, payload)
+        self.assertEqual(point_info["ewpt_ew_true_over_T"], 2.9)
+        self.assertAlmostEqual(point_info["ewpt_ew_entry_true_over_T"], 25 / 150)
+        self.assertFalse(point_info["ewpt_baryo_candidate"])
+        self.assertTrue(point_info["ewpt_ew_entry_completed"])
 
     def test_ewpt_hook_records_failure_instead_of_aborting_scan(self):
         generator = load_generator_module()

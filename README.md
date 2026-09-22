@@ -471,19 +471,136 @@ before launching BSMPT, which avoids spending time on EWPT runs that fail this
 analytic prefilter. Viable candidate information is printed before this skip, so
 discarded points can still be inspected later.
 
-When `--run-ewpt` is enabled and BSMPT returns a first-order transition
-strength, the viable-point TSV also includes:
+When `--run-ewpt` is enabled, the viable-point TSV includes the original
+selected-transition diagnostics and separate qualitative candidate flags:
 
 ```text
 ewpt_ew_true_over_T
 ewpt_ew_jump_over_T
+ewpt_ew_entry_true_over_T
+ewpt_ew_entry_false_over_T
+ewpt_ew_entry_jump_over_T
+ewpt_ew_entry_temperature_GeV
+ewpt_ew_entry_temperature_kind
+ewpt_ew_entry_transition_index
+ewpt_ew_entry_nucl_jump_over_T
+ewpt_ew_entry_nucl_temperature_GeV
+ewpt_ew_entry_perc_jump_over_T
+ewpt_ew_entry_perc_temperature_GeV
+ewpt_ew_entry_percolated
+ewpt_ew_entry_completed
+ewpt_baryo_candidate
+ewpt_gw_crit_field_jump_over_T
+ewpt_gw_crit_temperature_GeV
+ewpt_gw_nucl_field_jump_over_T
+ewpt_gw_nucl_temperature_GeV
+ewpt_gw_perc_field_jump_over_T
+ewpt_gw_perc_temperature_GeV
+ewpt_gw_max_field_jump_over_T
+ewpt_gw_max_temperature_kind
+ewpt_gw_max_transition_index
+ewpt_gw_candidate
 ```
 
-Both values describe the same selected BSMPT transition. It is chosen from the
-available strengths with priority `nucl`, then `perc`, then `compl`, then
+The first two values describe the same selected BSMPT transition. It is chosen
+from the available strengths with priority `nucl`, then `perc`, then `compl`, then
 `crit`; within one temperature kind the largest finite `ew_true/T` is selected.
 If EWPT is not run, Eq. 4.18 skips the run, or no finite strength is available,
 the columns are written as `nan`.
+
+For the baryogenesis candidate flag, a critical-temperature CalcTemps FOPT
+must cross from `|w1_false| < --ewpt-w1-threshold` to
+`|w1_true| >= --ewpt-w1-threshold` (default 5 GeV). If several transitions
+do so, the scan reports the one with the largest
+`|w1_true-w1_false|/T_c`. `ewpt_baryo_candidate` is `True` precisely when
+this critical-temperature EW jump is **strictly greater than 1**. It does
+not require a nucleation, percolation, or completion result. The same
+transition's EW jump and temperature at nucleation and percolation are
+reported separately when BSMPT supplies them; they never change the
+baryogenesis flag. The true- and false-phase EW VEV ratios and the
+percolation/completion indicators are diagnostics only.
+
+For the separate gravitational-wave candidate flag, define the total
+field-space VEV jump
+`Delta phi = sqrt((Delta w1)^2 + (Delta wx)^2 + (Delta ws)^2)`.
+For **any** CalcTemps FOPT, including a singlet-only transition starting
+from zero VEV, `ewpt_gw_candidate` is `True` if
+`Delta phi/T > 1` at the critical, nucleation, **or** percolation
+temperature. The three temperature-specific columns give the largest
+ratio over all FOPTs at each temperature, so they can refer to different
+transitions. The maximum ratio, its temperature kind, and its CalcTemps
+transition index are also stored. Approximate nucleation and completion
+results do not enter either candidate cut.
+
+Both flags are qualitative scan labels, not baryogenesis or gravitational-wave
+predictions. In particular, a field jump alone does not establish a
+gravitational-wave signal, and a large EW jump alone does not calculate the
+sphaleron washout rate. BSMPT nucleation/percolation estimates are retained
+for inspection without being required for the baryogenesis candidate flag.
+These new flags are additional annotations; the existing viability columns
+and the selected-transition diagnostics keep their previous definitions.
+
+The scan also saves micrOMEGAs `Xf = m_DM/T_f` as `dm_xf` and the derived
+`dm_freezeout_temperature_GeV = dm_mdm/dm_xf`. A failed or unavailable DM
+calculation leaves both as `nan`; no approximate `m_DM/20` value is inserted.
+These are the freeze-out diagnostics from the standard unbroken-\(Z_2\)
+micrOMEGAs calculation. The [micrOMEGAs manual](https://lapth.cnrs.fr/micromegas/v6.0/manual_6.0.pdf)
+defines `Xf` through the abundance departure from equilibrium.
+To populate these fields in an older scan, rerun the DM calculation with
+`reevaluate_trsm_dm_higgs.py`; an EWPT-only reprocessing run cannot infer a
+missing `Xf` from the existing TSV.
+Re-evaluating DM clears any previously stored freeze-out/phase comparison
+flags and thermal-VEV diagnostics, since a changed `Xf` would make them stale; a subsequent EWPT run
+with `--rerun-existing-ewpt` recomputes them.
+
+For points with a MinimaTracer global branch, the scan records the lowest and
+highest *sampled* temperatures of an \(X\)-broken global minimum in
+`ewpt_x_broken_min_T_GeV` and `ewpt_x_broken_max_T_GeV`. The JSON-valued
+`ewpt_x_broken_intervals_GeV` retains separate sampled windows if the history
+has more than one. `ewpt_x_final_restoration_low_T_GeV` and
+`ewpt_x_final_restoration_high_T_GeV` bracket the final sampled return to
+`wx=0` on cooling when the trace reaches an unbroken `T=0` vacuum. They are
+`nan` if no such return is resolved. `ewpt_x_phase_at_freezeout` is `broken`, `unbroken`,
+`boundary_unresolved`, or `outside_traced_range` when `T_f` is available.
+`ewpt_x_broken_at_or_after_freezeout=True` means at least one global
+\(X\)-broken sample lies at or below `T_f`; `False` requires a resolved
+unbroken phase at `T_f`, coverage to \(T=0\), and no such sample. An
+unresolved comparison is `nan`. The inverse flag,
+`dm_relic_z2_freezeout_compatible`, is `True` when the sampled equilibrium
+history has restored \(Z_2\) by nominal freeze-out, `False` when an \(X\)-broken
+global sample lies at or below freeze-out, and `nan` when the comparison is
+unresolved. It is a compatibility diagnostic, not proof that the micrOMEGAs
+relic abundance is valid: the actual transition may differ from the
+equilibrium global-minimum path, and re-equilibration after an earlier
+\(X\)-broken phase is not checked. Local \(X\)-broken minima are excluded from
+this thermal-history diagnostic. The plot
+`35g_freezeout_vs_x_broken_window` compares `T_f` with the sampled lower and
+upper window temperatures. These diagnostics do not change the DM, EWPT,
+baryogenesis, or GW selections. A temporary \(X\)-broken phase can make the
+standard relic calculation unreliable; the sampled comparison alone does not
+recalculate the abundance through that phase.
+
+The separate fixed-vacuum input screen compares the magnitudes of the global
+branch's electroweak (`w1`) and singlet (`ws`) VEVs with their sampled (T=0)
+values. It records their ratios at nominal `T_f` and the largest fractional
+shifts in the window `[T_f/2, 2*T_f]`. The Boolean
+`dm_relic_thermal_vev_shift_ge_10pct` is `True` when either observed shift is
+at least 10%, `False` only with complete same-phase window coverage and both
+shifts below 10%, and `nan` otherwise. The separate
+`dm_relic_thermal_phase_boundary_bracket_overlaps_window` identifies a change
+of global minimum whose sampled temperature bracket overlaps that window;
+interpolation never crosses such a bracket. This 10% threshold and the window
+are screening conventions, not relic-density validity conditions.
+
+For every `vx=0` point the scan also records the signed zero-temperature gaps
+`dm_resonance_h1_mass_gap_GeV = M1 - 2*M3` and
+`dm_resonance_h2_mass_gap_GeV = M2 - 2*M3`, their absolute values divided by
+`T_f` when it is available, and the mediator with the smaller absolute gap.
+Positive gaps put the pole above the two-DM threshold. These ratios do not
+include mediator widths or thermal mass shifts and are not resonance
+significance tests. A small VEV shift can still matter near a narrow pole or
+when the terms in `K133` nearly cancel. Neither this screen nor the $Z_2$
+diagnostic changes the stored DM selection.
 
 `--write-dm-failed` writes points that pass the non-DM checks but fail the
 dark-matter check to a separate sidecar file:
@@ -533,7 +650,8 @@ It is explicitly labelled `highmass-approx`; the existing default is unchanged.
 `--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
 that fail only the dark-matter check. It runs BSMPT for those points and writes
 them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` and
-`ewpt_ew_jump_over_T` when BSMPT returns a finite strength. Use it together
+`ewpt_ew_jump_over_T` and the two candidate flags when BSMPT returns
+transition data. Use it together
 with `--run-ewpt` if you want BSMPT for both viable and DM-failed points; by
 itself it only targets DM-failed points.
 
@@ -566,10 +684,11 @@ input filename:
 ```
 
 All input rows and columns, including DM and MG5 results, are copied to the new
-TSV. The seven EWPT summary columns are added or updated only for selected rows.
+TSV. The EWPT diagnostics and candidate columns are added or updated only for
+selected rows.
 Rows already containing an EWPT attempt are preserved by default, so a scan
 originally run with `--run-ewpt` does not repeat its fully viable BSMPT jobs;
-add `--rerun-existing-ewpt` only when they should be recalculated as well.
+add `--rerun-existing-ewpt` when those rows need the new candidate columns.
 Individual BSMPT failures are recorded as `ewpt_status=failed` and processing
 continues.
 
@@ -711,22 +830,34 @@ apply EWPO and is therefore separate from the suite's `experimental` and
 `full_viability` definitions. The fourth dashboard collects all six plots, and
 `constraint_summary.tsv` records each cumulative count explicitly.
 
-When the scan contains recorded BSMPT results, plots 30--36, the additional
-plot 31b, and a fifth dashboard are added automatically:
+When the scan contains recorded BSMPT results, plots 30--36 and a fifth
+dashboard are added automatically. New scans add separate baryogenesis and
+gravitational-wave candidate maps and temperature diagnostics:
 
 - BSMPT run/failed/no-selected-FOPT/weak-FOPT/strong-FOPT status on the
   \(M_2,M_3\) plane;
-- the selected \(v_{\rm EW,true}(T_*)/T_*\) and
-  \(\Delta v_{\rm EW}(T_*)/T_*\) on the mass plane, each with a
-  threshold-centred normalization;
+- EW-entry \(\Delta v_{\rm EW}(T_c)/T_c\) and the baryogenesis candidate
+  flag on the \(M_2,M_3\) plane (31c, 31d);
+- the largest any-field \(\Delta\phi/T\) and the gravitational-wave FOPT
+  candidate flag on the same mass plane (31e, 31f);
+- the original selected \(v_{\rm EW,true}(T_*)/T_*\) and
+  \(\Delta v_{\rm EW}(T_*)/T_*\) diagnostics (31, 31b);
 - MinimaTracer global phase-route and electroweak-entry-step maps;
-- \(v_{\rm EW,true}(T_*)/T_*\) versus \(M_2\) and \(M_3\); and
+- the EW-entry critical jump versus \(M_2\) and \(M_3\) (34b, 35b),
+  and the largest any-field jump versus \(M_3\) (35d);
+- selected true EW VEV ratio versus the EW-entry critical jump (35c);
+- nucleation and percolation jumps versus critical jumps, for the EW-entry
+  transition and for any-field FOPTs separately (35e, 35f); and
 - BSMPT evaluation, phase-history, and transition-result counts.
 
 The generator selects \(T_*\) with priority nucleation, then percolation,
-completion, and critical temperature. The displayed
-\(v_{\rm EW,true}(T_*)/T_*\geq1\) split is the conventional strong-first-order
-transition diagnostic; it is not added to the scan's viability selection.
+completion, and critical temperature. That selected transition may be a later
+broken-to-broken step, so its \(v_{\rm EW,true}(T_*)/T_*\geq1\) split must not
+be read as evidence that EW symmetry was strongly broken when it first appeared.
+The independent baryogenesis and gravitational-wave candidate counts are
+recorded in `constraint_summary.tsv` when their columns are present. The
+nucleation and percolation estimates are plotted for comparison and do not
+gate the baryogenesis flag.
 The phase-route map distinguishes direct electroweak entry, paths through an
 \(S\)-broken phase, paths through an \(X\)-broken phase, and other multistep
 histories. Since an \(X\)-broken phase violates the nominal dark-sector
@@ -735,16 +866,17 @@ Rows for which BSMPT was not requested remain visible as “not run”, while
 failed evaluations are never interpreted as successful or as having no
 first-order transition.
 
-For a file with no recorded BSMPT attempt, these eight figures and their
+For a file with no recorded BSMPT attempt, these figures and their
 dashboard are skipped. Cascade/MadGraph figures are independently skipped when
 their named scan columns are absent, so legacy inputs remain usable; the HTML
 index explains every unavailable plot. A finite `ewpt_ew_true_over_T` is
 sufficient for compatibility with older files. Newer files additionally use
 `ewpt_ew_jump_over_T`, `ewpt_status`, `ewpt_global_phase_path`,
-`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Plot 31b is omitted for legacy
-scans without the jump column. Detailed transition temperatures remain in the
-per-point `ewpt_result.json` files and are not reconstructed by the scan-table
-plot suite.
+`ewpt_has_x_broken`, and `ewpt_ew_step_index`. Candidate plots are omitted
+for legacy scans without their respective columns.
+Detailed transition
+temperatures remain in the per-point `ewpt_result.json` files and are not
+reconstructed by the scan-table plot suite.
 
 Plots 37--42 show \(K_{133}\) and \(K_{233}\) separately versus \(M_3\), with
 the signed resonance displacement \(M_2-2M_3\) as a symmetric-log color scale
@@ -1001,10 +1133,11 @@ For a two-step singlet-assisted EWPT search, look for a cooling path like
 SYM -> SINGLET_S -> EW
 ```
 
-and then require the EW step to complete, e.g. `status_nucl_0: success`. The
-critical-temperature result alone is not enough if `status_bounce_sol_0` fails
-or `T_nucl_0` is `nan`. As a rough baryogenesis diagnostic, inspect
-`ew_jump/T` or `ew_true/T`; values near or above 1 are the interesting regime.
+and inspect the critical EW-entry jump `ew_jump/T`. The scan's qualitative
+baryogenesis flag uses this ratio at `T_crit` and does not require a
+successful bounce, nucleation, or completion calculation. The latter
+results are still saved for physical interpretation and possible
+gravitational-wave follow-up.
 
 A light-singlet, paper-inspired example scan point is:
 

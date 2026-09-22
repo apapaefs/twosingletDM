@@ -19,6 +19,11 @@ import sqlite3
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from dm_thermal_relic_diagnostic import (
+    RESONANCE_COLUMNS,
+    THERMAL_VEV_COLUMNS,
+    resonance_proximity_updates,
+)
 from trsm_cmb import CMB_COLUMNS, add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
 from trsm_direct_detection import DEFAULT_LIMIT_MODEL, load_si_limit_table
 from trsm_micromegas import DEFAULT_MICROMEGAS_VERSION, MICROMEGAS_VERSIONS, micromegas_configuration, normalize_micromegas_version
@@ -59,6 +64,8 @@ DM_COLUMNS = (
     "dm_indirect_detection_excluded",
     "dm_limit_model",
     "dm_rescale",
+    "dm_xf",
+    "dm_freezeout_temperature_GeV",
 )
 
 HIGGSTOOLS_COLUMNS = (
@@ -91,6 +98,13 @@ UPDATED_COLUMNS = (
     "hs",
     "dm",
 ) + DM_COLUMNS + HIGGSTOOLS_COLUMNS + PROVENANCE_COLUMNS
+
+FREEZEOUT_DEPENDENT_COLUMNS = (
+    "ewpt_x_phase_at_freezeout",
+    "ewpt_x_broken_at_or_after_freezeout",
+    "dm_relic_z2_freezeout_compatible",
+    *THERMAL_VEV_COLUMNS,
+)
 
 BOOLEAN_RESULT_COLUMNS = (
     "hb",
@@ -251,6 +265,25 @@ def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
     if not dm_unavailable:
         if float(updates["dm_mdm"]) <= 0.0:
             raise ReEvaluationError(f"row {row_number} dark-matter mass is not positive")
+        xf = updates["dm_xf"]
+        freezeout_temperature = updates["dm_freezeout_temperature_GeV"]
+        if (xf is None) != (freezeout_temperature is None):
+            raise ReEvaluationError(f"row {row_number} has incomplete freeze-out diagnostics")
+        if xf is not None:
+            try:
+                valid_freezeout = (
+                    math.isfinite(float(xf)) and float(xf) > 0.0
+                    and math.isfinite(float(freezeout_temperature))
+                    and float(freezeout_temperature) > 0.0
+                    and math.isclose(
+                        float(freezeout_temperature), float(updates["dm_mdm"]) / float(xf),
+                        rel_tol=1.0e-10,
+                    )
+                )
+            except (TypeError, ValueError, ZeroDivisionError):
+                valid_freezeout = False
+            if not valid_freezeout:
+                raise ReEvaluationError(f"row {row_number} has inconsistent freeze-out diagnostics")
         if float(updates["dm_omega"]) < 0.0 or float(updates["dm_dir_det"]) < 0.0:
             raise ReEvaluationError(f"row {row_number} has a negative core DM result")
         if float(updates["dm_relic_upper_limit"]) <= 0.0:
@@ -536,6 +569,9 @@ class CoreEvaluator:
             "micromegas_model_convention": EXPECTED_CONVENTION_ID,
         }
         updates.update(dm_values)
+        updates.update(resonance_proximity_updates(
+            mass2, mass3, updates.get("dm_freezeout_temperature_GeV")
+        ))
         if not self.planck_cmb:
             updates.update(cmb_diagnostics())
         validate_updates(updates, row_number)
@@ -598,6 +634,7 @@ def input_identity(path: Path, header: Sequence[str], row_count: int) -> dict[st
 def output_header(input_header: Sequence[str], *, planck_cmb=False) -> list[str]:
     result = list(input_header)
     result.extend(name for name in UPDATED_COLUMNS if name not in result)
+    result.extend(name for name in RESONANCE_COLUMNS if name not in result)
     if planck_cmb or any(name in result for name in CMB_COLUMNS):
         result.extend(name for name in CMB_COLUMNS if name not in result)
     return result
@@ -799,6 +836,15 @@ def reevaluate(
                 for index in range(batch_start, batch_stop):
                     current_index = index
                     updates = dict(evaluator(rows[index], index + 1))
+                    updates.update(resonance_proximity_updates(
+                        rows[index].get("M2"), rows[index].get("M3"),
+                        updates.get("dm_freezeout_temperature_GeV"),
+                    ))
+                    # A changed micrOMEGAs Xf invalidates comparisons made with
+                    # an earlier BSMPT result. Retain the X history itself.
+                    for column in FREEZEOUT_DEPENDENT_COLUMNS:
+                        if column in rows[index]:
+                            updates[column] = None
                     if any(name in final_header for name in CMB_COLUMNS):
                         if planck_cmb and (any(name not in updates for name in CMB_COLUMNS) or updates["dm_cmb_enabled"] is not True):
                             raise ReEvaluationError("CMB-enabled evaluator returned no complete, enabled CMB diagnostics")

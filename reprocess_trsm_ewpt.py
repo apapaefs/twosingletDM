@@ -25,6 +25,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from dm_thermal_relic_diagnostic import (
+    RESONANCE_COLUMNS,
+    THERMAL_VEV_COLUMNS,
+    resonance_proximity_updates,
+    thermal_vev_updates,
+)
+from ewpt_entry_criterion import EW_ENTRY_COLUMNS, ew_entry_updates
+from ewpt_x_history import X_HISTORY_COLUMNS, x_history_updates
+
 
 CHECKPOINT_SCHEMA_VERSION = 1
 REPROCESSOR_SCHEMA = "trsm_ewpt_reprocessing_v1"
@@ -40,6 +49,10 @@ EWPT_COLUMNS = (
     "ewpt_ew_step_index",
     "ewpt_status",
     "ewpt_error",
+    *EW_ENTRY_COLUMNS,
+    *X_HISTORY_COLUMNS,
+    *THERMAL_VEV_COLUMNS,
+    *RESONANCE_COLUMNS,
 )
 EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
 ELIGIBLE_OUTCOMES = {
@@ -135,6 +148,8 @@ def existing_ewpt_attempt(row: Mapping[str, str]) -> bool:
         return True
     if finite_number(row.get("ewpt_ew_jump_over_T")) is not None:
         return True
+    if finite_number(row.get("ewpt_ew_entry_true_over_T")) is not None:
+        return True
     if optional_text(row.get("ewpt_global_phase_path")):
         return True
     if finite_number(row.get("ewpt_ew_step_index")) is not None:
@@ -146,11 +161,15 @@ def empty_ewpt_updates() -> dict[str, object]:
     return {
         "ewpt_ew_true_over_T": None,
         "ewpt_ew_jump_over_T": None,
+        **dict.fromkeys(EW_ENTRY_COLUMNS),
         "ewpt_global_phase_path": None,
         "ewpt_has_x_broken": None,
         "ewpt_ew_step_index": None,
         "ewpt_status": None,
         "ewpt_error": None,
+        **dict.fromkeys(X_HISTORY_COLUMNS),
+        **dict.fromkeys(THERMAL_VEV_COLUMNS),
+        **dict.fromkeys(RESONANCE_COLUMNS),
     }
 
 
@@ -171,7 +190,11 @@ def select_primary_strength(payload: Mapping[str, object]) -> Mapping[str, objec
     return None
 
 
-def updates_from_payload(payload: Mapping[str, object]) -> dict[str, object]:
+def updates_from_payload(
+    payload: Mapping[str, object], *, w1_threshold: float = 5.0,
+    freezeout_temperature: float | None = None,
+    m2: float | None = None, m3: float | None = None,
+) -> dict[str, object]:
     updates = empty_ewpt_updates()
     updates["ewpt_status"] = "success"
     updates["ewpt_error"] = ""
@@ -184,6 +207,10 @@ def updates_from_payload(payload: Mapping[str, object]) -> dict[str, object]:
         updates["ewpt_ew_jump_over_T"] = finite_number(
             strength.get("ew_jump_over_T")
         )
+    updates.update(ew_entry_updates(payload, w1_threshold=w1_threshold))
+    updates.update(x_history_updates(payload, freezeout_temperature))
+    updates.update(thermal_vev_updates(payload, freezeout_temperature))
+    updates.update(resonance_proximity_updates(m2, m3, freezeout_temperature))
 
     minimatracer = payload.get("minimatracer") or {}
     if isinstance(minimatracer, Mapping):
@@ -308,7 +335,17 @@ class ProductionEvaluator:
             encoding="utf-8",
         )
         print(summary)
-        return RowEvaluation(updates_from_payload(payload), "success", dm_passed)
+        return RowEvaluation(
+            updates_from_payload(
+                payload,
+                w1_threshold=self.config.w1_threshold,
+                freezeout_temperature=finite_number(row.get("dm_freezeout_temperature_GeV")),
+                m2=m2,
+                m3=m3,
+            ),
+            "success",
+            dm_passed,
+        )
 
 
 def read_input(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -644,7 +681,13 @@ def reprocess(
                         raise EWPTReprocessingError(
                             f"row {index + 2} produced unknown outcome {result.outcome!r}"
                         )
-                    payload = merged_payload(rows[index], result.updates, final_header)
+                    updates = dict(result.updates)
+                    if finite_number(rows[index].get("vx")) == 0.0:
+                        updates.update(resonance_proximity_updates(
+                            rows[index].get("M2"), rows[index].get("M3"),
+                            rows[index].get("dm_freezeout_temperature_GeV"),
+                        ))
+                    payload = merged_payload(rows[index], updates, final_header)
                     connection.execute(
                         "INSERT INTO rows(row_index, payload, outcome, dm_passed) "
                         "VALUES (?, ?, ?, ?)",

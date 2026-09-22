@@ -72,12 +72,22 @@ class FakeEWPTModule:
             "minimatracer": {
                 "global_phase_path": labels,
                 "ew_step_index": index - 1,
+                "global_branch": (
+                    [
+                        {"temp": 0, "label": "EW", "phase_index": 0, "w1": 246, "ws": 100},
+                        {"temp": 5, "label": "EW", "phase_index": 0, "w1": 245, "ws": 99},
+                        {"temp": 10, "label": "X_BROKEN", "phase_index": 1, "w1": 0, "ws": 0},
+                        {"temp": 20, "label": "X_BROKEN", "phase_index": 1, "w1": 0, "ws": 0},
+                        {"temp": 30, "label": "SYM", "phase_index": 2, "w1": 0, "ws": 0},
+                    ] if index == 2 else []
+                ),
             },
         }
 
 
 BASE_HEADER = [
     *reprocessor.REQUIRED_INPUT_COLUMNS,
+    "dm_freezeout_temperature_GeV",
     *reprocessor.EWPT_COLUMNS,
     "mg5_xsec_gg_heta0_pb",
 ]
@@ -100,6 +110,7 @@ def scan_row(index, *, dm=True, **updates):
         "ewpo": "True",
         "wmass": "True",
         "dm": ("True" if dm else "False") if type(dm) is bool else str(dm),
+        "dm_freezeout_temperature_GeV": "nan",
         "ewpt_ew_true_over_T": "nan",
         "ewpt_ew_jump_over_T": "nan",
         "ewpt_global_phase_path": "nan",
@@ -145,7 +156,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             workdir = root / "ewpt"
             rows = [
                 scan_row(1, dm=True),
-                scan_row(2, dm=False),
+                scan_row(2, dm=False, dm_freezeout_temperature_GeV=1),
                 scan_row(3, dm=False, hb="False"),
                 scan_row(
                     4,
@@ -179,9 +190,21 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             self.assertEqual(float(written[0]["ewpt_ew_jump_over_T"]), 0.6)
             self.assertEqual(written[1]["ewpt_global_phase_path"], "SYM -> X_BROKEN -> EW")
             self.assertEqual(written[1]["ewpt_has_x_broken"], "True")
+            self.assertEqual(float(written[1]["ewpt_x_broken_min_T_GeV"]), 10.0)
+            self.assertEqual(float(written[1]["ewpt_x_broken_max_T_GeV"]), 20.0)
+            self.assertEqual(float(written[1]["ewpt_x_final_restoration_low_T_GeV"]), 5.0)
+            self.assertEqual(float(written[1]["ewpt_x_final_restoration_high_T_GeV"]), 10.0)
+            self.assertEqual(written[1]["ewpt_x_phase_at_freezeout"], "unbroken")
+            self.assertEqual(written[1]["ewpt_x_broken_at_or_after_freezeout"], "False")
+            self.assertEqual(written[1]["dm_relic_z2_freezeout_compatible"], "True")
+            self.assertEqual(written[1]["dm_relic_thermal_vev_shift_ge_10pct"], "False")
+            self.assertAlmostEqual(float(written[1]["dm_relic_thermal_ew_vev_Tf_over_T0"]), 245.8 / 246)
+            self.assertEqual(written[1]["dm_resonance_nearest_mediator"], "h2")
+            self.assertEqual(float(written[1]["dm_resonance_h2_abs_gap_over_Tf"]), 8.0)
             self.assertEqual(written[1]["dm"], "False")
             self.assertEqual(written[2]["ewpt_status"], "nan")
             self.assertEqual(written[3]["ewpt_ew_true_over_T"], "2.4")
+            self.assertEqual(written[3]["dm_resonance_h2_mass_gap_GeV"], "-6.0")
             self.assertEqual(written[1]["mg5_xsec_gg_heta0_pb"], "0.02")
             self.assertEqual(result.counts["success"], 2)
             self.assertEqual(result.counts["existing"], 1)
@@ -214,6 +237,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             self.assertIn("simulated BSMPT failure", written[1]["ewpt_error"])
             self.assertEqual(written[1]["ewpt_ew_true_over_T"], "nan")
             self.assertEqual(written[1]["ewpt_ew_jump_over_T"], "nan")
+            self.assertEqual(written[1]["dm_resonance_h2_mass_gap_GeV"], "-8.0")
             self.assertEqual(result.counts["success"], 2)
             self.assertEqual(result.counts["failed"], 1)
 

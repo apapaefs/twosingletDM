@@ -174,6 +174,7 @@ class MicromegasResult:
     dir_det: float
     indirect_line_channels: tuple[IndirectLineChannel, ...] = ()
     cmb_signal: CMBSignal = CMBSignal()
+    xf: float | None = None
 
 
 @dataclass(frozen=True)
@@ -365,13 +366,17 @@ def assess_indirect_limit(
 
 
 def parse_micromegas_output(text):
-    """Extract the same three quantities that MOrun.sh parsed with awk."""
+    """Extract relic diagnostics, including darkOmega's m_DM/T_freezeout."""
     mdm = find_number(
         rf"(?:^|\s)(?:MHX|MX)\s*=\s*({NUMBER_PATTERN})",
         text,
         "dark matter mass",
     )
     omega = find_number(rf"Omega=({NUMBER_PATTERN})", text, "Omega")
+    xf_match = re.search(rf"(?:^|\s)Xf\s*=\s*({NUMBER_PATTERN})", text, flags=re.MULTILINE)
+    xf = float(xf_match.group(1)) if xf_match is not None else None
+    if xf is not None and (not math.isfinite(xf) or xf <= 0.0):
+        xf = None
 
     neutron_cross_section = neutron_si_cross_section(text)
 
@@ -381,6 +386,7 @@ def parse_micromegas_output(text):
         dir_det=neutron_cross_section,
         indirect_line_channels=parse_indirect_line_channels(text),
         cmb_signal=parse_cmb_signal(text),
+        xf=xf,
     )
 
 
@@ -583,6 +589,8 @@ def dm_info_string(summary):
         f"Mh2={format_value(summary.point.M2)}\n"
         f"  MDM={format_value(summary.result.mdm)} "
         f"Omega={format_value(summary.result.omega)} "
+        f"Xf={format_value(summary.result.xf) if summary.result.xf is not None else 'unavailable'} "
+        f"Tf={format_value(summary.result.mdm / summary.result.xf) if summary.result.xf is not None else 'unavailable'} "
         f"DirDet={format_value(summary.result.dir_det)} "
         f"DirDetLimit={format_value(summary.dir_det_limit)} "
         f"LUXBaseLimit={format_value(summary.lux_base_limit)}\n"
@@ -600,6 +608,11 @@ def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
     diagnostics = {
         "dm_mdm": summary.result.mdm,
         "dm_omega": summary.result.omega,
+        "dm_xf": summary.result.xf,
+        "dm_freezeout_temperature_GeV": (
+            summary.result.mdm / summary.result.xf
+            if summary.result.xf is not None else None
+        ),
         "dm_relic_upper_limit": relic_upper_limit,
         "dm_dir_det": summary.result.dir_det,
         "dm_dir_det_limit": summary.dir_det_limit,
@@ -626,6 +639,8 @@ def empty_dm_exclusion_info():
     return {
         "dm_mdm": None,
         "dm_omega": None,
+        "dm_xf": None,
+        "dm_freezeout_temperature_GeV": None,
         "dm_relic_upper_limit": None,
         "dm_dir_det": None,
         "dm_dir_det_limit": None,

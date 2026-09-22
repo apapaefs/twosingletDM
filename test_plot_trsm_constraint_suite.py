@@ -1082,6 +1082,209 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         stems = self.plotter.figure_stems_for_data(data)
         self.assertIn("31_bsmpt_ew_true_over_t_m2_m3", stems)
         self.assertNotIn("31b_bsmpt_ew_jump_over_t_m2_m3", stems)
+        self.assertNotIn("31d_bsmpt_ew_entry_status_m2_m3", stems)
+        self.assertNotIn("34b_bsmpt_ew_entry_strength_vs_m2", stems)
+        self.assertNotIn("35b_bsmpt_ew_entry_strength_vs_m3", stems)
+        self.assertNotIn("35c_bsmpt_selected_vs_ew_entry_jump", stems)
+        self.assertNotIn("31f_bsmpt_gw_status_m2_m3", stems)
+
+    def test_ew_entry_status_plot_shows_runs_without_critical_entry(self):
+        extra = [
+            "ewpt_ew_entry_jump_over_T",
+            "ewpt_baryo_candidate",
+        ]
+        rows = [row + ["nan"] * len(extra) for row in bsmpt_fixture_rows()]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "no_completed_entry.tsv"
+            write_fixture(path, BSMPT_HEADER + extra, rows)
+            data = self.plotter.load_scan(path)
+        stems = self.plotter.figure_stems_for_data(data)
+        self.assertIn("31d_bsmpt_ew_entry_status_m2_m3", stems)
+        self.assertNotIn("31c_bsmpt_ew_entry_jump_over_t_m2_m3", stems)
+        self.assertNotIn("34b_bsmpt_ew_entry_strength_vs_m2", stems)
+        self.assertNotIn("35b_bsmpt_ew_entry_strength_vs_m3", stems)
+        self.assertNotIn("35c_bsmpt_selected_vs_ew_entry_jump", stems)
+
+    def test_ew_entry_plot_and_summary_use_the_new_criterion(self):
+        extra = [
+            "ewpt_ew_entry_jump_over_T",
+            "ewpt_ew_entry_percolated",
+            "ewpt_ew_entry_completed",
+            "ewpt_baryo_candidate",
+            "ewpt_ew_entry_nucl_jump_over_T",
+            "ewpt_ew_entry_perc_jump_over_T",
+            "ewpt_gw_crit_field_jump_over_T",
+            "ewpt_gw_nucl_field_jump_over_T",
+            "ewpt_gw_perc_field_jump_over_T",
+            "ewpt_gw_max_field_jump_over_T",
+            "ewpt_gw_candidate",
+        ]
+        rows = [row + ["nan"] * len(extra) for row in bsmpt_fixture_rows()]
+        def set_values(index, **values):
+            for column, value in values.items():
+                rows[index][len(BSMPT_HEADER) + extra.index(column)] = value
+
+        set_values(2, ewpt_gw_crit_field_jump_over_T=1.2,
+                   ewpt_gw_max_field_jump_over_T=1.2,
+                   ewpt_gw_candidate=True)
+        set_values(3, ewpt_ew_entry_jump_over_T=0.2,
+                   ewpt_ew_entry_percolated=True, ewpt_ew_entry_completed=True,
+                   ewpt_baryo_candidate=False,
+                   ewpt_ew_entry_nucl_jump_over_T=0.3,
+                   ewpt_ew_entry_perc_jump_over_T=0.4,
+                   ewpt_gw_crit_field_jump_over_T=0.2,
+                   ewpt_gw_nucl_field_jump_over_T=0.3,
+                   ewpt_gw_perc_field_jump_over_T=0.4,
+                   ewpt_gw_max_field_jump_over_T=0.4, ewpt_gw_candidate=False)
+        set_values(4, ewpt_ew_entry_jump_over_T=1.2,
+                   ewpt_ew_entry_percolated=False, ewpt_ew_entry_completed=False,
+                   ewpt_baryo_candidate=True,
+                   ewpt_gw_crit_field_jump_over_T=1.2,
+                   ewpt_gw_max_field_jump_over_T=1.2, ewpt_gw_candidate=True)
+        set_values(5, ewpt_ew_entry_jump_over_T=0.5,
+                   ewpt_ew_entry_percolated=True, ewpt_ew_entry_completed=False,
+                   ewpt_baryo_candidate=False,
+                   ewpt_ew_entry_nucl_jump_over_T=1.5,
+                   ewpt_ew_entry_perc_jump_over_T=1.8,
+                   ewpt_gw_crit_field_jump_over_T=0.5,
+                   ewpt_gw_nucl_field_jump_over_T=1.5,
+                   ewpt_gw_perc_field_jump_over_T=1.8,
+                   ewpt_gw_max_field_jump_over_T=1.8, ewpt_gw_candidate=True)
+        set_values(6, ewpt_ew_entry_jump_over_T=0.3,
+                   ewpt_ew_entry_percolated=False, ewpt_ew_entry_completed=False,
+                   ewpt_baryo_candidate=False,
+                   ewpt_gw_crit_field_jump_over_T=0.3,
+                   ewpt_gw_max_field_jump_over_T=0.3, ewpt_gw_candidate=False)
+        rows[3][HEADER.index("ewpt_ew_true_over_T")] = 2.5
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "ew_entry.tsv"
+            write_fixture(path, BSMPT_HEADER + extra, rows)
+            data = self.plotter.load_scan(path)
+
+        stems = self.plotter.figure_stems_for_data(data)
+        self.assertIn("31c_bsmpt_ew_entry_jump_over_t_m2_m3", stems)
+        self.assertIn("31d_bsmpt_ew_entry_status_m2_m3", stems)
+        self.assertIn("31e_bsmpt_gw_max_jump_over_t_m2_m3", stems)
+        self.assertIn("31f_bsmpt_gw_status_m2_m3", stems)
+        self.assertIn("34b_bsmpt_ew_entry_strength_vs_m2", stems)
+        self.assertIn("35b_bsmpt_ew_entry_strength_vs_m3", stems)
+        self.assertIn("35c_bsmpt_selected_vs_ew_entry_jump", stems)
+        self.assertIn("35d_bsmpt_gw_max_jump_vs_m3", stems)
+        self.assertIn("35e_bsmpt_ew_entry_temperature_jumps", stems)
+        self.assertIn("35f_bsmpt_gw_temperature_jumps", stems)
+        self.assertEqual(
+            data.derived["bsmpt_ew_entry"].tolist(),
+            [
+                "not run",
+                "failed",
+                "no recorded EW entry",
+                "EW entry weak",
+                "baryogenesis candidate",
+                "EW entry weak",
+                "EW entry weak",
+                "not run",
+            ],
+        )
+        self.assertEqual(
+            data.derived["bsmpt_gw"].tolist(),
+            ["not run", "failed", "GW candidate", "GW weak", "GW candidate",
+             "GW candidate", "GW weak", "not run"],
+        )
+        summary = {row.metric: row for row in self.plotter.build_summary(data)}
+        self.assertEqual(summary["bsmpt_ew_entry_fopt_identified"].count, 4)
+        self.assertEqual(summary["bsmpt_ew_entry_percolated"].count, 2)
+        self.assertEqual(summary["bsmpt_ew_entry_completed"].count, 1)
+        self.assertEqual(summary["bsmpt_baryogenesis_candidates"].count, 1)
+        self.assertEqual(summary["bsmpt_baryogenesis_candidates"].denominator, 4)
+        self.assertEqual(summary["bsmpt_gw_candidates"].count, 3)
+        self.assertEqual(summary["bsmpt_gw_candidates"].denominator, 5)
+        self.assertEqual(len(self.plotter.bsmpt_bar_metrics(data)), 10)
+        spec = self.plotter.PLOT_BY_STEM[
+            "31c_bsmpt_ew_entry_jump_over_t_m2_m3"
+        ]
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_continuous_mass(fig, ax, data, spec)
+            self.assertTrue(ax.collections)
+        finally:
+            self.plotter.plt.close(fig)
+        for stem in (
+            "34b_bsmpt_ew_entry_strength_vs_m2",
+            "35b_bsmpt_ew_entry_strength_vs_m3",
+        ):
+            mass_spec = self.plotter.PLOT_BY_STEM[stem]
+            fig, ax = self.plotter.plt.subplots()
+            try:
+                self.plotter.render_bsmpt_strength_xy(ax, data, mass_spec)
+                self.assertEqual(len(ax.collections), 2)
+                self.assertEqual(ax.get_yscale(), "log")
+                self.assertIn("EW entry at", ax.get_title())
+            finally:
+                self.plotter.plt.close(fig)
+        comparison = self.plotter.PLOT_BY_STEM[
+            "35c_bsmpt_selected_vs_ew_entry_jump"
+        ]
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_spec(fig, ax, data, comparison)
+            self.assertEqual(ax.get_xscale(), "log")
+            self.assertEqual(ax.get_yscale(), "log")
+            self.assertTrue(any("EW jump" in note.get_text() for note in ax.texts))
+        finally:
+            self.plotter.plt.close(fig)
+        status_spec = self.plotter.PLOT_BY_STEM[
+            "31d_bsmpt_ew_entry_status_m2_m3"
+        ]
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_categorical_mass(ax, data, status_spec)
+            self.assertEqual(len(ax.collections), 5)
+            labels = [text.get_text() for text in ax.get_legend().get_texts()]
+            self.assertTrue(any("EW entry" in label for label in labels))
+        finally:
+            self.plotter.plt.close(fig)
+
+        for stem in ("35e_bsmpt_ew_entry_temperature_jumps",
+                     "35f_bsmpt_gw_temperature_jumps"):
+            fig, ax = self.plotter.plt.subplots()
+            try:
+                self.plotter.render_spec(fig, ax, data, self.plotter.PLOT_BY_STEM[stem])
+                self.assertEqual(ax.get_xscale(), "log")
+                self.assertEqual(ax.get_yscale(), "log")
+                self.assertGreaterEqual(len(ax.collections), 2)
+            finally:
+                self.plotter.plt.close(fig)
+
+    def test_freezeout_x_window_plot_uses_sampled_global_window(self):
+        extra = [
+            "dm_freezeout_temperature_GeV",
+            "ewpt_x_broken_min_T_GeV",
+            "ewpt_x_broken_max_T_GeV",
+            "ewpt_x_broken_at_or_after_freezeout",
+        ]
+        rows = [row + ["nan"] * len(extra) for row in bsmpt_fixture_rows()]
+        rows[3][-4:] = [10, 30, 70, False]
+        rows[4][-4:] = [40, 30, 70, True]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "freezeout.tsv"
+            write_fixture(path, BSMPT_HEADER + extra, rows)
+            data = self.plotter.load_scan(path)
+
+        spec = self.plotter.PLOT_BY_STEM["35g_freezeout_vs_x_broken_window"]
+        self.assertIsNone(self.plotter.spec_unavailable_reason(data, spec))
+        summary = {row.metric: row for row in self.plotter.build_summary(data)}
+        self.assertEqual(summary["dm_freezeout_temperature_available"].count, 2)
+        self.assertEqual(summary["bsmpt_x_freezeout_comparison_assessed"].count, 2)
+        self.assertEqual(summary["bsmpt_x_broken_at_or_after_freezeout"].count, 1)
+        fig, ax = self.plotter.plt.subplots()
+        try:
+            self.plotter.render_spec(fig, ax, data, spec)
+            self.assertEqual(ax.get_xscale(), "symlog")
+            self.assertEqual(ax.get_yscale(), "symlog")
+            self.assertEqual(len(ax.collections), 4)
+            self.assertEqual(sum(len(item.get_offsets()) for item in ax.collections), 4)
+        finally:
+            self.plotter.plt.close(fig)
 
     def test_cumulative_renderer_uses_nested_styles_and_skips_missing_columns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1156,11 +1359,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
     def test_registry_and_expected_paths_are_unique(self):
-        self.assertEqual(len(self.plotter.PLOT_SPECS), 70)
+        self.assertEqual(len(self.plotter.PLOT_SPECS), 81)
         self.assertEqual(len(self.plotter.DASHBOARDS), 12)
         stems = self.plotter.all_figure_stems()
-        self.assertEqual(len(stems), 82)
-        self.assertEqual(len(set(stems)), 82)
+        self.assertEqual(len(stems), 93)
+        self.assertEqual(len(set(stems)), 93)
         self.assertTrue(any("bsmpt" in stem for stem in stems))
         self.assertTrue(any("signal" in stem for stem in stems))
         self.assertEqual(
@@ -1198,10 +1401,21 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "30_bsmpt_status_m2_m3",
                 "31_bsmpt_ew_true_over_t_m2_m3",
                 "31b_bsmpt_ew_jump_over_t_m2_m3",
+                "31c_bsmpt_ew_entry_jump_over_t_m2_m3",
+                "31d_bsmpt_ew_entry_status_m2_m3",
+                "31e_bsmpt_gw_max_jump_over_t_m2_m3",
+                "31f_bsmpt_gw_status_m2_m3",
                 "32_bsmpt_phase_history_m2_m3",
                 "33_bsmpt_ew_entry_step_m2_m3",
                 "34_bsmpt_strength_vs_m2",
+                "34b_bsmpt_ew_entry_strength_vs_m2",
                 "35_bsmpt_strength_vs_m3",
+                "35b_bsmpt_ew_entry_strength_vs_m3",
+                "35c_bsmpt_selected_vs_ew_entry_jump",
+                "35d_bsmpt_gw_max_jump_vs_m3",
+                "35e_bsmpt_ew_entry_temperature_jumps",
+                "35f_bsmpt_gw_temperature_jumps",
+                "35g_freezeout_vs_x_broken_window",
                 "36_bsmpt_counts",
                 "37_k133_vs_m3_all_resonance",
                 "38_k133_vs_m3_experimental_resonance",
@@ -1273,11 +1487,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 ),
                 "dashboard_bsmpt_summary": (
                     "30_bsmpt_status_m2_m3",
-                    "31_bsmpt_ew_true_over_t_m2_m3",
-                    "31b_bsmpt_ew_jump_over_t_m2_m3",
+                    "31c_bsmpt_ew_entry_jump_over_t_m2_m3",
+                    "31d_bsmpt_ew_entry_status_m2_m3",
+                    "31e_bsmpt_gw_max_jump_over_t_m2_m3",
+                    "31f_bsmpt_gw_status_m2_m3",
                     "32_bsmpt_phase_history_m2_m3",
-                    "33_bsmpt_ew_entry_step_m2_m3",
-                    "36_bsmpt_counts",
                 ),
                 "dashboard_portal_resonance_summary": (
                     "37_k133_vs_m3_all_resonance",
@@ -1386,10 +1600,10 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertNotEqual(binary_styles["fail"].marker, binary_styles["pass"].marker)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both")
-        self.assertEqual(len(paths), 164)
-        self.assertEqual(len(set(paths)), 164)
-        self.assertEqual(sum(path.suffix == ".png" for path in paths), 82)
-        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 82)
+        self.assertEqual(len(paths), 186)
+        self.assertEqual(len(set(paths)), 186)
+        self.assertEqual(sum(path.suffix == ".png" for path in paths), 93)
+        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 93)
 
         legacy_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=data
@@ -1744,7 +1958,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             )
             self.assertTrue((output_dir / "30_bsmpt_status_m2_m3.pdf").exists())
             index_text = (output_dir / "index.html").read_text(encoding="utf-8")
-            self.assertIn("BSMPT electroweak phase-transition plots", index_text)
+            self.assertIn("BSMPT phase-transition candidates", index_text)
             self.assertIn("6 attempted BSMPT evaluations", index_text)
             self.assertIn('src="dashboard_bsmpt_summary.png"', index_text)
             data = self.plotter.load_scan(input_path)
