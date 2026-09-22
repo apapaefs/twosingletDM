@@ -85,6 +85,27 @@ python3 generate_trsm_points.py SEED --nrandom 500
 where `SEED` is an integer used as the random-number seed. If `--nrandom` is
 omitted, the script defaults to 100 random points.
 
+Select the micrOMEGAs backend with `--micromegas-version 7` (7.1.4) or
+`--micromegas-version 6` (6.1.15). The exact version strings also work.
+Existing commands continue to use 6.1.15 by default. For example, on manto:
+
+```bash
+cd /Users/apapaefs/Projects/TwoSingletDM
+./trsmdm/bin/python generate_trsm_points.py 123 --nrandom 500 --micromegas-version 7
+```
+
+Each backend uses `../micromegas_<version>/TRSM/main` relative to the script.
+For another installation, add `--micromegas-main /absolute/path/to/TRSM/main`
+and specify its version with `--micromegas-version`. The executable is checked
+before any scan output is created. The version and resolved executable path
+are recorded in the metadata sidecar. Version 7 run tags include `-mo7.1.4`,
+so comparisons using the same date and seed have separate output files.
+Custom executable paths add `-customMO`.
+
+Resume with `--resume-from` alone: the saved backend is restored and cannot
+be changed during a campaign. Older metadata/checkpoints without a backend
+selection retain their implicit 6.1.15 backend and remain compatible.
+
 The default samples `M2` uniformly over
 `[m2_min, min(m2_max, m3_max - mhiggs)]`, then samples `M3` over
 `[max(m3_min, M2 + mhiggs), m3_max]`. This keeps both masses inside their
@@ -481,6 +502,21 @@ fail the dark-matter check. For an underabundant candidate with
 annihilation line flux by `xi^2` (implemented equivalently by dividing the
 experimental line-flux limit by `xi^2`).
 
+An explicitly selected `--dm-limit-table /path/to/verified-si-limits.json`
+replaces the inherited `lz2025-source` direct-detection fit with a published
+90% observed elastic SI upper-limit table. This works with both micrOMEGAs
+versions and preserves the abundance rescaling. Tables are checked for units,
+mass coverage and provenance; their checksum is recorded for checkpoint/resume.
+See [the table format and LZ 2026 status](DM/direct-detection.md).
+The official mass limits from arXiv:2609.02823 remain unavailable: the linked
+HEPData record denied access even after login on 2026-09-17. An optional
+[temporary 400-4000 GeV approximation](DM/data/lz2026/README.md) uses the
+digitized Figure S7 elastic limit at 1 TeV and assumes a limit proportional
+to DM mass. To select it, add
+`--dm-limit-table DM/data/lz2026/lz2026-figs7-highmass-approx.json`
+and restrict a random scan with `--m3-min 400 --m3-max 4000`.
+It is explicitly labelled `highmass-approx`; the existing default is unchanged.
+
 `--run-ewpt-on-dm-failed` is an exploratory option for otherwise-good points
 that fail only the dark-matter check. It runs BSMPT for those points and writes
 them to the `_dm_failed` sidecar, including `ewpt_ew_true_over_T` and
@@ -870,13 +906,23 @@ The examples below assume they are run from this `twosingletDM` repository
 directory. From the parent `TwoSingletDM` project directory, prefix the script
 path with `twosingletDM/` and use `tests/...` instead of `../tests/...`.
 
-The script defaults to the local BSMPT build used in this checkout:
+The helper resolves the BSMPT build relative to the scan repository, independent
+of the working directory:
 
 ```text
-/Users/apapaefs/Projects/TwoSingletDM/BSMPT/build/macos-armv8-release/bin/CalcTemps
+../BSMPT/build/macos-armv8-release/bin/CalcTemps
+../BSMPT/build/macos-armv8-release/bin/MinimaTracer
 ```
 
-Override the binaries if needed:
+On manto this is `/Users/apapaefs/Projects/BSMPT/build/macos-armv8-release/bin`.
+On the laptop it is
+`/Users/apapaefs/Projects/TwoSingletDM/BSMPT/build/macos-armv8-release/bin`.
+These defaults also apply to `generate_trsm_points.py` and
+`reprocess_trsm_ewpt.py`, including the EWPT step enabled by
+`--write-all-points`. No executable flags are needed for either layout.
+
+Override the binaries if needed (use `--ewpt-executable` and
+`--ewpt-minima-executable` in the scan and reprocessing scripts):
 
 ```bash
 python3 test_trsm_ewpt.py \
@@ -1052,41 +1098,47 @@ python3 -m py_compile generate_trsm_points.py run_trsm_seed_campaign.py reproces
 ```
 
 
-## Install micrOMEGAs 6.1.15 and create TRSM:
+## Install micrOMEGAs 6.1.15 or 7.1.4 and create TRSM
 
-- ```cd DM``` and untar `micromegas_6.1.15.tar`: ```tar xvzf micromegas_6.1.15.tar```
+Both releases use the same tracked `DM/main.c` driver, canonical `h4GOn`
+model, card mapping, standard-cosmology `darkOmega` calculation, and Python
+relic/direct/indirect exclusion treatment. The driver keeps `VWdecay=0` and
+`VZdecay=0`, signed nucleon amplitudes, and the Fermi-LAT R16 photon-line
+calculation. Selecting version 7 does not activate its optional nonstandard
+cosmology or additional experimental constraints. Predictions can change with
+the upstream release even with these settings held fixed.
 
-- ```cd micromegas_6.1.15/``` then follow the READ.ME instructions I and V:
-```[g]make``` and ```./newProject TRSM```
+Download 7.1.4 from the [official installation page](https://micromegasdm.github.io/v7.1/install_7.1.html)
+and extract it beside this repository. From the repository root:
 
-- copy the desired model files from DM/models into micromegas. I use h4GOn:
-```cp ../models/h4GOn/* TRSM/work/models/```
-
-- Apply the tracked `calcSpectrum` finite-value guard. This makes micrOMEGAs
-return an error instead of looping in channel sorting when an earlier failed
-relic-density calculation leaves non-finite annihilation weights:
 ```bash
-patch -p1 < ../patches/micromegas-6.1.15-calcspectrum-finite-guard.patch
+curl -fL https://micromegasdm.github.io/downloadarea/v7.1/micromegas_7.1.4.tgz \
+  -o ../micromegas_7.1.4.tgz
+tar -xzf ../micromegas_7.1.4.tgz -C ..
+sh DM/setup_micromegas.sh ../micromegas_7.1.4
+../micromegas_7.1.4/TRSM/main ../micromegas_7.1.4/TRSM/data.par
 ```
 
-- The checked-in `h4GOn` and `h4GOff` models implement the canonical-v1
+The source archive used for the manto installation has SHA-256
+`c8cf207b17541a5b7d7e7ff157f1c1eb36e1dd3f7547e7745559b195c2a34264`.
+The same setup script supports a fresh 6.1.15 extraction. It builds serially
+(upstream Makefiles write shared static archives), creates `TRSM`, installs
+the model and driver, and applies the version-specific finite-value guard in
+`DM/patches`. The guard returns an error instead of looping in channel sorting
+when failed calculations leave non-finite annihilation weights. It is still
+needed in 7.1.4. The script refuses to overwrite an existing `TRSM` directory.
+
+On manto the executables are
+`/Users/apapaefs/Projects/micromegas_6.1.15/TRSM/main` and
+`/Users/apapaefs/Projects/micromegas_7.1.4/TRSM/main`.
+See [the manto validation record](DM/micromegas7-manto-validation.md) for the
+benchmark comparison, test results, and retained log locations.
+
+The checked-in `h4GOn` and `h4GOff` models implement the canonical-v1
 normalization: the potential contains `LHX/2`, `LSX/2`, and `LX/4`, while the
 input card remains one-to-one (`LHX=lPhiX`, `LSX=lSX`, and `LX=lX`). Do not
-compensate by scaling card values. If replacing an older installed model, back
-up `TRSM/work/models` and the executable before copying the corrected files.
-
-- In `TRSM/` there is a `main.c` file and a Makefile. Rebuild after installing
-the model with:
-```bash
-make clean
-make main=main.c
-```
-The setup is complete and and micromegas is used by codes in DM/example.
-
-- To test manually, copy the example data point:
-```cp DM/data.par micromegas_6.1.15/TRSM/```
-```./main data.par```
-compare the output with DM/example_test.out
+compensate by scaling card values. Back up an existing model and executable
+before replacing them, and do not rebuild an installation in use by a scan.
 
 ## run micrOMEGAs with a steering code:
 - check out DM/example_steer/README.md and create another directory for the study you'd like to perform.

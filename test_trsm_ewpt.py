@@ -10,8 +10,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_EXECUTABLE = Path(
-    "/Users/apapaefs/Projects/TwoSingletDM/BSMPT/build/macos-armv8-release/bin/CalcTemps"
+# BSMPT is a sibling of the scan repository. The repository itself is nested
+# under TwoSingletDM on the laptop, but lives directly in Projects on manto.
+DEFAULT_EXECUTABLE = (
+    Path(__file__).resolve().parents[1]
+    / "BSMPT/build/macos-armv8-release/bin/CalcTemps"
 )
 DEFAULT_MINIMA_EXECUTABLE = DEFAULT_EXECUTABLE.with_name("MinimaTracer")
 SM_GF = 1.1663787e-5

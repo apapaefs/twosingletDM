@@ -26,3 +26,9 @@ build/macos-armv8-release/bin/Test --model=TRSM --input=/Users/apapaefs/Projects
 ```
 
 The model test reported `21 tests out of 21 passed`.
+
+`example/TRSM_CalcTemps_fixture.tsv` preserves the previously used one-point
+CalcTemps output (`m2=300`, `m3=400`, `vs=200`, `a12=0.2`, `lx=0.1`,
+`lphix=lsx=0.05`) for the Python EWPT parser and transition-strength tests.
+The fixture is kept here so those tests do not depend on generated files in
+an external BSMPT installation.

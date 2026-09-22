@@ -1220,6 +1220,10 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
+            executable = output_dir / "micromegas-main"
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
+            executable.chmod(0o755)
+            generator.cli_args.micromegas_main = executable
             generator.OutputDir = str(output_dir) + "/"
             generator.RunTag = "metadata-test"
             generator.ResetOutput = True

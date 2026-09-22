@@ -7,11 +7,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from trsm_micromegas import default_micromegas_main
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, SILimitTable, load_si_limit_table
+
 
 __test__ = False
 
 RELIC_UPPER_LIMIT = 0.121
-DEFAULT_LIMIT_MODEL = "lz2025-source"
 NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
 
@@ -198,10 +200,6 @@ class DMSummary:
             or self.direct_detection_excluded
             or self.indirect_limit.excluded
         )
-
-
-def default_micromegas_main():
-    return Path(__file__).resolve().parents[1] / "micromegas_6.1.15" / "TRSM" / "main"
 
 
 def format_value(value):
@@ -414,9 +412,13 @@ def neutron_si_cross_section(text):
     )
 
 
-def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL):
+def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL, limit_table=None):
     if not math.isfinite(mdm) or mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
+    if limit_table is not None:
+        if model != DEFAULT_LIMIT_MODEL:
+            raise ValueError("Do not combine a tabulated SI limit with another limit model")
+        return limit_table.upper_limit_pb(mdm)
     if model == "legacy-output":
         return legacy_output_direct_detection_base_limit(mdm)
     if model == "lz2025-source":
@@ -485,6 +487,7 @@ def summarize_dm_result(
     relic_upper_limit=RELIC_UPPER_LIMIT,
     limit_model=DEFAULT_LIMIT_MODEL,
     rescale=True,
+    limit_table=None,
 ):
     if not math.isfinite(result.mdm) or result.mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
@@ -494,7 +497,9 @@ def summarize_dm_result(
             "Direct-detection cross section must be finite and non-negative"
         )
 
-    lux_base_limit = direct_detection_base_limit(result.mdm, model=limit_model)
+    lux_base_limit = direct_detection_base_limit(
+        result.mdm, model=limit_model, limit_table=limit_table,
+    )
     if rescale:
         if abundance_fraction > 0.0:
             dir_det_limit = lux_base_limit / abundance_fraction
@@ -644,13 +649,15 @@ def test_dm(
     relic_upper_limit=RELIC_UPPER_LIMIT,
     limit_model=DEFAULT_LIMIT_MODEL,
     rescale=True,
+    limit_table=None,
 ):
     """Run one vx=0 TRSM dark-matter point through micrOMEGAs.
 
     Returns `(passed, info, exclusion_info)`, where `passed` is true only if the
     relic-density, direct-detection, and indirect-detection checks pass. `info`
     is suitable for printing in debug mode, and `exclusion_info` contains the
-    numerical values used in the DM exclusion.
+    numerical values used in the DM exclusion. ``limit_table`` accepts a
+    validated SILimitTable or a path to its normalized JSON source.
     """
     point = DMPoint(
         lX=float(lX),
@@ -663,6 +670,8 @@ def test_dm(
     )
 
     try:
+        if limit_table is not None and not isinstance(limit_table, SILimitTable):
+            limit_table = load_si_limit_table(limit_table)
         if raw_output is None:
             main_path = Path(micromegas_main) if micromegas_main else default_micromegas_main()
             if not main_path.is_file():
@@ -689,11 +698,16 @@ def test_dm(
             relic_upper_limit=relic_upper_limit,
             limit_model=limit_model,
             rescale=rescale,
+            limit_table=limit_table,
         )
         return (
             summary.passed,
             dm_info_string(summary),
-            dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale),
+            dm_exclusion_info(
+                summary, relic_upper_limit,
+                limit_table.model_id if limit_table is not None else limit_model,
+                rescale,
+            ),
         )
 
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:

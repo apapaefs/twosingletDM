@@ -12,11 +12,13 @@ from unittest import mock
 
 
 SCRIPT_PATH = Path(__file__).resolve().parent / "test_trsm_ewpt.py"
-BSMPT_FIXTURE = Path(__file__).resolve().parents[1] / "BSMPT" / "test.output_new.csv"
+BSMPT_FIXTURE = (
+    Path(__file__).resolve().parent / "BSMPT/example/TRSM_CalcTemps_fixture.tsv"
+)
 
 
-def load_module():
-    spec = importlib.util.spec_from_file_location("test_trsm_ewpt", SCRIPT_PATH)
+def load_module(script_path=SCRIPT_PATH):
+    spec = importlib.util.spec_from_file_location("test_trsm_ewpt", script_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -87,6 +89,37 @@ def synthetic_phase_traces(ewpt):
 
 
 class TestTRSMEWPT(unittest.TestCase):
+    def test_default_binaries_work_in_laptop_and_manto_repository_layouts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir).resolve()
+            for layout in ("laptop/TwoSingletDM/twosingletDM", "manto/TwoSingletDM"):
+                with self.subTest(layout=layout):
+                    repo = root / layout
+                    repo.mkdir(parents=True)
+                    script = repo / SCRIPT_PATH.name
+                    shutil.copyfile(SCRIPT_PATH, script)
+                    binaries = repo.parent / "BSMPT/build/macos-armv8-release/bin"
+                    binaries.mkdir(parents=True)
+                    for name in ("MinimaTracer", "CalcTemps"):
+                        executable = binaries / name
+                        executable.write_text(f"#!/bin/sh\necho {name}\n", encoding="ascii")
+                        executable.chmod(0o755)
+
+                    ewpt = load_module(script)
+                    config = ewpt.EWPTConfig()
+                    commands = (
+                        ewpt.build_minimatracer_command(config, root / "input.tsv", root / "minima"),
+                        ewpt.build_calctemps_command(config, root / "input.tsv", root / "output.tsv"),
+                    )
+                    for name, command in zip(("MinimaTracer", "CalcTemps"), commands):
+                        self.assertEqual(Path(command[0]), binaries / name)
+                        # EWPT subprocesses run in per-point directories, not
+                        # in the repository, so the resolved path must be absolute.
+                        completed = subprocess.run(
+                            command, cwd=root, check=True, capture_output=True, text=True,
+                        )
+                        self.assertEqual(completed.stdout.strip(), name)
+
     def test_writes_trsm_input_with_expected_header_and_values(self):
         ewpt = load_module()
         point = ewpt.TRSMEWPTPoint(

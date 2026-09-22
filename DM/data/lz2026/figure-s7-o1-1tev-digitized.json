@@ -1,0 +1,145 @@
+{
+  "schema": "lz2026_figure_s7_digitization_v1",
+  "source": "https://arxiv.org/abs/2609.02823v1",
+  "source_archive": "https://arxiv.org/src/2609.02823v1",
+  "source_files_sha256": {
+    "FigS7_O1_as_SI.pdf": "1f9624781aeb4e4e174fe532786fda0e3648960da7a5427fce956f8530a9fed1",
+    "Fig6_O1_L10_limit_stacked.pdf": "034f64d8eb8206d2379e274c7fb12057b47f9e2987e6a37f597cc9a67856aee4"
+  },
+  "figure": "S7",
+  "DM_mass_GeV": 1000.0,
+  "operator": "isoscalar O1, scalar normalization",
+  "limit_kind": "observed_upper",
+  "confidence_level": 0.9,
+  "method": "Extract solid upper-curve vector vertices; invert linear delta and log10 sigma axes",
+  "warning": "delta_keV is inelastic mass splitting, not DM mass. Only delta=0 is applicable to elastic TRSM.",
+  "figure_s7_axes_pdf_points": {
+    "x_at_delta_0": 70.7,
+    "x_at_delta_350": 491.18,
+    "y_at_sigma_1e_minus35": 14.7,
+    "y_at_sigma_1e_minus47": 330.06,
+    "y_direction": "downwards"
+  },
+  "normalization_check": {
+    "source": "Fig. 6 top panel and supplemental Eq. (6)",
+    "higgs_vev_GeV": 246.2,
+    "nucleon_mass_GeV": 0.939,
+    "GeV_minus2_to_cm2": 3.8937966e-28,
+    "max_relative_difference": 0.004669128463640426,
+    "note": "A numerical cross-check, not an uncertainty estimate for the mass-scaling approximation"
+  },
+  "points": [
+    {
+      "delta_keV": 0.0,
+      "upper_limit_cm2": 4.555550922859362e-47,
+      "figure_s7_vector_xy": [
+        70.7,
+        312.753545
+      ],
+      "figure_6_vector_xy": [
+        66.7,
+        262.883624
+      ],
+      "figure_6_squared_coefficient": 1.5272890524132305e-09,
+      "figure_6_converted_sigma_cm2": 4.534280629909959e-47
+    },
+    {
+      "delta_keV": 50.0,
+      "upper_limit_cm2": 2.102850002333479e-46,
+      "figure_s7_vector_xy": [
+        130.768571,
+        295.296598
+      ],
+      "figure_6_vector_xy": [
+        126.768571,
+        240.300317
+      ],
+      "figure_6_squared_coefficient": 7.049992237493607e-09,
+      "figure_6_converted_sigma_cm2": 2.0930316493117758e-46
+    },
+    {
+      "delta_keV": 100.0,
+      "upper_limit_cm2": 2.1552168893284054e-45,
+      "figure_s7_vector_xy": [
+        190.837143,
+        268.735857
+      ],
+      "figure_6_vector_xy": [
+        186.837143,
+        205.939821
+      ],
+      "figure_6_squared_coefficient": 7.225556864656786e-08,
+      "figure_6_converted_sigma_cm2": 2.1451540217589254e-45
+    },
+    {
+      "delta_keV": 150.0,
+      "upper_limit_cm2": 2.0949057930430994e-44,
+      "figure_s7_vector_xy": [
+        250.905714,
+        242.779797
+      ],
+      "figure_6_vector_xy": [
+        246.905714,
+        172.36157400000002
+      ],
+      "figure_6_squared_coefficient": 7.023358968525478e-07,
+      "figure_6_converted_sigma_cm2": 2.0851246512616977e-44
+    },
+    {
+      "delta_keV": 200.0,
+      "upper_limit_cm2": 1.6958182309369413e-43,
+      "figure_s7_vector_xy": [
+        310.974286,
+        218.911912
+      ],
+      "figure_6_vector_xy": [
+        306.974286,
+        141.48471100000006
+      ],
+      "figure_6_squared_coefficient": 5.685382124608574e-06,
+      "figure_6_converted_sigma_cm2": 1.6879004010744433e-43
+    },
+    {
+      "delta_keV": 250.0,
+      "upper_limit_cm2": 1.077317517008605e-42,
+      "figure_s7_vector_xy": [
+        371.042857,
+        197.81000699999998
+      ],
+      "figure_6_vector_xy": [
+        367.042857,
+        114.18607899999995
+      ],
+      "figure_6_squared_coefficient": 3.611802951541883e-05,
+      "figure_6_converted_sigma_cm2": 1.0722874059989633e-42
+    },
+    {
+      "delta_keV": 300.0,
+      "upper_limit_cm2": 7.211599849686583e-42,
+      "figure_s7_vector_xy": [
+        431.111429,
+        176.110929
+      ],
+      "figure_6_vector_xy": [
+        427.111429,
+        86.11490900000001
+      ],
+      "figure_6_squared_coefficient": 0.00024177530445383395,
+      "figure_6_converted_sigma_cm2": 7.177927963560026e-42
+    },
+    {
+      "delta_keV": 350.0,
+      "upper_limit_cm2": 6.250788685260418e-40,
+      "figure_s7_vector_xy": [
+        491.18,
+        125.18283299999999
+      ],
+      "figure_6_vector_xy": [
+        487.18,
+        20.231404999999995
+      ],
+      "figure_6_squared_coefficient": 0.020956327815964494,
+      "figure_6_converted_sigma_cm2": 6.221603640766588e-40
+    }
+  ]
+}
