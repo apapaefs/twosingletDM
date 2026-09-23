@@ -27,7 +27,7 @@ def install_stub_modules():
         beta = math.sqrt(1.0 - 4.0 * daughter_mass**2 / parent_mass**2)
         return coupling**2 * beta / (8.0 * math.pi * parent_mass)
 
-    def vxzero_portal_couplings(lphix, lsx, vs, a12, v=246.0):
+    def vxzero_portal_couplings(lphix, lsx, vs, a12, v=246.21965079413738):
         c12 = math.cos(a12)
         s12 = math.sin(a12)
         return (
@@ -122,6 +122,9 @@ def restore_stub_modules(originals):
 
 
 def load_generator_module(argv=None):
+    # Load the pure theory dependencies before installing the legacy provider
+    # stubs, so this test helper also works when its module is run on its own.
+    import trsm_theory_diagnostics
     originals = install_stub_modules()
     old_argv = sys.argv[:]
     sys.argv = [str(SCRIPT_PATH)] + list(argv or ["--nrandom", "0"])
@@ -518,7 +521,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             return result, rows, mg5_calls
 
         result, rows, calls = run_case(hb=False, dm=True, without_dm=False)
-        self.assertEqual((result, rows, calls), (0, [], []))
+        self.assertEqual((result, len(rows), calls), (0, 1, []))
 
         result, rows, calls = run_case(hb=True, dm=True, without_dm=False)
         self.assertEqual(result, 1)
@@ -526,7 +529,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
         result, rows, calls = run_case(hb=True, dm=False, without_dm=False)
-        self.assertEqual((result, rows, calls), (0, [], []))
+        self.assertEqual((result, len(rows), calls), (0, 1, []))
 
         result, rows, calls = run_case(hb=True, dm=False, without_dm=True)
         self.assertEqual(result, 0)
@@ -716,7 +719,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         generator = load_generator_module()
 
         uniform_calls = []
-        samples = iter([300.0, 604.0])
+        samples = iter([62.545, 604.0])
         generator.random.random = lambda: 0.25
 
         def fake_uniform(low, high):
@@ -727,11 +730,11 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         m2, m3 = generator.sample_approximate_resonant_masses(10.0)
 
-        self.assertEqual((m2, m3), (604.0, 300.0))
-        self.assertLessEqual(abs(m2 - 2.0 * m3), 10.0)
+        self.assertEqual((m2, m3), (604.0, 62.545))
+        self.assertLessEqual(abs(generator.SHARED_M1 - 2.0 * m3), 10.0)
         self.assertEqual(
             uniform_calls,
-            [(generator.m3_min, 505.0), (590.0, 610.0)],
+            [(57.545, 67.545), (generator.m2_min, generator.m2_max)],
         )
 
         uniform_calls.clear()
@@ -740,11 +743,11 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         m2, m3 = generator.sample_approximate_resonant_masses(10.0)
 
-        self.assertEqual((m2, m3), (300.0, 604.0))
-        self.assertLessEqual(abs(m3 - 2.0 * m2), 10.0)
+        self.assertEqual((m2, m3), (604.0, 300.0))
+        self.assertLessEqual(abs(m2 - 2.0 * m3), 10.0)
         self.assertEqual(
             uniform_calls,
-            [(generator.m2_min, 505.0), (590.0, 610.0)],
+            [(generator.m3_min, 505.0), (590.0, 610.0)],
         )
 
     def test_approximate_resonant_sampler_supports_light_mass_ranges(self):
@@ -768,8 +771,8 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertEqual(uniform_calls, [(4.0, 10.0), (15.0, 17.0)])
 
         uniform_calls.clear()
-        self.assertEqual(sample_branch(0.75, [4.5, 9.0]), (4.5, 9.0))
-        self.assertEqual(uniform_calls, [(4.0, 5.5), (8.0, 10.0)])
+        self.assertEqual(sample_branch(0.75, [4.5, 9.0]), (9.0, 4.5))
+        self.assertEqual(uniform_calls, [(4.0, 10.0), (8.0, 10.0)])
 
     def test_approximate_resonant_sampler_uses_only_supported_branch(self):
         generator = load_generator_module(
@@ -819,7 +822,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(ValueError, "No valid --approximate-resonantDM"):
+        with self.assertRaisesRegex(ValueError, "No range-compatible annihilation resonance"):
             generator.sample_approximate_resonant_masses(1.0)
 
     def test_independent_m3_sampler_uses_full_configured_range(self):
@@ -1187,12 +1190,12 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             entry["variable"]: entry for entry in metadata["variable_ranges"]
         }
 
-        self.assertEqual(metadata["schema"], "trsm_scan_metadata_v1")
+        self.assertEqual(metadata["schema"], "trsm_scan_metadata_v2")
         self.assertEqual(metadata["seed"], 888)
         self.assertEqual(metadata["requested_points"], 10000)
         self.assertEqual(metadata["mass_sampling"]["mode"], "independent_m3")
         self.assertEqual(metadata["portal_sampling"]["mode"], "k133_k233_log")
-        self.assertEqual(metadata["output_selection"], "Points passing evo and thc")
+        self.assertEqual(metadata["output_selection"], "All evaluated points, including exclusions and unassessed results")
         self.assertEqual(
             metadata["stopping_rule"],
             "Stop after the requested number of evo/thc-passing points",
@@ -1236,15 +1239,15 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertEqual(
             metadata["mass_sampling"]["mode"],
-            "approximate_mass_doubling",
+            "approximate_annihilation_resonance",
         )
         self.assertIn(
-            "|M2 - 2*M3| <= delta_res or |M3 - 2*M2| <= delta_res",
+            "M1 = 2*M3 and M2 = 2*M3 annihilation poles",
             metadata["mass_sampling"]["description"],
         )
         self.assertEqual(
             (ranges["M2"]["effective_min"], ranges["M2"]["effective_max"]),
-            (4.0, 21.0),
+            (7.0, 21.0),
         )
         self.assertEqual(
             (ranges["M3"]["effective_min"], ranges["M3"]["effective_max"]),
@@ -1257,9 +1260,10 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
             executable = output_dir / "micromegas-main"
-            executable.write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
-            executable.chmod(0o755)
+            from test_trsm_cmb import capable_driver
+            capable_driver(executable)
             generator.cli_args.micromegas_main = executable
+            generator.cli_args.output_manifest = output_dir / "actual-paths.json"
             generator.OutputDir = str(output_dir) + "/"
             generator.RunTag = "metadata-test"
             generator.ResetOutput = True
@@ -1267,9 +1271,11 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
             result = generator.main()
 
-            metadata_path = output_dir / "trsm_points_metadata-test_vxzero.metadata.json"
-            data_path = output_dir / "trsm_points_metadata-test_vxzero.dat"
+            metadata_path = output_dir / "trsm_points_metadata-test_v2_vxzero.metadata.json"
+            data_path = output_dir / "trsm_points_metadata-test_v2_vxzero.dat"
             payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            actual_paths = json.loads(generator.cli_args.output_manifest.read_text())
+            self.assertEqual(Path(actual_paths["outputs"]["main"]["path"]), data_path.resolve())
             data_path_exists = data_path.exists()
             temporary_exists = metadata_path.with_name(
                 f".{metadata_path.name}.tmp"
@@ -1600,7 +1606,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         generator.test_evo_vxzero = lambda *args, **kwargs: True
 
         def fail_if_dm_runs(*args, **kwargs):
-            raise AssertionError("DM should not run after a later non-DM failure")
+            return None, "DM unassessed", {}
 
         generator.test_dm = fail_if_dm_runs
 
@@ -1706,7 +1712,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         self.assertEqual(result, 0)
-        self.assertEqual(len(records), 1)
+        self.assertEqual(len(records), 2)
         self.assertEqual(records[0][0], Path("output/trsm_points_unit_dm_failed.dat"))
         self.assertEqual(records[0][1]["dm"], False)
         self.assertEqual(records[0][1]["dm_mdm"], 750.0)
@@ -2037,7 +2043,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
 
         self.assertEqual(point_info["ewpt_ew_true_over_T"], 0.9)
         self.assertEqual(point_info["ewpt_ew_jump_over_T"], 0.8)
-        self.assertEqual(point_info["ewpt_status"], "success")
+        self.assertEqual(point_info["ewpt_status"], "incomplete")
         self.assertEqual(
             point_info["ewpt_global_phase_path"],
             "SINGLET_S -> X_BROKEN -> EW_X_BROKEN -> EW",
@@ -2193,7 +2199,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             {"dm_mdm": 750.0, "dm_relic_excluded": False},
         )
 
-        def fake_ewpt(point_info, passed, args, point_index):
+        def fake_ewpt(point_info, passed, args, point_index, **kwargs):
             point_info["ewpt_ew_true_over_T"] = 1.23
             point_info["ewpt_global_phase_path"] = "SINGLET_S -> EW"
             point_info["ewpt_has_x_broken"] = False
@@ -2715,11 +2721,11 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         )
 
         self.assertEqual(result, 0)
-        self.assertEqual(ewpt_calls, [(False, True)])
+        self.assertEqual(ewpt_calls, [])
         self.assertEqual(rows[0][0], Path("output/trsm_points_unit.dat"))
         self.assertFalse(rows[0][1]["hb"])
-        self.assertEqual(rows[0][1]["ewpt_ew_true_over_T"], 0.66)
-        self.assertEqual(rows[0][1]["ewpt_global_phase_path"], "SYM -> EW")
+        self.assertNotIn("ewpt_ew_true_over_T", rows[0][1])
+        self.assertFalse(rows[0][1]["ewpt_eligible"])
 
 
 if __name__ == "__main__":

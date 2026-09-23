@@ -29,7 +29,7 @@ def round_sig(x, sig=2):
 # SET UP HIGGS TOOLS:
 #####################################
 
-mhSM = 125.09
+from trsm_inputs import M1 as mhSM
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 pred = HP.Predictions() # create the model predictions
@@ -43,10 +43,8 @@ H1 = pred.addParticle(HP.BsmParticle("H1", "neutral", "even"))
 
 H1.setMass(mhSM)
 HP.effectiveCouplingInput(H1, HP.scaledSMlikeEffCouplings(1.0))
-# get the SM chi-squared for HiggsSignals
-ress_SM = signals(pred)
-
-print("HiggsSignals chi-sq. for SM=", ress_SM)
+# The reference is initialized below, after the shared decay setters.
+ress_SM = None
 
 # add second BSM Higgs boson 
 
@@ -160,6 +158,20 @@ def _set_base_decays(
     # Do not put the sub-floor physical width back here: HiggsTools would turn
     # it into zero again and erase all branching ratios.
     particle.setTotalWidth(provider_width)
+
+
+def _sm_reference_chi2():
+    from generate_trsm_info import BR_interpolators_SM
+    reference = HP.Predictions()
+    h = reference.addParticle(HP.BsmParticle("H1", "neutral", "even"))
+    h.setMass(mhSM)
+    HP.effectiveCouplingInput(h, HP.scaledSMlikeEffCouplings(1.0))
+    brs = ensure_sum_unit([float(interpolator(mhSM)) for interpolator in BR_interpolators_SM])
+    _set_base_decays(h, brs)
+    return signals(reference)
+
+
+ress_SM = _sm_reference_chi2()
 
 
 def _validated_direct_invisible_width(name, value):
@@ -477,11 +489,7 @@ def analyze_parampoint(
     if print_details:
         print_higgstools_details(pred, resb, ress, top_n=details_top)
 
-    HS_allowed = False
-    if ress - ress_SM < 4.00:
-        HS_allowed = True
-    else:
-        HS_allowed = False
+    HS_allowed = bool(ress - ress_SM < 4.00) if math.isfinite(ress) and math.isfinite(ress_SM) else None
 
     if return_details:
         details = higgstools_summary(pred, resb, ress, top_n=details_top)

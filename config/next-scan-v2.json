@@ -1,0 +1,21 @@
+{
+  "constraint_version": "trsm_constraints_v2",
+  "description": "10,000 resonance-focused draws; existing mass, VEV, mixing and portal ranges retained explicitly",
+  "seed_start": 20260923,
+  "nseeds": 4,
+  "draws_per_seed": 2500,
+  "jobs": 4,
+  "ewpt_thigh_GeV": 1000.0,
+  "generator_arguments": [
+    "--micromegas-version", "7.1.4", "--planck-cmb",
+    "--approximate-resonantDM", "--delta-res", "2",
+    "--m2-min", "4", "--m2-max", "1000",
+    "--m3-min", "4", "--m3-max", "1000",
+    "--vs-min", "50", "--vs-max", "500",
+    "--k1-min", "0.90", "--k1-max", "1.0",
+    "--lx-min", "0", "--lx-max", "10",
+    "--lphix-min", "0", "--lphix-max", "0.002",
+    "--lsx-min", "0", "--lsx-max", "0.002",
+    "--checkpoint-every", "1", "--no-print-info"
+  ]
+}

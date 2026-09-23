@@ -163,6 +163,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
                     dm=True,
                     ewpt_ew_true_over_T="2.4",
                     ewpt_status="success",
+                    ewpt_constraint_version="trsm_constraints_v2",
                 ),
             ]
             write_scan(source, rows, metadata=True)
@@ -185,7 +186,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             self.assertEqual(fake.calls[0]["config"].thigh, 1000.0)
             written = read_scan(output)
             self.assertEqual(len(written), 4)
-            self.assertEqual(written[0]["ewpt_status"], "success")
+            self.assertEqual(written[0]["ewpt_status"], "incomplete")
             self.assertEqual(float(written[0]["ewpt_ew_true_over_T"]), 1.1)
             self.assertEqual(float(written[0]["ewpt_ew_jump_over_T"]), 0.6)
             self.assertEqual(written[1]["ewpt_global_phase_path"], "SYM -> X_BROKEN -> EW")
@@ -332,7 +333,7 @@ class TestReprocessTRSMEWPT(unittest.TestCase):
             root = Path(tmpdir)
             source = root / "scan.dat"
             output = root / "scan_ewpt.dat"
-            write_scan(source, [scan_row(1, dm="nan")])
+            write_scan(source, [scan_row(1, dm="invalid-verdict")])
 
             with self.assertRaises(reprocessor.EWPTReprocessingError):
                 reprocessor.run(

@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import time
+import uuid
 from collections import namedtuple
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import date
@@ -194,7 +195,7 @@ def build_generator_command(args, seed, generator_script, ewpt_workdir):
 
 def read_viable_rows(path, seed):
     path = Path(path)
-    if not path.exists() or path.stat().st_size == 0:
+    if not path.is_file() or path.stat().st_size == 0:
         return []
     with path.open(encoding="ascii", newline="") as stream:
         reader = csv.DictReader(stream, delimiter="\t")
@@ -340,18 +341,19 @@ def run_seed(seed, args):
     run_date = date.today()
     log_path = campaign_dir / "logs" / f"seed_{seed}.log"
     ewpt_workdir = campaign_dir / "ewpt" / f"seed_{seed}"
-    point_output = seed_output_path(run_cwd, seed, run_date)
-    if point_output.exists():
-        point_output.unlink()
-    dm_failed_output = seed_dm_failed_output_path(run_cwd, seed, run_date)
-    if (args.write_dm_failed or args.run_ewpt_on_dm_failed) and dm_failed_output.exists():
-        dm_failed_output.unlink()
+    point_output = None
+    manifest_path=campaign_dir / "manifests" / f"seed_{seed}_{uuid.uuid4().hex}.json"
+    manifest_path.parent.mkdir(parents=True,exist_ok=True)
     generator_script = Path(args.generator_script).expanduser().resolve()
     command = build_generator_command(args, seed, generator_script, ewpt_workdir)
 
+    command.extend(["--output-manifest",str(manifest_path)])
     returncode, elapsed = run_subprocess_to_log(command, run_cwd, log_path)
+    if manifest_path.is_file():
+        manifest=json.loads(manifest_path.read_text())
+        point_output=Path(manifest["outputs"]["main"]["path"])
 
-    viable_rows = read_viable_rows(point_output, seed)
+    viable_rows = read_viable_rows(point_output, seed) if point_output else []
     summaries = sorted(ewpt_workdir.glob("point_*/ewpt_summary.txt"))
     best_points = collect_best_point_records(seed, ewpt_workdir)
     best = best_record(best_points)
@@ -361,11 +363,11 @@ def run_seed(seed, args):
     return SeedResult(
         seed=seed,
         returncode=returncode,
-        viable_count=len(viable_rows),
+        viable_count=sum(1 for row in viable_rows if row.get("constraint_version")!="trsm_constraints_v2" or all(row.get(k)=="True" for k in ("thc","experimental_subset","dm_subset"))),
         ewpt_runs=len(summaries),
         best_ew_jump_over_T=best_value,
         best_strength_kind=best_kind,
-        point_output=str(point_output),
+        point_output=str(point_output) if point_output else "",
         log_path=str(log_path),
         ewpt_workdir=str(ewpt_workdir),
         elapsed_seconds=elapsed,
@@ -456,6 +458,14 @@ def write_campaign_outputs(args, seed_results):
     combined_rows = combine_viable_points(seed_results)
     combined_fields = list(combined_rows[0].keys()) if combined_rows else ["seed"]
     write_tsv(campaign_dir / "combined_points.tsv", combined_rows, combined_fields)
+    # Separate nullable candidate totals; never derive them from the old largest v/T.
+    candidate_counts={}
+    for name in ("ewpt_baryo_candidate","ewpt_gw_candidate","dm_subset","vacuum_tree_global","rg_bfb","rg_unitarity","experimental_subset"):
+        candidate_counts[name]={state:sum(row.get(name)==state for row in combined_rows) for state in ("True","False")}
+        candidate_counts[name]["unassessed"]=len(combined_rows)-sum(candidate_counts[name].values())
+    (campaign_dir/'candidate_counts.json').write_text(json.dumps(candidate_counts,indent=2)+'\n')
+    candidate_rows=[row for row in combined_rows if row.get('ewpt_baryo_candidate')=='True' or row.get('ewpt_gw_candidate')=='True']
+    write_tsv(campaign_dir/'candidate_points.tsv',candidate_rows,combined_fields)
 
     best_rows = [
         result.best_point for result in sorted(seed_results, key=lambda item: (
@@ -487,6 +497,8 @@ def write_campaign_outputs(args, seed_results):
 
     payload = {
         "metadata": {
+            "constraint_version": "trsm_constraints_v2",
+            "best_points_semantics": "legacy largest EW-jump ranking; use candidate_points.tsv and candidate_counts.json for v2 selection",
             "seed_start": args.seed_start,
             "nseeds": args.nseeds,
             "nrandom": args.nrandom,
@@ -516,7 +528,7 @@ def write_campaign_outputs(args, seed_results):
         "best_points": best_rows,
     }
     (campaign_dir / "campaign_summary.json").write_text(
-        json.dumps(payload, indent=2, sort_keys=True, allow_nan=True) + "\n",
+        json.dumps(__import__('trsm_inputs').json_safe(payload), indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="ascii",
     )
     return combined_rows, best_rows
@@ -546,8 +558,9 @@ def run_campaign(args):
 
 def main(argv=None):
     args = parse_args(argv)
-    run_campaign(args)
+    result=run_campaign(args)
+    return 1 if any(seed.returncode for seed in result.seed_results) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

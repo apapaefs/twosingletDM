@@ -1,6 +1,18 @@
 # twosingletDM
 TRSM + Dark Matter + ElectroWeak Baryogenesis vs. Higgs Boson Pair production
 
+## Current constraint profile
+
+Use [constraint pipeline v2](docs/constraints-v2.md) and the
+[next-scan readiness report](docs/next-scan-readiness-v2.md) for the active
+`vx=0` scan. The versioned configuration is
+[`config/next-scan-v2.json`](config/next-scan-v2.json).
+It uses micrOMEGAs 7.1.4, the observed LZ WS2024 numerical table and BSMPT 3.2.1.
+All evaluated points are retained. DM, global-vacuum and RG results define
+independent subsets; they do not gate EWPT exploration. Baryogenesis and GW
+candidate flags follow the separate criteria documented there. Older workflow
+examples below retain historical conventions where they differ from v2.
+
 # Instructions:
 
 ## Download MG5_aMC and prepare generated processes

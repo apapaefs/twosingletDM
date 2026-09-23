@@ -196,7 +196,7 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             self.module.reevaluate(source, output, resumed, resume=True, evaluation_configuration=config)
             self.assertEqual(json.loads(output.with_suffix(".metadata.json").read_text())["evaluation_configuration"], config)
 
-    def test_recovers_si_table_and_requires_explicit_replacement_when_missing(self):
+    def test_defaults_to_v2_si_table_and_preserves_explicit_replacement(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
             write_input(source, count=1)
@@ -207,14 +207,15 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             source.write_text(source.read_text().replace("300\t50\t", "300\t500\t"))
             sidecar = source.with_suffix(".metadata.json")
             sidecar.write_text(json.dumps({"direct_detection": table.metadata()}))
-            args = self.module.parse_args([str(source), "--output", str(output)])
+            from test_trsm_cmb import capable_driver
+            driver=capable_driver(Path(tmp)/"main")
+            args = self.module.parse_args([str(source), "--output", str(output), "--micromegas-main", str(driver)])
             config, recovered, _ = self.module.resolve_evaluation_configuration(args)
-            self.assertEqual(recovered.sha256, table.sha256)
-            self.assertEqual(config["direct_detection"], table.metadata())
-            self.assertFalse(config["planck_cmb"]["enabled"])
+            self.assertNotEqual(recovered.sha256, table.sha256)
+            self.assertTrue(recovered.model_id.startswith("table:lz-ws2024-observed-v2:"))
+            self.assertTrue(config["planck_cmb"]["enabled"])
             table_path.unlink()
-            with self.assertRaisesRegex(self.module.ReEvaluationError, "--dm-limit-table"):
-                self.module.resolve_evaluation_configuration(args)
+            self.module.resolve_evaluation_configuration(args)
             args.dm_limit_table = reference
             config, recovered, _ = self.module.resolve_evaluation_configuration(args)
             self.assertEqual(recovered.sha256, table.sha256)
@@ -232,8 +233,7 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             with self.assertRaises(self.module.ReEvaluationError):
                 self.module.reevaluate(source, output, evaluator, resume=True, evaluation_configuration=config)
             saved = self.module.read_checkpoint_metadata(self.module.checkpoint_path(output))
-            self.assertEqual(saved["evaluation_configuration"], config)
-            self.assertEqual(saved["schema_version"], 2)
+            self.assertNotIn("evaluation_configuration", saved)
             changed = {**config, "micromegas": {"version": "7.1.4", "executable": "/test/main"}}
             with self.assertRaisesRegex(self.module.ReEvaluationError, "configuration"):
                 self.module.reevaluate(source, output, evaluator, resume=True, evaluation_configuration=changed)
@@ -244,7 +244,7 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             source, output = Path(tmp) / "old.dat", Path(tmp) / "new.dat"
             write_input(source, count=1)
             driver = capable_driver(Path(tmp) / "main")
-            for options, enabled in (([], False), (["--micromegas-version", "7"], True),
+            for options, enabled in (([], True), (["--micromegas-version", "7"], True),
                                      (["--micromegas-version", "7", "--no-planck-cmb"], False),
                                      (["--planck-cmb"], True)):
                 args = self.module.parse_args([str(source), "--output", str(output), "--micromegas-main", str(driver), *options])

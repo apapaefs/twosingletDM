@@ -73,7 +73,16 @@ class TestTrsmDmModelNormalization(unittest.TestCase):
             with self.subTest(variant=variant):
                 vertices = calc_hep_vertices(MODEL_ROOT / variant / "lgrng1.mdl")
                 for particles, coupling in expected.items():
-                    self.assertEqual(vertices[particles], coupling)
+                    import sympy as sp
+                    functions={}
+                    for line in (MODEL_ROOT/variant/'func1.mdl').read_text().splitlines():
+                        parts=line.split('|')
+                        if len(parts)>1 and parts[0].strip().startswith('B'):
+                            functions[sp.Symbol(parts[0].strip())]=sp.sympify(parts[1].strip().replace('^','**'))
+                    actual=sp.sympify('*'.join('('+v+')' for v in vertices[particles]).replace('^','**'))
+                    for _ in range(10):actual=actual.subs(functions)
+                    expected_expr=sp.sympify('*'.join('('+v+')' for v in coupling).replace('^','**'))
+                    self.assertEqual(sp.simplify(actual-expected_expr),0)
 
 
 if __name__ == "__main__":

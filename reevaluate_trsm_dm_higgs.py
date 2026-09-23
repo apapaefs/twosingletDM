@@ -25,13 +25,17 @@ from dm_thermal_relic_diagnostic import (
     resonance_proximity_updates,
 )
 from trsm_cmb import CMB_COLUMNS, add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
-from trsm_direct_detection import DEFAULT_LIMIT_MODEL, load_si_limit_table
-from trsm_micromegas import DEFAULT_MICROMEGAS_VERSION, MICROMEGAS_VERSIONS, micromegas_configuration, normalize_micromegas_version
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, load_si_limit_table
+from trsm_micromegas import require_v2_capability, DEFAULT_MICROMEGAS_VERSION, MICROMEGAS_VERSIONS, micromegas_configuration, normalize_micromegas_version
 from trsm_scan_campaign import atomic_write_json
 
 
 EXPECTED_CONVENTION_ID = "trsm_vxzero_canonical_v1"
-M1_GEV = 125.09
+from trsm_inputs import M1 as M1_GEV, PHYSICS_VERSION
+from trsm_constraint_profile import profile_updates, physics_manifest, precision_updates, validate_v2_result
+from trsm_theory_diagnostics import theory_diagnostics
+from scan_output import V2_COLUMNS
+from ewpt_entry_criterion import EW_ENTRY_COLUMNS
 CHECKPOINT_SCHEMA_VERSION = 1
 
 REQUIRED_INPUT_COLUMNS = (
@@ -165,6 +169,9 @@ def require_float(row: Mapping[str, str], column: str, row_number: int) -> float
 
 
 def validate_updates(updates: Mapping[str, object], row_number: int) -> None:
+    if updates.get("constraint_version") == PHYSICS_VERSION:
+        validate_v2_result(updates)
+        return
     missing = [name for name in UPDATED_COLUMNS if name not in updates]
     if missing:
         raise ReEvaluationError(
@@ -482,31 +489,36 @@ class CoreEvaluator:
                 f"input row {row_number} has inconsistent physical h2 width"
             )
 
-        higgs_result = self.higgs.analyze_parampoint(
-            self.higgs.pred,
-            self.higgs.H1,
-            self.higgs.H2,
-            self.higgs.H3,
-            M1_GEV,
-            mass2,
-            mass3,
-            k1,
-            k2,
-            k3,
-            h1_brs,
-            h2_brs,
-            h3_brs,
-            h1_direct_invisible_width=gamma1,
-            h2_direct_invisible_width=gamma2,
-            h1_h2h2_width=gamma1_h2h2,
-            return_details=True,
-        )
+        higgs_error = None
+        try:
+            higgs_result = self.higgs.analyze_parampoint(
+                self.higgs.pred,
+                self.higgs.H1,
+                self.higgs.H2,
+                self.higgs.H3,
+                M1_GEV,
+                mass2,
+                mass3,
+                k1,
+                k2,
+                k3,
+                h1_brs,
+                h2_brs,
+                h3_brs,
+                h1_direct_invisible_width=gamma1,
+                h2_direct_invisible_width=gamma2,
+                h1_h2h2_width=gamma1_h2h2,
+                return_details=True,
+            )
+        except (ValueError, RuntimeError, ArithmeticError) as error:
+            higgs_error = str(error)
+            higgs_result = (None, None, {"higgsbounds": {}, "higgssignals": {}})
         if len(higgs_result) < 3:
             raise ReEvaluationError(
                 f"input row {row_number} produced no HiggsTools details"
             )
         hb, hs, details = higgs_result[:3]
-        if type(hb) is not bool or type(hs) is not bool or not isinstance(details, dict):
+        if (hb is not None and type(hb) is not bool) or (hs is not None and type(hs) is not bool) or not isinstance(details, dict):
             raise ReEvaluationError(
                 f"input row {row_number} produced unusable HB/HS results"
             )
@@ -531,7 +543,7 @@ class CoreEvaluator:
             limit_table=self.limit_table,
             limit_model=self.limit_model,
         )
-        if type(dm_passed) is not bool or not isinstance(dm_values, dict):
+        if dm_passed is not None and type(dm_passed) is not bool or not isinstance(dm_values, dict):
             raise ReEvaluationError(
                 f"input row {row_number} produced unusable DM results: {dm_info}"
             )
@@ -574,6 +586,19 @@ class CoreEvaluator:
         ))
         if not self.planck_cmb:
             updates.update(cmb_diagnostics())
+        from test_trsm_theory_constraints import theory_constraints_vxzero
+        updates['thc']=bool(theory_constraints_vxzero(vs,mass2,mass3,a12,lx,lphix,lsx))
+        updates.update(theory_diagnostics(vs,mass2,mass3,a12,lx,lphix,lsx))
+        updates.update(precision_updates(mass2,a12))
+        updates['evo']=updates['rg_integration_success']  # legacy numeric field
+        point={**dict(row),**updates,'M2':mass2,'M3':mass3}
+        updates.update(profile_updates(point))
+        if higgs_error:
+            updates["point_assessment_reason"] += "; HiggsTools: " + higgs_error
+        updates['point_index']=point_index
+        updates.update(dict.fromkeys(EW_ENTRY_COLUMNS))
+        updates['ewpt_constraint_version']=None
+        updates['ewpt_status']='requires_v2_reevaluation'
         validate_updates(updates, row_number)
         return updates
 
@@ -635,6 +660,7 @@ def output_header(input_header: Sequence[str], *, planck_cmb=False) -> list[str]
     result = list(input_header)
     result.extend(name for name in UPDATED_COLUMNS if name not in result)
     result.extend(name for name in RESONANCE_COLUMNS if name not in result)
+    result.extend(name for name in (*V2_COLUMNS,*EW_ENTRY_COLUMNS,"thc","evo","ewpo","wmass","ewpt_status","ewpt_constraint_version","legacy_ewpt_baryo_candidate","legacy_ewpt_gw_candidate") if name not in result)
     if planck_cmb or any(name in result for name in CMB_COLUMNS):
         result.extend(name for name in CMB_COLUMNS if name not in result)
     return result
@@ -656,7 +682,7 @@ def merged_payload(
         if column in updates:
             fields.append(format_value(updates[column]))
         else:
-            fields.append(input_row[column])
+            fields.append(input_row.get(column,"nan"))
     return "\t".join(fields)
 
 
@@ -799,20 +825,9 @@ def reevaluate(
         if not partial.is_file():
             raise FileNotFoundError(f"checkpoint not found: {partial}")
         stored = read_checkpoint_metadata(partial)
-        legacy_metadata = None
         if evaluation_configuration is not None and "evaluation_configuration" not in stored:
-            # Pre-CMB checkpoints used the default SI fit and did not save a backend identity.
-            if planck_cmb or evaluation_configuration["direct_detection"]["model"] != DEFAULT_LIMIT_MODEL:
-                raise ReEvaluationError("Legacy checkpoint requires CMB disabled and the original default SI fit")
-            legacy_metadata = checkpoint_metadata(identity, final_header, output)
-        connection, completed = open_checkpoint(partial, legacy_metadata or metadata)
-        if legacy_metadata is not None:
-            # Freeze the configuration on adoption so subsequent resumes can check it.
-            with connection:
-                connection.executemany(
-                    "INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)",
-                    [(key, compact_json(value)) for key, value in metadata.items()],
-                )
+            raise ReEvaluationError("Legacy checkpoint has no physics configuration fingerprint; restart reevaluation")
+        connection, completed = open_checkpoint(partial, metadata)
     else:
         if partial.exists():
             raise FileExistsError(
@@ -836,9 +851,12 @@ def reevaluate(
                 for index in range(batch_start, batch_stop):
                     current_index = index
                     updates = dict(evaluator(rows[index], index + 1))
+                    for flag in ("ewpt_baryo_candidate","ewpt_gw_candidate"):
+                        updates["legacy_"+flag]=rows[index].get("legacy_"+flag,rows[index].get(flag))
                     updates.update(resonance_proximity_updates(
                         rows[index].get("M2"), rows[index].get("M3"),
                         updates.get("dm_freezeout_temperature_GeV"),
+                        widths=(updates.get("dm_h1_width_GeV"),updates.get("dm_h2_width_GeV")),
                     ))
                     # A changed micrOMEGAs Xf invalidates comparisons made with
                     # an earlier BSMPT result. Retain the X history itself.
@@ -895,8 +913,8 @@ def parse_args(argv: Sequence[str] | None = None):
     parser.add_argument("--micromegas-version", type=normalize_micromegas_version,
                         choices=MICROMEGAS_VERSIONS, default=DEFAULT_MICROMEGAS_VERSION)
     limits = parser.add_mutually_exclusive_group()
-    limits.add_argument("--dm-limit-table", type=Path, help="Override the SI table; otherwise recover the input's direct-detection treatment")
-    limits.add_argument("--dm-limit-model", choices=(DEFAULT_LIMIT_MODEL, "legacy-output"),
+    limits.add_argument("--dm-limit-table", type=Path, help="Override the default observed LZ WS2024 SI table")
+    limits.add_argument("--dm-limit-model", choices=(DEFAULT_LIMIT_MODEL,"lz2025-source", "legacy-output"),
                         help="Explicitly select an analytic SI fit instead of input provenance")
     parser.add_argument("input", type=Path, help="Existing TRSM scan TSV")
     parser.add_argument("--output", type=Path, required=True, help="New versioned TSV")
@@ -933,47 +951,18 @@ def resolve_evaluation_configuration(args):
         else:
             args.planck_cmb = args.micromegas_version == "7.1.4"
     backend = micromegas_configuration(args)
+    require_v2_capability(backend["executable"])
     if args.planck_cmb:
         args._cmb_driver = require_cmb_capability(backend["executable"])
-    path = args.input.expanduser().resolve()
-    _header, rows = read_input(path)
-    sidecar = path.with_suffix(".metadata.json")
-    source_metadata = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
-    dd = source_metadata.get("direct_detection", {})
-    row_models = {row.get("dm_limit_model", "") for row in rows} - {"", "nan", "None"}
-    explicit = args.dm_limit_table is not None or args.dm_limit_model is not None
-    if not explicit and len(row_models) > 1:
-        raise ReEvaluationError("Input mixes SI treatments; choose --dm-limit-table or --dm-limit-model explicitly")
-    inferred = dd.get("model") or next(iter(row_models), DEFAULT_LIMIT_MODEL)
-    if not explicit and row_models and row_models != {inferred}:
-        raise ReEvaluationError("Input SI provenance disagrees with its rows; select the intended limit explicitly")
-    table_path = args.dm_limit_table
-    if not explicit and inferred.startswith("table:"):
-        table_path = dd.get("table_path")
-        if not table_path or not dd.get("sha256"):
-            raise ReEvaluationError("Input used a tabulated SI limit; supply --dm-limit-table to recover it")
-        table_path = Path(table_path)
-        if not table_path.is_absolute():
-            table_path = sidecar.parent / table_path
-    table = None
-    if table_path is not None:
-        try:
-            table = load_si_limit_table(table_path)
-        except (OSError, ValueError) as error:
-            raise ReEvaluationError(f"Cannot recover SI table; supply --dm-limit-table: {error}") from error
-        if not explicit and (table.sha256 != dd["sha256"] or table.model_id != inferred):
-            raise ReEvaluationError("Recovered SI table differs from the input provenance; select the replacement explicitly")
-        for index, row in enumerate(rows, 2):
-            table.upper_limit_pb(require_float(row, "M3", index))
-        dd_configuration = table.metadata()
-        model = DEFAULT_LIMIT_MODEL
-    else:
-        model = args.dm_limit_model or inferred
-        if model not in (DEFAULT_LIMIT_MODEL, "legacy-output"):
-            raise ReEvaluationError(f"Unknown SI treatment {model!r}; select the intended limit explicitly")
-        dd_configuration = {"model": model}
-    configuration = {"micromegas": backend, "direct_detection": dd_configuration,
-                     "planck_cmb": cmb_configuration(args)}
+    # A v2 reevaluation uses the agreed v2 default, regardless of the old fit.
+    model=args.dm_limit_model or DEFAULT_LIMIT_MODEL
+    table_path=args.dm_limit_table or (DEFAULT_LIMIT_TABLE if model==DEFAULT_LIMIT_MODEL else None)
+    table=load_si_limit_table(table_path) if table_path else None
+    dd_configuration=table.metadata() if table else {"model":model}
+    configuration = {"physics_version":PHYSICS_VERSION,
+                     "physics_manifest":physics_manifest(backend["executable"]),
+                     "micromegas":backend,"direct_detection":dd_configuration,
+                     "planck_cmb":cmb_configuration(args)}
     return configuration, table, model
 
 

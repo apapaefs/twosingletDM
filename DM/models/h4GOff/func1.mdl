@@ -1,6 +1,6 @@
 TRSM(+hgg)
  Constraints 
- Name  |> Expression                                                                        <|
+ Name  |> Expression                                                                                                                                                                                           <|
 CW     |sqrt(1-SW^2) % cos of the Weinberg angle
 GF     |EE^2/(2*SW*MW)^2/Sqrt2 %  experimental value 1.166E-5 [1/GeV^2]
 MZ     |MW/CW % Z boson mass
@@ -28,7 +28,23 @@ LHS    |(Mh2^2-Mh^2)*SinTT/(2*(2*MW/EE*SW)*vevs) % lagrangian Si and Higgs coupl
 muH    |-(2*MW/EE*SW)^2*LH-vevs^2*LHS/2 % square of the massive coupling for Higgs
 muS    |-vevs^2*LS-(2*MW/EE*SW)^2*LHS/2 % square of the massive coupling for Si
 muX    |(MX^2-LHX*(2*MW/EE*SW)^2/2-LSX*vevs^2/2)/2 % square of the massive coupling for X
-LAAh   |-cabs(lAAhiggs(Mh, "h1"))
-LGGh   |-cabs(lGGhiggs(Mh, "h1"))
-aQCDh  |alphaQCD(Mh)/acos(-1)
-RQCDh  |sqrt(1+149/12*aQCDh+68.6482*aQCDh^2-212.447*aQCDh^3)
+LAA1   |CosT*trsm_loop_abs(Mh, 22)
+LAA2   |SinT*trsm_loop_abs(Mh2, 22)
+LGG1   |CosT*trsm_loop_abs(Mh, 21)
+LGG2   |SinT*trsm_loop_abs(Mh2, 21)
+B00000 |4*CosT^3*LH*MW*SW-2*EE*LS*SinT^3*vevs+2*CosT*LHS*MW*SW*SinT^2-CosT^2*EE*LHS*SinT*vevs
+B00001 |CosT*EE*LHS*vevs-4*LHS*MW*SW*SinT+6*LHS*MW*SW*SinT^3-3*CosT*EE*LHS*SinT^2*vevs+6*CosT*EE*LS*SinT^2*vevs
+B00002 |B00001+12*CosT^2*LH*MW*SW*SinT
+B00003 |2*CosT*LHS*MW*SW+2*EE*LHS*SinT*vevs-3*EE*LHS*SinT^3*vevs+12*CosT*LH*MW*SW*SinT^2-6*CosT*LHS*MW*SW*SinT^2
+B00004 |B00003-6*CosT^2*EE*LS*SinT*vevs
+B00005 |2*CosT*LHX*MW*SW-EE*LSX*SinT*vevs
+B00006 |2*CosT^3*EE*LS*vevs+4*LH*MW*SW*SinT^3+CosT*EE*LHS*SinT^2*vevs+2*CosT^2*LHS*MW*SW*SinT
+B00007 |CosT*EE*LSX*vevs+2*LHX*MW*SW*SinT
+B00008 |CosT^4*LH+LS*SinT^4+CosT^2*LHS*SinT^2
+B00009 |LHS-2*CosT^2*LH-2*LHS*SinT^2+2*LS*SinT^2
+B00010 |LHS+6*CosT^2*LH*SinT^2-6*CosT^2*LHS*SinT^2+6*CosT^2*LS*SinT^2
+B00011 |CosT^2*LHX+LSX*SinT^2
+B00012 |LHS-2*CosT^2*LS+2*LH*SinT^2-2*LHS*SinT^2
+B00013 |LHX-LSX
+B00014 |CosT^4*LS+LH*SinT^4+CosT^2*LHS*SinT^2
+B00015 |CosT^2*LSX+LHX*SinT^2

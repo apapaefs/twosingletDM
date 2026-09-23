@@ -1,3 +1,4 @@
+from trsm_inputs import VEV, M1
 import math
 from scipy.integrate import solve_ivp
 import numpy as np
@@ -96,8 +97,8 @@ def test_evo(vs, vx, M2, M3, a12, a13, a23, width1, width2, width3, K111, K112, 
     Lambdas =[K111, K112, K113, K123, K122, K1111, K1112, K1113, K133]
 
     # masses and widths:
-    vh=246
-    m1=125.09
+    vh=VEV
+    m1=M1
     m2=M2
     m3=M3
     w2=width2
@@ -194,8 +195,8 @@ def test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, width1, width2, width3, K11
     Lambdas =[K111, K112, K113, K123, K122, K1111, K1112, K1113, K133]
 
     # masses and widths:
-    vh=246
-    m1=125.09
+    vh=VEV
+    m1=M1
     m2=M2
     m3=M3
     w2=width2
@@ -221,7 +222,7 @@ def test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, width1, width2, width3, K11
 
     mm1init =-((vh**2)*lhinit  + (vs**2)/2.0*lM1init + (vx**2)/2.0*lM2init)
     mmS1init=-((vs**2)*lS1init + (vh**2/2.0)*lM1init + (vx**2)/2.0*lM3init)
-    mmS2init=-((vx**2)*lS2init + (vh**2/2.0)*lM2init + (vs**2)/2.0*lM3init)
+    mmS2init=m3**2 - (vh**2/2.0)*lM2init - (vs**2)/2.0*lM3init
 
     low_esc=91
     high_esc=1000

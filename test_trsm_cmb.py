@@ -27,7 +27,7 @@ def capable_driver(path, **overrides):
     capability = dict(method=CMB_METHOD, pann_limit_cm3_s_GeV=3.2e-28,
                       spectrum_key=7, spectra_flag=0, vrot_km_s=220, vz_decay=0, vw_decay=0)
     capability.update(overrides)
-    payload = json.dumps({"schema": "trsm_driver_capabilities_v1", "planck_cmb": capability})
+    payload = json.dumps({"schema": "trsm_driver_capabilities_v1", "physics_version":"trsm_constraints_v2", "loop_hook":True, "planck_cmb": capability})
     path.write_text(f"#!{sys.executable}\nprint({payload!r})\n")
     path.chmod(0o755)
     return path
@@ -68,7 +68,7 @@ class TestCMBPhysics(unittest.TestCase):
     def test_enabled_cmb_gates_aggregate_without_losing_other_diagnostics(self):
         base = MICROMEGAS_OUTPUT_WITH_RESCALED_INDIRECT
         for extra, passed, available in ((signal_output(100), False, True),
-                                         (signal_output(0), True, True), ("", False, False)):
+                                         (signal_output(0), True, True), ("", None, False)):
             result = parse_micromegas_output(base + extra)
             self.assertTrue(summarize_dm_result(None, result).passed)
             summary = summarize_dm_result(None, result, planck_cmb=True)
@@ -88,7 +88,9 @@ class TestCMBPhysics(unittest.TestCase):
         self.assertEqual(before.passed, after.passed)
         self.assertIsNone(after.cmb_limit)
         self.assertFalse(set(CMB_COLUMNS) & set(output_columns({})))
-        self.assertEqual(output_columns({}, planck_cmb=True), output_columns({}) + list(CMB_COLUMNS))
+        enabled=output_columns({},planck_cmb=True)
+        self.assertEqual([c for c in enabled if c not in CMB_COLUMNS],output_columns({}))
+        self.assertEqual([c for c in enabled if c in CMB_COLUMNS],list(CMB_COLUMNS))
 
     def test_core_failure_marks_cmb_unavailable(self):
         passed, _, fields = test_dm(.2, .1, .5, 1000, 500, .3, 500,
@@ -102,7 +104,7 @@ class TestCMBPhysics(unittest.TestCase):
 class TestCMBScanCompatibility(unittest.TestCase):
     def test_version_defaults_and_explicit_overrides(self):
         generator = load_generator_module()
-        for options, expected in (([], False), (["--micromegas-version", "7"], True),
+        for options, expected in (([], True), (["--micromegas-version", "7"], True),
                                   (["--micromegas-version", "7", "--no-planck-cmb"], False),
                                   (["--micromegas-version", "6", "--planck-cmb"], True)):
             self.assertIs(generator.parse_args(options).planck_cmb, expected)

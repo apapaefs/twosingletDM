@@ -27,12 +27,14 @@ def write_fake_generator(path):
             r'''
             import argparse
             import csv
+            import json
             import sys
             from datetime import date
             from pathlib import Path
 
             parser = argparse.ArgumentParser()
             parser.add_argument("seed", type=int)
+            parser.add_argument("--output-manifest", type=Path)
             parser.add_argument("--nrandom", type=int)
             parser.add_argument("--sleep", type=float, default=0.0)
             parser.add_argument("--run-ewpt", action="store_true")
@@ -74,6 +76,8 @@ def write_fake_generator(path):
                 writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
                 writer.writerow(header)
                 writer.writerows(rows_by_seed.get(args.seed, []))
+
+            args.output_manifest.write_text(json.dumps({"outputs":{"main":{"path":str(output_path)}}}))
 
             if args.run_ewpt and args.ewpt_workdir is not None:
                 args.ewpt_workdir.mkdir(parents=True, exist_ok=True)

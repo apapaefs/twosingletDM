@@ -26,12 +26,13 @@ end_if.
 
 
 option ReduceGamma5=0.
+option chepPDWidth=200.
 let g5=gamma5.
 use sm_tex.
 
-parameter  EE  = 0.31333 : 'Electromagnetic coupling constant (<->1/128)',
+parameter  EE = 0.30827238978402111 : 'Electromagnetic coupling: shared GF MW MZ scheme',
 	   GG  = 1.117   : 'Strong coupling constant (Z point)  (PDG-94)',
-	   SW  = 0.4740  : 'sin of the Weinberg angle 0.474 - "on-shell",481 - "MS-bar" )'.
+	   SW = 0.47211992387942947  : 'sin(thetaW): shared MW MZ on-shell scheme'.
 
 
 parameter  CW  = sqrt(1-SW**2) : 'cos of the Weinberg angle'.
@@ -39,10 +40,10 @@ parameter  CW  = sqrt(1-SW**2) : 'cos of the Weinberg angle'.
 % Masses 
 
 parameter Q=100: 'Scale of effective running masses',
-            MW=80.385: 'W boson mass',
+            MW = 80.385000000000005: 'W boson mass',
             GF=EE**2/(2*SW*MW)**2/Sqrt2 :' experimental value 1.166E-5 [1/GeV^2]',  
             MZ=MW/CW:  'Z boson mass',
-            Mtp  =173.5:'Top quark pole mass',
+            Mtp = 172.5:'Top quark pole mass',
             McMc =1.23:     'Mc(Mc)  MS-BAR',
             MbMb =4.25:     'Mb(Mb)  MS-BAR',
             alphaSMZ=0.1184:'Srtong alpha(MZ)', 
@@ -192,7 +193,7 @@ lterm  GG*anti(psi)*lambda*gamma*G*psi where
 
 
 %============================ Higgs and S Mix
-scalar h1/h1:('Higgs', pdg 25, mass Mh = 125, width wh1 =auto).
+scalar h1/h1:('Higgs', pdg 25, mass Mh = 125.09, width wh1 =auto).
 scalar h2/h2:('Higgs-2', pdg 26, mass Mh2 = 500, width wh2 =auto).
 
 parameter  SinT     = 0.3 : 'Sine of the mixing angle between Higgs and phiS',
@@ -317,37 +318,28 @@ do_if hgg==On.
 %read 'higgs_eff.lhp'.
 
 external_func(alphaQCD,1).
-external_func(lGGhiggs,2).
-external_func(lAAhiggs,2).
+external_func(trsm_loop_abs,2).
+parameter LAA1=CosT*trsm_loop_abs(Mh,22),
+          LAA2=SinT*trsm_loop_abs(Mh2,22),
+          LGG1=CosT*trsm_loop_abs(Mh,21),
+          LGG2=SinT*trsm_loop_abs(Mh2,21).
 
-parameter LAAh=-cabs(lAAhiggs(Mh,str(h1))),
-          LGGh=-cabs(lGGhiggs(Mh,str(h1))),
-          aQCDh =alphaQCD(Mh)/acos(-1),
-          RQCDh=sqrt(1+149/12*aQCDh+68.6482*aQCDh**2-212.447*aQCDh**3).
-
-lterm  LAAh*(shd*shD-vevh**2/2)/vevh*F**2  where 
-             F=deriv^mu*A^nu-deriv^nu*A^mu.
-
-lterm  LGGh*RQCDh*(shd*shD-vevh**2/2) /vevh*F**2 where
-             F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
+% On-shell decay vertices. Annihilation is replaced by the complex,
+% momentum-dependent amplitude in lib/trsm_loop.c (improveCrossSection).
+% These single-scalar operators do not approximate multi-Higgs loop amplitudes.
+lterm (LAA1*h1+LAA2*h2)*F**2 where
+      F=deriv^mu*A^nu-deriv^nu*A^mu.
+lterm (LGG1*h1+LGG2*h2)*F**2 where
+      F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
 
 do_if h4G==On.
-parameter  Maux=1.
-vector  G1t/G1T: (G1T, mass Maux, color c8, aux ('!*')).
-vector  G2t/G2T: (G2T, mass Maux, color c8, aux ('!*')).
-scalar  x1/X1:   (x1,  mass Maux, aux ("!*")).  
-
-
-lterm 1/vevh*LGGh*RQCDh*(shd*shD-vevh**2/2)*(F12*F11+F11*F12)
-        where
-        F11=deriv^mu*G^nu^a-deriv^nu*G^mu^a, F12=i*GG*f_SU3^a^b^c*G^mu^b*G^nu^c.
-
-lterm   1/vevh*LGGh*RQCDh*(shd*shD-vevh**2/2)*(GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1t.t'^m^n^c).
-lterm                                           GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1T.t'^m^n^c. 
-lterm   1/vevh*LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)*x1*Maux.
-lterm   (GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2t.t'^m^n^c)*(X1*Maux).
-lterm    GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2T.t'^m^n^c.
-
+parameter Maux=1.
+vector G1t/G1T: (G1T, mass Maux, color c8, aux ('!*')).
+lterm (LGG1*h1+LGG2*h2)*(F12*F11+F11*F12) where
+      F11=deriv^mu*G^nu^a-deriv^nu*G^mu^a,
+      F12=i*GG*f_SU3^a^b^c*G^mu^b*G^nu^c.
+lterm (LGG1*h1+LGG2*h2)*(GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1t.t'^m^n^c).
+lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1T.t'^m^n^c.
 
 end_if. 
 

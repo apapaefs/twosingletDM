@@ -1,7 +1,12 @@
+from trsm_inputs import PHYSICS_VERSION, VEV as SHARED_VEV, M1 as SHARED_M1
+from trsm_constraint_profile import profile_updates, physics_manifest
+from trsm_theory_diagnostics import theory_diagnostics
+from ewpt_assessment import status_updates
 import argparse
 import csv
 import json
 import math
+import numpy as np
 import os
 import random
 import signal
@@ -11,12 +16,12 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from dm_thermal_relic_diagnostic import resonance_proximity_updates, thermal_vev_updates
-from trsm_direct_detection import direct_detection_configuration, load_si_limit_table
+from dm_thermal_relic_diagnostic import resonance_proximity_updates, thermal_vev_updates, thermal_input_updates
+from trsm_direct_detection import direct_detection_configuration, load_si_limit_table, DEFAULT_LIMIT_TABLE
 from trsm_cmb import add_cmb_arguments, cmb_configuration, require_cmb_capability
 
 from trsm_micromegas import (
-    DEFAULT_MICROMEGAS_VERSION,
+    DEFAULT_MICROMEGAS_VERSION, require_v2_capability,
     MICROMEGAS_VERSIONS,
     micromegas_configuration,
     normalize_micromegas_version,
@@ -45,7 +50,7 @@ from trsm_scan_campaign import (
 
 TRSM_POINT_ARGS = ("m2", "m3", "vs", "a12", "lx", "lphix", "lsx")
 EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
-SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v1"
+SCAN_METADATA_SCHEMA = "trsm_scan_metadata_v2"
 ORIGINAL_COMMAND_LINE = (Path(sys.argv[0]).name, *sys.argv[1:])
 RESUME_PATH_OPTIONS = {
     "dm_limit_table",
@@ -121,6 +126,8 @@ def _hydrate_resume_args(parser, args, argv):
             f"Unsupported scan metadata schema in {metadata_path}: "
             f"{metadata.get('schema')!r}"
         )
+    if metadata.get("physics_version") != PHYSICS_VERSION:
+        parser.error("This campaign predates the active physics profile; reevaluate into a new output instead of resuming it.")
     if metadata.get("output_role", "main") != "main":
         parser.error("--resume-from must name the main scan output")
     if metadata.get("scan_file") != scan_path.name:
@@ -193,7 +200,7 @@ def parse_args(argv=None):
     parser.add_argument(
         "--m1",
         type=float,
-        default=125.09,
+        default=SHARED_M1,
         help="Accepted for consistency with test_trsm_ewpt.py; generate_lams currently fixes M1=125.09.",
     )
     parser.add_argument("--m2", type=float)
@@ -328,8 +335,12 @@ def parse_args(argv=None):
         action="store_true",
         help=(
             "In the random vx=0 scan, sample near either M2 = 2*M3 "
-            "or M3 = 2*M2 within the --delta-res mass window."
+            "or M1 = 2*M3 within the --delta-res pole-gap window."
         ),
+    )
+    resonant_group.add_argument(
+        "--mass-ratio-m3-2m2", action="store_true",
+        help="Study M3 approximately 2*M2; this is a mass-ratio study, not annihilation resonance targeting.",
     )
     resonant_group.add_argument(
         "--independent-m3",
@@ -564,12 +575,15 @@ def parse_args(argv=None):
     parser.add_argument("--ewpt-w1-threshold", type=float, default=5.0)
     parser.add_argument("--ewpt-wx-threshold", type=float, default=1.0)
     parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
+    parser.add_argument("--output-manifest",type=Path,help="Write the actual output paths for campaign aggregation")
     args = parser.parse_args(raw_argv)
     args = _hydrate_resume_args(parser, args, raw_argv)
     if args.planck_cmb is None:
         args.planck_cmb = args.micromegas_version == "7.1.4"
     if args.micromegas_main is not None:
         args.micromegas_main = args.micromegas_main.expanduser().resolve()
+    if args.dm_limit_table is None:
+        args.dm_limit_table = DEFAULT_LIMIT_TABLE
     args._dm_limit_table = None
     if args.dm_limit_table is not None:
         args.dm_limit_table = args.dm_limit_table.expanduser().resolve()
@@ -583,14 +597,14 @@ def parse_args(argv=None):
         parser.error("--nrandom must be non-negative")
     if args.checkpoint_every < 1:
         parser.error("--checkpoint-every must be at least 1")
-    if args.approximate_resonantDM and provided:
+    if (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and provided:
         parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
     if args.independent_m3 and provided:
         parser.error("--independent-m3 is a random-scan mode and cannot be combined with explicit point parameters")
-    if args.approximate_resonantDM and args.delta_res is None:
+    if (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and args.delta_res is None:
         parser.error("--approximate-resonantDM requires --delta-res")
-    if not args.approximate_resonantDM and args.delta_res is not None:
-        parser.error("--delta-res requires --approximate-resonantDM")
+    if not (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and args.delta_res is not None:
+        parser.error("--delta-res requires --approximate-resonantDM or --mass-ratio-m3-2m2")
     if args.delta_res is not None and (
         not math.isfinite(args.delta_res) or args.delta_res < 0.0
     ):
@@ -610,7 +624,7 @@ def parse_args(argv=None):
             f"--{name}" for name in required_point_args if getattr(args, name) is None
         )
         parser.error(f"explicit point mode requires all point parameters; missing {missing}")
-    if provided and not math.isclose(args.m1, 125.09, rel_tol=0.0, abs_tol=1e-9):
+    if not math.isclose(args.m1, SHARED_M1, rel_tol=0.0, abs_tol=1e-9):
         parser.error("--m1 is accepted for CLI compatibility, but this generator currently fixes M1=125.09")
     if args.higgstools_top < 1:
         parser.error("--higgstools-top must be at least 1")
@@ -673,7 +687,7 @@ xsec_sm[13] = 0.01452
 xsec_sm[13.6] = 0.01617
 
 # set the Higgs mass:
-mhiggs = 125.
+mhiggs = SHARED_M1
 
 # TAG for RUN output
 RunTag = str(Energy) + '-' + str(date.today()).replace('-','') + '-' + str(ini_seed) + '-' + str(RunMG5)
@@ -697,7 +711,7 @@ ResetOutput = True
 # Print additional TRSM point info?
 PRINTINFO = False
 
-SM_VEV_FOR_K_SCAN = 246.
+SM_VEV_FOR_K_SCAN = SHARED_VEV
 
 ###########################################################
 # some functions
@@ -887,9 +901,9 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         point_info["K233"] = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)[1]
     if vx == 0 and point_info.get("K233") is not None:
         if invisible_decay_info is None:
-            gamma1 = scalar_to_identical_scalar_width(M3, 125.09, K133)
+            gamma1 = scalar_to_identical_scalar_width(M3, SHARED_M1, K133)
             gamma2 = scalar_to_identical_scalar_width(M3, M2, point_info["K233"])
-            gamma1_h2h2 = scalar_to_identical_scalar_width(M2, 125.09, K122)
+            gamma1_h2h2 = scalar_to_identical_scalar_width(M2, SHARED_M1, K122)
             invisible_decay_info = {
                 "h1_h3h3_width": gamma1,
                 "h1_h3h3_br": gamma1 / w1 if w1 > 0.0 else 0.0,
@@ -938,7 +952,8 @@ def valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, 
         point_info.update(dm_exclusion_info)
     if vx == 0:
         point_info.update(resonance_proximity_updates(
-            M2, M3, point_info.get("dm_freezeout_temperature_GeV")
+            M2, M3, point_info.get("dm_freezeout_temperature_GeV"),
+            widths=(point_info.get("dm_h1_width_GeV"),point_info.get("dm_h2_width_GeV"))
         ))
     return point_info
 
@@ -1030,7 +1045,7 @@ def ewpt_point_workdir(args, point_index):
 
 def ewpt_row_from_point_info(point_info):
     return {
-        "m1": 125.09,
+        "m1": SHARED_M1,
         "m2": point_info["M2"],
         "m3": point_info["M3"],
         "vs": point_info["vs"],
@@ -1091,7 +1106,7 @@ def add_higgstools_info(point_info, details):
 
 def effective_m3(args, m2):
     if getattr(args, "resonantDM1", False):
-        return 0.5 * float(getattr(args, "m1", 125.09))
+        return 0.5 * float(getattr(args, "m1", SHARED_M1))
     if getattr(args, "resonantDM2", False):
         return 0.5 * float(m2)
     return getattr(args, "m3", None)
@@ -1105,59 +1120,31 @@ def checked_uniform(low, high, label, rng=None):
 
 def approximate_resonant_branch_windows(delta_res):
     delta_res = float(delta_res)
-    if not math.isfinite(delta_res) or delta_res < 0.0:
+    if not math.isfinite(delta_res) or delta_res < 0:
         raise ValueError("delta_res must be finite and non-negative")
-
     branches = []
-    m3_low = max(m3_min, (m2_min - delta_res) / 2.0)
-    m3_high = min(m3_max, (m2_max + delta_res) / 2.0)
-    if m3_low <= m3_high:
-        branches.append(("M2 = 2*M3", m3_low, m3_high))
-
-    m2_low = max(m2_min, (m3_min - delta_res) / 2.0)
-    m2_high = min(m2_max, (m3_max + delta_res) / 2.0)
-    if m2_low <= m2_high:
-        branches.append(("M3 = 2*M2", m2_low, m2_high))
-
+    low, high = max(m3_min, (SHARED_M1-delta_res)/2), min(m3_max, (SHARED_M1+delta_res)/2)
+    if low <= high:
+        branches.append(("M1 = 2*M3", low, high))
+    low, high = max(m3_min, (m2_min-delta_res)/2), min(m3_max, (m2_max+delta_res)/2)
+    if low <= high:
+        branches.append(("M2 = 2*M3", low, high))
     return branches
 
 
 def sample_approximate_resonant_masses(delta_res, rng=None):
-    delta_res = float(delta_res)
     rng = rng or random
     branches = approximate_resonant_branch_windows(delta_res)
     if not branches:
-        raise ValueError(
-            "No valid --approximate-resonantDM branch for "
-            f"M2 in [{m2_min}, {m2_max}] GeV, "
-            f"M3 in [{m3_min}, {m3_max}] GeV, and "
-            f"delta_res={delta_res} GeV"
-        )
-
-    if len(branches) == 2:
-        branch = branches[0] if rng.random() < 0.5 else branches[1]
+        raise ValueError("No range-compatible annihilation resonance")
+    branch = branches[0] if len(branches)==1 or rng.random()<0.5 else branches[1]
+    relation, low, high = branch
+    m3 = checked_uniform(low, high, "resonance M3", rng=rng)
+    if relation=="M1 = 2*M3":
+        m2 = checked_uniform(m2_min,m2_max,"h1-resonance M2",rng=rng)
     else:
-        branch = branches[0]
-
-    relation, anchor_low, anchor_high = branch
-    if relation == "M2 = 2*M3":
-        m3 = checked_uniform(anchor_low, anchor_high, "M3 anchor", rng=rng)
-        m2 = checked_uniform(
-            max(m2_min, 2.0 * m3 - delta_res),
-            min(m2_max, 2.0 * m3 + delta_res),
-            "M2 approximate resonance",
-            rng=rng,
-        )
-        return m2, m3
-
-    m2 = checked_uniform(anchor_low, anchor_high, "M2 anchor", rng=rng)
-    m3 = checked_uniform(
-        max(m3_min, 2.0 * m2 - delta_res),
-        min(m3_max, 2.0 * m2 + delta_res),
-        "M3 approximate resonance",
-        rng=rng,
-    )
-    return m2, m3
+        m2 = checked_uniform(max(m2_min,2*m3-delta_res),min(m2_max,2*m3+delta_res),"h2-resonance M2",rng=rng)
+    return m2,m3
 
 
 def sample_random_masses(args, rng=None):
@@ -1171,6 +1158,10 @@ def sample_random_masses(args, rng=None):
             rng=rng,
         )
 
+    if getattr(args, "mass_ratio_m3_2m2", False):
+        delta = args.delta_res
+        m2 = checked_uniform(max(m2_min,(m3_min-delta)/2), min(m2_max,(m3_max+delta)/2), "mass-ratio M2",rng=rng)
+        return m2, checked_uniform(max(m3_min,2*m2-delta),min(m3_max,2*m2+delta),"mass-ratio M3",rng=rng)
     if getattr(args, "resonantDM1", False):
         m2 = checked_uniform(
             m2_min,
@@ -1297,11 +1288,12 @@ def add_ewpt_phase_history_info(point_info, payload):
     if ew_step_index is not None:
         point_info["ewpt_ew_step_index"] = ew_step_index
     point_info.update(x_history_updates(payload, point_info.get("dm_freezeout_temperature_GeV")))
-    point_info.update(thermal_vev_updates(payload, point_info.get("dm_freezeout_temperature_GeV")))
+    point_info.update(thermal_input_updates(payload, point_info))
 
 
 def add_ewpt_info(point_info, payload, *, w1_threshold=5.0):
-    point_info["ewpt_status"] = "success"
+    point_info.update(status_updates(payload))
+    point_info["ewpt_constraint_version"] = PHYSICS_VERSION
     point_info["ewpt_error"] = ""
     add_ewpt_strength_info(point_info, payload)
     add_ewpt_entry_info(point_info, payload, w1_threshold=w1_threshold)
@@ -1317,7 +1309,7 @@ def run_ewpt_if_requested(
     allow_dm_failed=False,
     allow_any_failed=False,
 ):
-    run_for_viable = getattr(args, "run_ewpt", False) and passed
+    run_for_viable = getattr(args, "run_ewpt", False) and point_info.get("ewpt_eligible", passed)
     run_for_dm_failed = (
         getattr(args, "run_ewpt_on_dm_failed", False)
         and allow_dm_failed
@@ -1457,7 +1449,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     # check EWPO
     sinth = np.sin(a12)
     #EWPO_cur_old = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current # U=0
-    EWPO_cur = check_EWPO_wU(125.09, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
+    EWPO_cur = check_EWPO_wU(SHARED_M1, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
 
     #if EWPO_cur != EWPO_cur_wU:
     #    print("EWPOWARNING", EWPO_cur, EWPO_cur_wU)
@@ -1473,7 +1465,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         H1,
         H2,
         H3,
-        125.09,
+        SHARED_M1,
         M2,
         M3,
         k1,
@@ -1532,21 +1524,23 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
         return evaluation_result(True)
     return evaluation_result(False)
 
-# MAIN FUNCTION for vx=0:
 def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1, return_status=False):
-    write_all_points = write_all or getattr(cli_args, "write_all_points", False)
-    write_evo_thc_points = getattr(cli_args, "write_evo_thc_points", False)
-    write_dm_failed_to_main = getattr(cli_args, "write_dm_failed_to_main", False)
+    try:
+        return _evaluate_trsm_point_vxzero(myseed,m2_val,m3_val,vs_val,a12,lX,lPhiX,lSX,
+            runmg5,report,write_all,point_index,return_status)
+    except (ValueError,ArithmeticError) as error:
+        point=dict(M2=m2_val,M3=m3_val,vs=vs_val,vx=0,a12=a12,a13=0,a23=0,
+            lX=lX,lPhiX=lPhiX,lSX=lSX,point_index=point_index,
+            constraint_version=PHYSICS_VERSION,constraint_schema_version=2,
+            point_assessment_status="unassessed",point_assessment_reason=str(error))
+        write_valid_point(RunTag,point,{p:math.nan for p in MG5ProcessesToRun} if runmg5 else {})
+        return evaluation_result(False,return_status=return_status)
+
+
+# MAIN FUNCTION for vx=0:
+def _evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, lSX, runmg5=False, report=False, write_all=False, point_index=1, return_status=False):
     mg5_without_dm = getattr(cli_args, "mg5_without_dm", False)
-    force_ewpt_for_all_points = getattr(cli_args, "write_all_points", False)
     print_info_enabled = getattr(cli_args, "print_info", False)
-    short_circuit_failures = (
-        debug is False
-        and report is False
-        and write_all_points is False
-        and write_evo_thc_points is False
-        and print_info_enabled is False
-    )
     # fix a23, a13, vx to zero:
     vx_val = 0
     a13 = 0
@@ -1555,7 +1549,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO, lX=lX, lPhiX=lPhiX, lSX=lSX)
     _canonical_k133, K233 = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)
     invisible_decay_info = generated_vxzero_invisible_decay_info(
-        125.09,
+        SHARED_M1,
         M2,
         M3,
         K133,
@@ -1570,216 +1564,74 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
     if debug is True or report is True or print_info_enabled is True:
         print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
 
-    # check EWPO
-    sinth = np.sin(a12)
-    #EWPO_cur_old = check_EWPO(125.09, M2, sinth, Mz, Mw, Delta_S_central, Delta_T_central, errS, errT, covST) #current # U=0
-    EWPO_cur = check_EWPO_wU(125.09, M2, sinth, Mz, Mw, Delta_S_central_wU, Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU, covST_wU, covSU_wU, covTU_wU) #current # U!=0
-
-    #if EWPO_cur != EWPO_cur_wU:
-    #    print("EWPOWARNING", EWPO_cur, EWPO_cur_wU)
-    
-
-    # check W mass:
+    sinth = math.sin(a12)
+    assessment_errors=[]
+    try:
+        EWPO_cur = check_EWPO_wU(SHARED_M1, M2, sinth, Mz, Mw, Delta_S_central_wU,
+            Delta_T_central_wU, Delta_U_central_wU, errS_wU, errT_wU, errU_wU,
+            covST_wU, covSU_wU, covTU_wU)
+    except (ValueError, ArithmeticError) as error:
+        EWPO_cur = None
+        assessment_errors.append("EWPO: "+str(error))
     wmass = check_wmass_tania(M2, sinth)
-    
-    # check HiggsTools:
-    hb, hs, higgstools_details = unpack_higgstools_result(analyze_parampoint(
-        pred,
-        H1,
-        H2,
-        H3,
-        125.09,
-        M2,
-        M3,
-        k1,
-        k2,
-        k3,
-        h1_BRs,
-        h2_BRs,
-        h3_BRs,
-        h1_direct_invisible_width=invisible_decay_info["h1_h3h3_width"],
-        h2_direct_invisible_width=invisible_decay_info["h2_h3h3_width"],
-        h1_h2h2_width=invisible_decay_info["h1_h2h2_width"],
-        **higgstools_analysis_kwargs(),
-    ))
-    if short_circuit_failures:
-        if not return_status and (hb is False or hs is False):
-            return evaluation_result(False, return_status=return_status)
+    hb = hs = None
+    higgstools_details = None
+    try:
+        hb, hs, higgstools_details = unpack_higgstools_result(analyze_parampoint(
+            pred, H1, H2, H3, SHARED_M1, M2, M3, k1, k2, k3,
+            h1_BRs, h2_BRs, h3_BRs,
+            h1_direct_invisible_width=invisible_decay_info["h1_h3h3_width"],
+            h2_direct_invisible_width=invisible_decay_info["h2_h3h3_width"],
+            h1_h2h2_width=invisible_decay_info["h1_h2h2_width"],
+            **higgstools_analysis_kwargs()))
+    except (ValueError, RuntimeError, ArithmeticError) as error:
+        print("HiggsTools unassessed:", error)
+        assessment_errors.append("HiggsTools: "+str(error))
     thc = theory_constraints_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX)
-    if short_circuit_failures:
-        if thc is False:
-            return evaluation_result(False, thc=thc, return_status=return_status)
-    # test the cosmological constraints
-    evo = test_evo_vxzero(vs, M2, M3, a12, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133)
-    if short_circuit_failures:
-        if evo is False or hb is False or hs is False:
-            return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
-    evo_thc_passed = evo is True and thc is True
-    if (
-        write_evo_thc_points
-        and evo_thc_passed is False
-        and debug is False
-        and report is False
-        and print_info_enabled is False
-    ):
-        return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
-    dm = test_dm(
-        lX, lPhiX, lSX, M3, vs, a12, M2,
+    diagnostics = theory_diagnostics(vs, M2, M3, a12, lX, lPhiX, lSX)
+    if diagnostics["vacuum_tree_status"].startswith("unbounded"):
+        thc = False
+    evo = diagnostics["rg_integration_success"]
+    dm = test_dm(lX, lPhiX, lSX, M3, vs, a12, M2,
         micromegas_main=Path(micromegas_configuration(cli_args)["executable"]),
         limit_table=getattr(cli_args, "_dm_limit_table", None),
-        planck_cmb=getattr(cli_args, "planck_cmb", False),
-    )
-    if debug is True or report is True or print_info_enabled is True:
-        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
-        print_dm_info(dm[1])
-    pre_dm_passed = evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True
-    mg5_eligible = runmg5 is True and mg5_point_eligible(
-        evo,
-        thc,
-        hb,
-        hs,
-        EWPO_cur,
-        wmass,
-        dm[0],
-        require_dm=not mg5_without_dm,
-    )
-    point_info = valid_point_info(
-        M2,
-        M3,
-        vs,
-        vx,
-        a12,
-        a13,
-        a23,
-        lX,
-        lPhiX,
-        lSX,
-        invisible_decay_info["w1"],
-        invisible_decay_info["w2"],
-        w3,
-        K111,
-        K112,
-        K113,
-        K123,
-        K122,
-        K1111,
-        K1112,
-        K1113,
-        K133,
-        k1,
-        k2,
-        k3,
-        evo,
-        thc,
-        hb,
-        hs,
-        EWPO_cur,
-        wmass,
-        dm[0],
-        dm[2],
+        planck_cmb=getattr(cli_args, "planck_cmb", False))
+    point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, lX, lPhiX, lSX,
+        invisible_decay_info["w1"], invisible_decay_info["w2"], w3,
+        K111, K112, K113, K123, K122, K1111, K1112, K1113, K133,
+        k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass, dm[0], dm[2],
         invisible_decay_info=invisible_decay_info,
-        xs136_lo_h1=xs136_lo_h1,
-        xs136_lo_h2=xs136_lo_h2,
-    )
+        xs136_lo_h1=xs136_lo_h1, xs136_lo_h2=xs136_lo_h2)
+    point_info.update(diagnostics)
+    point_info.update(profile_updates(point_info))
+    point_info["point_index"] = point_index
+    if assessment_errors:
+        point_info["point_assessment_reason"] += "; " + "; ".join(assessment_errors)
+    point_info["K233"] = K233
     add_higgstools_info(point_info, higgstools_details)
-    dm_failed_but_otherwise_allowed = pre_dm_passed and dm[0] is False
-    if dm_failed_but_otherwise_allowed:
-        ewpt_error = None
-        if cli_args.run_ewpt_on_dm_failed and force_ewpt_for_all_points is False:
-            try:
-                run_ewpt_if_requested(
-                    point_info,
-                    False,
-                    cli_args,
-                    point_index,
-                    allow_dm_failed=True,
-                )
-            except Exception as error:
-                ewpt_error = error
+    passed = thc is True and point_info["experimental_subset"] is True and dm[0] is True
+    mg5_eligible = runmg5 and thc is True and point_info["experimental_subset"] is True and (mg5_without_dm or dm[0] is True)
+    MG5xsecs = {process: math.nan for process in MG5ProcessesToRun} if runmg5 else {}
+    if mg5_eligible:
+        MG5xsecs.update(run_mg5_processes(MG5ProcessesToRun,
+            'SCAN'+str(Energy)+'-point'+str(point_index), Lambdas, k1, k2, k3,
+            M2, invisible_decay_info["w2"], M3, w3, Energy,
+            w1=invisible_decay_info["w1"], k233=K233))
+    add_mg5_signal_rates(point_info, MG5xsecs)
+    if point_info["ewpt_eligible"]:
+        try:
+            run_ewpt_if_requested(point_info, passed, cli_args, point_index,
+                                  allow_dm_failed=dm[0] is not True)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+            point_info.update(ewpt_status="error", ewpt_execution_status="error", ewpt_error=str(error))
+    if dm[0] is False and point_info["experimental_subset"] is True and thc is True:
         if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
             write_dm_failed_point(RunTag, point_info)
-            print('Point passes non-DM constraints but fails DM; written to', dm_failed_output_path(RunTag))
-        if (
-            write_dm_failed_to_main
-            and write_all_points is False
-            and write_evo_thc_points is False
-            and mg5_eligible is False
-        ):
-            mg5_placeholders = (
-                {process: math.nan for process in MG5ProcessesToRun}
-                if runmg5 is True
-                else {}
-            )
-            write_valid_point(RunTag, point_info, mg5_placeholders)
-            print('Point passes non-DM constraints but fails DM; written to', output_path(RunTag))
-        if ewpt_error is not None:
-            raise ewpt_error
-    if short_circuit_failures:
-        if dm[0] is False and mg5_eligible is False:
-            return evaluation_result(False, evo=evo, thc=thc, return_status=return_status)
-    # get the hh cross section
-    # if all constraints are ok, check the xsec for hhh:
-    passed = pre_dm_passed and dm[0] is True
-    write_main_point = (
-        passed
-        or write_all_points is True
-        or (write_evo_thc_points and evo_thc_passed)
-        or mg5_eligible
-    )
-    if write_main_point:
-        if debug is False and report is False and print_info_enabled is False:
-            print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
-            print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
-            print_dm_info(dm[1])
-        MG5xsecs = (
-            {process: math.nan for process in MG5ProcessesToRun}
-            if runmg5 is True
-            else {}
-        )
-        if mg5_eligible:
-            if mg5_without_dm:
-                print('All non-DM constraints passed; running selected MG5 processes without applying the DM gate, please wait!')
-            else:
-                print('All constraints including DM passed; running selected MG5 processes, please wait!')
-            MG5xsecs.update(
-                run_mg5_processes(
-                    MG5ProcessesToRun,
-                    'SCAN' + str(Energy) + '-point' + str(point_index),
-                    Lambdas,
-                    k1,
-                    k2,
-                    k3,
-                    M2,
-                    invisible_decay_info["w2"],
-                    M3,
-                    w3,
-                    Energy,
-                    w1=invisible_decay_info["w1"],
-                    k233=K233,
-                )
-            )
-            print('MG5 cross sections [pb] =', MG5xsecs)
-        add_mg5_signal_rates(point_info, MG5xsecs)
-        ewpt_error = None
-        if passed or force_ewpt_for_all_points:
-            try:
-                ewpt_kwargs = {}
-                if force_ewpt_for_all_points:
-                    ewpt_kwargs["allow_any_failed"] = True
-                run_ewpt_if_requested(
-                    point_info,
-                    passed,
-                    cli_args,
-                    point_index,
-                    **ewpt_kwargs,
-                )
-            except Exception as error:
-                ewpt_error = error
-        write_valid_point(RunTag, point_info, MG5xsecs)
-        if report is True:
-            print('Point record written to', output_path(RunTag))
-        if ewpt_error is not None:
-            raise ewpt_error
+    # Complete ledger: every evaluated point has one row, with independent flags.
+    write_valid_point(RunTag, point_info, MG5xsecs)
+    if debug or report or print_info_enabled:
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
+        print_dm_info(dm[1])
     return evaluation_result(passed, evo=evo, thc=thc, return_status=return_status)
 
 # round to sgf significant figures
@@ -1969,40 +1821,14 @@ def draw_random_vxzero_candidate(args, rng=None):
 
     a12 = draw_sign() * np.arccos(k1)
     k2 = draw_sign() * np.sqrt(1 - k1**2)
-    (
-        m2,
-        m3,
-        vs,
-        vx,
-        a12,
-        a13,
-        a23,
-        lX,
-        lPhiX,
-        lSX,
-    ) = round_signif(
-        m2,
-        m3,
-        vs,
-        vx,
-        a12,
-        a13,
-        a23,
-        lX,
-        lPhiX,
-        lSX,
-        4,
-    )
     if scan_k133_k233 or scan_k133_k233_log:
-        K133 = round_sig(K133, 4)
-        K233 = round_sig(K233, 4)
         lPhiX, lSX = k133_k233_to_lambdas(K133, K233, vs, a12)
     else:
         K133, K233 = lambdas_to_k133_k233(lPhiX, lSX, vs, a12)
     if getattr(args, "resonantDM1", False) or getattr(
         args, "resonantDM2", False
     ):
-        m3 = round_sig(effective_m3(args, m2), 4)
+        m3 = effective_m3(args, m2)
 
     return {
         "m2": m2,
@@ -2089,71 +1915,28 @@ def _mass_sampling_metadata(args):
             ],
         )
 
-    if getattr(args, "approximate_resonantDM", False):
-        delta = float(args.delta_res)
-        branches = approximate_resonant_branch_windows(delta)
-        if not branches:
-            raise ValueError(
-                "No valid --approximate-resonantDM branch for the configured "
-                "M2 and M3 ranges"
-            )
-
-        m2_intervals = []
-        m3_intervals = []
-        for relation, anchor_low, anchor_high in branches:
-            if relation == "M2 = 2*M3":
-                m3_intervals.append((anchor_low, anchor_high))
-                m2_intervals.append(
-                    (
-                        max(m2_min, 2.0 * anchor_low - delta),
-                        min(m2_max, 2.0 * anchor_high + delta),
-                    )
-                )
-            else:
-                m2_intervals.append((anchor_low, anchor_high))
-                m3_intervals.append(
-                    (
-                        max(m3_min, 2.0 * anchor_low - delta),
-                        min(m3_max, 2.0 * anchor_high + delta),
-                    )
-                )
-
-        branch_relations = " or ".join(
-            f"|{relation.replace(' = ', ' - ')}| <= delta_res"
-            for relation, _low, _high in branches
-        )
-        selection_note = (
-            "Both available branches are selected with equal probability."
-            if len(branches) == 2
-            else f"Only the range-compatible {branches[0][0]} branch is sampled."
-        )
-        return (
-            "approximate_mass_doubling",
-            f"Samples {branch_relations}. {selection_note}",
-            [
-                _range_record(
-                    "M2",
-                    *configured_m2,
-                    min(low for low, _high in m2_intervals),
-                    max(high for _low, high in m2_intervals),
-                    "GeV",
-                    "conditional uniform mixture",
-                    f"{selection_note} delta_res = {delta:g} GeV",
-                ),
-                _range_record(
-                    "M3",
-                    *configured_m3,
-                    min(low for low, _high in m3_intervals),
-                    max(high for _low, high in m3_intervals),
-                    "GeV",
-                    "conditional uniform mixture",
-                    f"{selection_note} delta_res = {delta:g} GeV",
-                ),
-            ],
-        )
+    if getattr(args, "approximate_resonantDM", False) or getattr(args, "mass_ratio_m3_2m2", False):
+        ratio = getattr(args, "mass_ratio_m3_2m2", False)
+        delta=float(args.delta_res)
+        if ratio:
+            low=max(m2_min,(m3_min-delta)/2);high=min(m2_max,(m3_max+delta)/2)
+            if low>high:raise ValueError("No range-compatible M3 = 2*M2 mass-ratio study")
+            effective_m2_range=(low,high);effective_m3_range=(max(m3_min,2*low-delta),min(m3_max,2*high+delta))
+        else:
+            branches=approximate_resonant_branch_windows(delta)
+            if not branches:raise ValueError("No range-compatible annihilation resonance")
+            effective_m3_range=(min(b[1] for b in branches),max(b[2] for b in branches))
+            windows=[configured_m2 if relation=="M1 = 2*M3" else (max(m2_min,2*low-delta),min(m2_max,2*high+delta)) for relation,low,high in branches]
+            effective_m2_range=(min(b[0] for b in windows),max(b[1] for b in windows))
+        description = ("M3 = 2*M2 mass-ratio study" if ratio else
+                       "Equal mixture of range-compatible M1 = 2*M3 and M2 = 2*M3 annihilation poles")
+        return ("mass_ratio_m3_2m2" if ratio else "approximate_annihilation_resonance",
+                description + f"; absolute pole/mass gap <= {args.delta_res:g} GeV",
+                [_range_record("M2", *configured_m2, *effective_m2_range, "GeV", "conditional uniform mixture"),
+                 _range_record("M3", *configured_m3, *effective_m3_range, "GeV", "conditional uniform mixture")])
 
     if getattr(args, "resonantDM1", False):
-        m3 = 0.5 * float(getattr(args, "m1", 125.09))
+        m3 = 0.5 * float(getattr(args, "m1", SHARED_M1))
         return (
             "exact_h1_resonance",
             "M3 is fixed to M1/2 while M2 is sampled uniformly.",
@@ -2337,15 +2120,7 @@ def _portal_sampling_metadata(args):
 def _output_selection(args, output_role):
     if output_role == "dm_failed":
         return "Points passing all non-DM constraints but failing the aggregate DM constraint"
-    if has_explicit_point(args):
-        return "The explicitly evaluated point"
-    if getattr(args, "write_all_points", False):
-        return "All evaluated points"
-    if getattr(args, "write_evo_thc_points", False):
-        return "Points passing evo and thc"
-    if getattr(args, "write_dm_failed_to_main", False):
-        return "Fully viable points plus points passing all non-DM constraints but failing DM"
-    return "Fully viable points only"
+    return "All evaluated points, including exclusions and unassessed results"
 
 
 def _json_safe(value):
@@ -2418,7 +2193,7 @@ def build_scan_metadata(
     variable_ranges.extend(portal_ranges)
 
     fixed_parameters = [
-        _fixed_parameter("M1", float(getattr(args, "m1", 125.09)), "GeV", "SM-like Higgs mass"),
+        _fixed_parameter("M1", float(getattr(args, "m1", SHARED_M1)), "GeV", "SM-like Higgs mass"),
         _fixed_parameter("vx", 0.0, "GeV", "Dark-matter branch"),
         _fixed_parameter("a13", 0.0, "rad"),
         _fixed_parameter("a23", 0.0, "rad"),
@@ -2448,6 +2223,8 @@ def build_scan_metadata(
         "schema": SCAN_METADATA_SCHEMA,
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "generator": "generate_trsm_points.py",
+        "physics_version": PHYSICS_VERSION,
+        "physics_manifest": scan_physics_manifest(args),
         "run_tag": runtag,
         "scan_file": Path(scan_file).name,
         "output_role": output_role,
@@ -2499,6 +2276,9 @@ def write_scan_metadata_files(runtag, args):
         payload = build_scan_metadata(args, runtag, scan_file, output_role)
         write_scan_metadata_file(path, payload)
         metadata_paths.append(path)
+    if getattr(args,"output_manifest",None):
+        atomic_write_json(args.output_manifest,{"physics_version":PHYSICS_VERSION,
+            "outputs":{role:{"path":str(path.resolve()),"metadata":str(scan_metadata_path(path).resolve())} for role,path in campaign_output_paths(runtag,args).items()}})
     return metadata_paths
 
 
@@ -2506,6 +2286,13 @@ def _resolved_path_value(value):
     if value is None:
         return None
     return str(Path(value).expanduser().resolve())
+
+
+def scan_physics_manifest(args):
+    from test_trsm_ewpt import DEFAULT_EXECUTABLE, DEFAULT_MINIMA_EXECUTABLE
+    return physics_manifest(micromegas_configuration(args)["executable"],
+        str(getattr(args, "ewpt_executable", None) or DEFAULT_EXECUTABLE),
+        str(getattr(args, "ewpt_minima_executable", None) or DEFAULT_MINIMA_EXECUTABLE))
 
 
 def immutable_scan_configuration(args):
@@ -2540,6 +2327,8 @@ def immutable_scan_configuration(args):
         else {}
     )
     return {
+        "physics_version": PHYSICS_VERSION,
+        "physics_manifest": scan_physics_manifest(args),
         "sampling_algorithm_version": SAMPLING_ALGORITHM_VERSION,
         "seed": int(args.seed),
         "mass_sampling_mode": mass_mode,
@@ -2623,6 +2412,9 @@ def write_campaign_metadata_files(
             payload["completed_utc"] = utc_now()
         write_scan_metadata_file(path, payload)
         metadata_paths.append(path)
+    if getattr(args,"output_manifest",None):
+        atomic_write_json(args.output_manifest,{"physics_version":PHYSICS_VERSION,
+            "outputs":{role:{"path":str(path.resolve()),"metadata":str(scan_metadata_path(path).resolve())} for role,path in campaign_output_paths(runtag,args).items()}})
     return metadata_paths
 
 
@@ -3180,17 +2972,6 @@ def main():
             raise CampaignStateError(
                 "The direct-detection limit table or its contents differ from the saved campaign"
             )
-    table = getattr(cli_args, "_dm_limit_table", None)
-    if table is not None:
-        _mode, _description, mass_ranges = _mass_sampling_metadata(cli_args)
-        m3_range = next(item for item in mass_ranges if item["variable"] == "M3")
-        try:
-            table.upper_limit_pb(m3_range["effective_min"])
-            table.upper_limit_pb(m3_range["effective_max"])
-        except ValueError as error:
-            raise CampaignStateError(
-                f"The selected direct-detection table does not cover the requested M3 range: {error}"
-            ) from error
     print(f"Using direct-detection limit: {dd_configuration['model']}")
     backend = micromegas_configuration(cli_args)
     if cli_args.resume_from is not None:
@@ -3205,6 +2986,10 @@ def main():
             f"micrOMEGAs {backend['version']} executable not found or not executable: "
             f"{executable}. Install this version or supply --micromegas-main."
         )
+    try:
+        require_v2_capability(executable)
+    except ValueError as error:
+        raise CampaignStateError(str(error)) from error
     print(f"Using micrOMEGAs {backend['version']}: {executable}")
     if cli_args.planck_cmb:
         try:
@@ -3227,7 +3012,7 @@ def main():
                 "Saved run_tag does not resolve to the requested scan path"
             )
     else:
-        RunTag = RunTag + '_vxzero'
+        RunTag = RunTag + '_v2_vxzero'
     if has_explicit_point(cli_args):
         RunTag = RunTag + '_manual'
         if ResetOutput is True:

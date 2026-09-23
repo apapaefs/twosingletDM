@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
@@ -11,7 +12,7 @@ from pathlib import Path
 CMB_METHOD = "micromegas_planck2018_swave_v1"
 CMB_OUTPUT_PREFIX = "TRSM_PlanckCMB_v1 "
 CMB_PANN_LIMIT = 3.2e-28  # cm^3 s^-1 GeV^-1, 95% CL
-CMB_OMEGA_REFERENCE = 0.12
+from trsm_inputs import ABUNDANCE_REFERENCE as CMB_OMEGA_REFERENCE
 CMB_COLUMNS = (
     "dm_cmb_enabled", "dm_cmb_available", "dm_cmb_status", "dm_cmb_reason",
     "dm_cmb_ratio_raw", "dm_cmb_abundance_fraction", "dm_cmb_ratio",
@@ -51,7 +52,7 @@ def cmb_configuration(args):
 
 
 @lru_cache(maxsize=16)
-def _driver_capability(path, mtime_ns, size):
+def _driver_capability(path, mtime_ns, size, virtual_off):
     try:
         completed = subprocess.run(
             [path, "--capabilities"], capture_output=True, text=True,
@@ -67,7 +68,7 @@ def _driver_capability(path, mtime_ns, size):
             raise ValueError("unexpected CMB normalization")
         if capability.get("spectrum_key") != 7:
             raise ValueError("unexpected spectrum calculation")
-        if capability.get("vz_decay") != 0 or capability.get("vw_decay") != 0:
+        if capability.get("vz_decay") not in (0, 1) or capability.get("vw_decay") not in (0, 1):
             raise ValueError("unexpected off-shell spectrum settings")
         for key in ("spectra_flag", "vrot_km_s"):
             value = capability[key]
@@ -87,7 +88,7 @@ def require_cmb_capability(executable):
     path = Path(executable).expanduser().resolve()
     stat = path.stat()
     # Return a copy; cached capability data must not be mutated by callers.
-    return dict(_driver_capability(str(path), stat.st_mtime_ns, stat.st_size))
+    return dict(_driver_capability(str(path), stat.st_mtime_ns, stat.st_size,"TRSM_LEGACY_VIRTUAL_OFF" in os.environ))
 
 
 @dataclass(frozen=True)

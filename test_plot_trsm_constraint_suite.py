@@ -192,11 +192,12 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "expected 'True' or 'False'"):
                     self.plotter.strict_bool(value, "dm", 9)
 
-    def test_nullable_dm_boolean_accepts_only_canonical_nan(self):
+    def test_nullable_boolean_accepts_nan_and_legacy_blank(self):
         self.assertIs(self.plotter.strict_nullable_bool("True"), True)
         self.assertIs(self.plotter.strict_nullable_bool("False"), False)
         self.assertIsNone(self.plotter.strict_nullable_bool("nan"))
-        for value in ["NaN", "none", "", " nan "]:
+        self.assertIsNone(self.plotter.strict_nullable_bool(""))
+        for value in ["NaN", "none", " nan "]:
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "expected 'True' or 'False'"):
                     self.plotter.strict_nullable_bool(
@@ -221,6 +222,21 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             write_fixture(invalid_path, HEADER, invalid_rows)
             with self.assertRaisesRegex(ValueError, "dm on row 2"):
                 self.plotter.load_scan(invalid_path)
+
+    def test_historical_blank_results_remain_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "historical.tsv"
+            rows = [list(row) for row in ROWS]
+            rows[0][HEADER.index("dm_direct_detection_excluded")] = ""
+            rows[0][HEADER.index("ewpt_ew_true_over_T")] = ""
+            write_fixture(path, HEADER, rows)
+            data = self.plotter.load_scan(path)
+            self.assertTrue(np.isnan(data.f("ewpt_ew_true_over_T")[0]))
+            self.assertFalse(data.b("dm_direct_detection_excluded")[0])
+            rows[0][HEADER.index("M2")] = ""
+            write_fixture(path, HEADER, rows)
+            with self.assertRaisesRegex(ValueError, "M2 on row 2"):
+                self.plotter.load_scan(path)
 
     def test_rate_columns_are_derived_and_rendered_on_log_scale(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -419,10 +435,10 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                 "not run",
                 "failed",
                 "success / no selected FOPT",
-                "selected weak FOPT",
-                "selected strong FOPT",
-                "selected strong FOPT",
-                "selected weak FOPT",
+                "legacy v/T ≤ 1 diagnostic",
+                "legacy v/T > 1 diagnostic",
+                "legacy v/T > 1 diagnostic",
+                "legacy v/T ≤ 1 diagnostic",
                 "not run",
             ],
         )

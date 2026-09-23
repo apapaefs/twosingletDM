@@ -56,7 +56,7 @@ def x_history_updates(payload, freezeout_temperature=None):
         label = point.get("label")
         if temp is None or temp < 0 or not isinstance(label, str):
             continue
-        samples.append((temp, "X_BROKEN" in label))
+        samples.append((temp, None if label == "UNRESOLVED" else "X_BROKEN" in label))
     if not samples:
         return updates
     samples.sort()
@@ -85,9 +85,9 @@ def x_history_updates(payload, freezeout_temperature=None):
     # final restoration on cooling, provided the trace reaches an unbroken
     # T=0 vacuum. Its two sampled temperatures bracket, rather than locate,
     # the actual transition.
-    if samples[0][0] <= 1e-9 and not samples[0][1]:
+    if samples[0][0] <= 1e-9 and samples[0][1] is False:
         for lower_sample, upper_sample in zip(samples, samples[1:]):
-            if not lower_sample[1] and upper_sample[1]:
+            if lower_sample[1] is False and upper_sample[1] is True:
                 updates["ewpt_x_final_restoration_low_T_GeV"] = lower_sample[0]
                 updates["ewpt_x_final_restoration_high_T_GeV"] = upper_sample[0]
                 break
@@ -98,11 +98,11 @@ def x_history_updates(payload, freezeout_temperature=None):
     temperatures = [temp for temp, _ in samples]
     position = bisect.bisect_left(temperatures, tf)
     if position < len(samples) and math.isclose(temperatures[position], tf, rel_tol=0, abs_tol=1e-9):
-        phase = "broken" if samples[position][1] else "unbroken"
+        phase = "boundary_unresolved" if samples[position][1] is None else ("broken" if samples[position][1] else "unbroken")
     elif position == 0 or position == len(samples):
         phase = "outside_traced_range"
     elif samples[position - 1][1] == samples[position][1]:
-        phase = "broken" if samples[position][1] else "unbroken"
+        phase = "boundary_unresolved" if samples[position][1] is None else ("broken" if samples[position][1] else "unbroken")
     else:
         phase = "boundary_unresolved"
     updates["ewpt_x_phase_at_freezeout"] = phase
@@ -112,7 +112,7 @@ def x_history_updates(payload, freezeout_temperature=None):
     # to T=0 and an unbroken, resolved phase at Tf.
     if any(broken and temp <= tf for temp, broken in samples):
         updates["ewpt_x_broken_at_or_after_freezeout"] = True
-    elif temperatures[0] <= 1e-9 and phase == "unbroken":
+    elif temperatures[0] <= 1e-9 and phase == "unbroken" and all(broken is False for temp,broken in samples if temp<=tf):
         updates["ewpt_x_broken_at_or_after_freezeout"] = False
     overlap = updates["ewpt_x_broken_at_or_after_freezeout"]
     if overlap is not None:

@@ -1,0 +1,197 @@
+{
+  "deeper_x_vacuum": {
+    "input": {
+      "vs": 300.0,
+      "M2": 200.0,
+      "M3": 50.0,
+      "a12": 0.1,
+      "lX": 0.1,
+      "lPhiX": 0.1,
+      "lSX": 1.0
+    },
+    "thc": true,
+    "evo": true,
+    "wanted_vacuum": {
+      "fields_h_s_x_GeV": [
+        246.0,
+        300.0,
+        0.0
+      ],
+      "potential_GeV4": -612102462.0572187,
+      "radial_hessian_eigenvalues_GeV2": [
+        2500.0,
+        15647.5081,
+        39999.99999999999
+      ]
+    },
+    "x_vacuum": {
+      "fields_h_s_x_GeV": [
+        0.0,
+        0.0,
+        674.7280933828085
+      ],
+      "potential_GeV4": -5181496164.1,
+      "radial_hessian_eigenvalues_GeV2": [
+        13342.760388924786,
+        91051.6,
+        206758.54800527726
+      ]
+    }
+  },
+  "finite_but_nonperturbative_running": {
+    "input": {
+      "vs": 300,
+      "M2": 200,
+      "M3": 50,
+      "a12": 0,
+      "lX": 3,
+      "lPhiX": 0,
+      "lSX": 0
+    },
+    "thc_at_input": true,
+    "evo_flag": true,
+    "solver_success": true,
+    "lambdaX_900_1000_GeV": [
+      13.863927056385203,
+      16.633406355355344
+    ],
+    "thc_at_900_1000_GeV": [
+      false,
+      false
+    ]
+  },
+  "degenerate_unitarity_roots": [
+    {
+      "quartics": [
+        0.5,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "roots_real_imag": [
+        [
+          6.0000286947890915,
+          4.970156344013249e-05
+        ],
+        [
+          6.0000286947890915,
+          -4.970156344013249e-05
+        ],
+        [
+          5.999942610421807,
+          0.0
+        ]
+      ],
+      "thc": false
+    },
+    {
+      "quartics": [
+        0.12928405793509157,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "roots_real_imag": [
+        [
+          6.000000000000002,
+          1.12961921372413e-07
+        ],
+        [
+          6.000000000000002,
+          -1.12961921372413e-07
+        ],
+        [
+          1.5514086952210986,
+          0.0
+        ]
+      ],
+      "thc": false
+    }
+  ],
+  "ewpo_equal_mass_probes": [
+    {
+      "M2": 80.385,
+      "STU": [
+        -0.0016566461849838302,
+        0.0010906172173275747,
+        5.994386120300629e-05
+      ]
+    },
+    {
+      "M2": 91.1876,
+      "error": "ZeroDivisionError: float division by zero"
+    },
+    {
+      "M2": 91.187600911876,
+      "STU": [
+        -0.0011638076167095027,
+        0.0008235617533712354,
+        4.4325464859950257e-05
+      ]
+    },
+    {
+      "M2": 91.187599088124,
+      "STU": [
+        -0.0011638076936895338,
+        0.0008235617984233847,
+        4.4325467470357285e-05
+      ]
+    }
+  ],
+  "wmass_out_of_range": {
+    "pass_at_M2_20_sin_05": true,
+    "warnings": [
+      "W-mass constraint not applied at mh2=20 GeV: the tabulated range is 133--999 GeV; accepting the point without extrapolation."
+    ]
+  },
+  "dd_piecewise_boundaries": [
+    {
+      "mass": 10,
+      "below_pb": 1.8446939828119299e-09,
+      "at_pb": 1.0943748007698599e-10
+    },
+    {
+      "mass": 40,
+      "below_pb": 2.45e-12,
+      "at_pb": 2.419096e-12
+    },
+    {
+      "mass": 60,
+      "below_pb": 2.4647689999771637e-12,
+      "at_pb": 2.45794e-12
+    },
+    {
+      "mass": 80,
+      "below_pb": 2.714669999871635e-12,
+      "at_pb": 2.7269657071384725e-12
+    },
+    {
+      "mass": 100,
+      "below_pb": 3.1676550938678454e-12,
+      "at_pb": 3.1505123872271413e-12
+    }
+  ],
+  "empty_ewpt_payload_flags": {
+    "ewpt_baryo_candidate": false,
+    "ewpt_gw_candidate": false
+  },
+  "higgssignals_decoupling_limit": {
+    "hb": true,
+    "hs": true,
+    "chi2": 152.68843353902255,
+    "sm_chi2": 152.5488683543418,
+    "delta_chi2": 0.1395651846807482
+  },
+  "SM_input_conventions": {
+    "scan_higgs_mass_GeV": 125.09,
+    "micromegas_higgs_mass_GeV": 125.0,
+    "scan_v_GeV": 246.0,
+    "bsmpt_v_GeV": 246.21965079413738,
+    "micromegas_v_GeV": 243.2099703188332,
+    "micromegas_derived_GF": 1.1954247761474097e-05
+  }
+}

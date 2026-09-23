@@ -98,11 +98,13 @@ OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
     "ewpt_baryo_candidate",
     "ewpt_gw_candidate",
     "dm_cmb_excluded",
+    "experimental_subset", "dm_subset", "vacuum_tree_global", "rg_bfb", "rg_unitarity", "ewpt_eligible", "theory_strict_subset",
     "ewpt_x_broken_at_or_after_freezeout",
     "dm_relic_z2_freezeout_compatible",
 )
 
 OPTIONAL_TEXT_COLUMNS = (
+    "constraint_version", "ewpt_constraint_version",
     "ewpt_x_broken_intervals_GeV",
     "ewpt_x_phase_at_freezeout",
     "dm_cmb_status",
@@ -384,7 +386,7 @@ BSMPT_STATUS_STYLES = OrderedDict(
             ),
         ),
         (
-            "selected weak FOPT",
+            "legacy v/T ≤ 1 diagnostic",
             CategoryStyle(
                 r"Selected FOPT: $v_{\rm EW,true}/T<1$",
                 "#E69F00",
@@ -397,7 +399,7 @@ BSMPT_STATUS_STYLES = OrderedDict(
             ),
         ),
         (
-            "selected strong FOPT",
+            "legacy v/T > 1 diagnostic",
             CategoryStyle(
                 r"Selected FOPT: $v_{\rm EW,true}/T\geq1$",
                 "#009E73",
@@ -1555,8 +1557,8 @@ def strict_nullable_bool(
     column: str = "value",
     row_number: int | None = None,
 ) -> bool | None:
-    """Parse a component result that can be absent after a provider failure."""
-    if value == "nan":
+    """Parse unavailable results, including blank fields in historical ledgers."""
+    if value in ("nan", ""):
         return None
     return strict_bool(value, column, row_number)
 
@@ -1871,17 +1873,17 @@ def derive_bsmpt_results(
         | step_available
         | has_x_broken_available
     )
-    failed = status_present & (status != "success")
+    failed = status_present & ~np.isin(status, ["success","assessed","incomplete"])
     success = attempted & ~failed
     selected_fopt = success & strength_available
-    strong_fopt = selected_fopt & (strength >= BSMPT_STRONG_EWPT_THRESHOLD)
+    strong_fopt = selected_fopt & (strength > BSMPT_STRONG_EWPT_THRESHOLD)
     weak_fopt = selected_fopt & ~strong_fopt
 
     status_categories = np.full(shape, "not run", dtype=object)
     status_categories[failed] = "failed"
     status_categories[success] = "success / no selected FOPT"
-    status_categories[weak_fopt] = "selected weak FOPT"
-    status_categories[strong_fopt] = "selected strong FOPT"
+    status_categories[weak_fopt] = "legacy v/T ≤ 1 diagnostic"
+    status_categories[strong_fopt] = "legacy v/T > 1 diagnostic"
 
     normalized_paths = np.asarray(
         [" -> ".join(part.strip().upper() for part in path.split("->")) for path in phase_path],
@@ -2122,7 +2124,7 @@ def load_scan_metadata(
 
     if not isinstance(payload, dict):
         return None, candidate, f"Scan metadata {candidate} must contain a JSON object."
-    if payload.get("schema") != SCAN_METADATA_SCHEMA:
+    if payload.get("schema") not in (SCAN_METADATA_SCHEMA,"trsm_scan_metadata_v2"):
         return (
             None,
             candidate,
@@ -2189,7 +2191,7 @@ def load_scan(
                 )
             for column in bool_buffers:
                 bool_buffers[column].append(
-                    strict_bool(row[index[column]], column, row_number)
+                    strict_nullable_bool(row[index[column]], column, row_number) is True
                 )
             for column in nullable_bool_buffers:
                 value = strict_nullable_bool(
@@ -2199,7 +2201,8 @@ def load_scan(
                 nullable_available_buffers[column].append(value is not None)
             for column in float_buffers:
                 float_buffers[column].append(
-                    strict_float(row[index[column]], column, row_number)
+                    math.nan if row[index[column]] == "" and column not in ("M2", "M3", "vs", "vx", "a12", "lX", "lPhiX", "lSX")
+                    else strict_float(row[index[column]], column, row_number)
                 )
             for column in string_buffers:
                 string_buffers[column].append(
@@ -2246,8 +2249,10 @@ def load_scan(
     if not np.all(finite_mask(floats["M2"], floats["M3"])):
         raise ValueError("M2 and M3 must be finite for every scan row.")
 
-    theory = bools["evo"] & bools["thc"]
+    v2 = strings["constraint_version"] == "trsm_constraints_v2"
+    theory = np.where(v2,bools["thc"],bools["evo"] & bools["thc"])
     experimental = bools["hb"] & bools["hs"] & bools["ewpo"] & bools["wmass"]
+    experimental = np.where(v2, bools["experimental_subset"], experimental)
     non_dm_viability = theory & experimental
     full_viability = theory & experimental & bools["dm"]
     relic_available = nullable_available["dm_relic_excluded"]
@@ -5644,7 +5649,7 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <header>
 <h1>TRSM constraint plot suite</h1>
 <p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; non-DM viable {non_dm_viable:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; signal points {signal_count:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
-<nav><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#signal">Signals</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
+<nav><a href="v2-index.html">Constraint v2 diagnostics</a><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#signal">Signals</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>
 {scan_information}
 <section id="dashboards"><h2>Dashboards</h2><div class="grid">{dashboard_cards}</div></section>
@@ -5783,6 +5788,9 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             )
         )
 
+    from plot_trsm_v2 import render_suite
+    ewpt_root = ((data.metadata or {}).get("options") or {}).get("ewpt_workdir")
+    paths.extend(render_suite(args.input, output_dir, args.format, args.dpi, ewpt_root))
     summary_rows = build_summary(data, skipped)
     summary_path = output_dir / "constraint_summary.tsv"
     write_summary(summary_path, summary_rows)

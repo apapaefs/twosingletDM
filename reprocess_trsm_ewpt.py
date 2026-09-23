@@ -27,7 +27,7 @@ from typing import Callable, Mapping, Sequence
 
 from dm_thermal_relic_diagnostic import (
     RESONANCE_COLUMNS,
-    THERMAL_VEV_COLUMNS,
+    THERMAL_VEV_COLUMNS, THERMAL_COUPLING_COLUMNS, thermal_input_updates,
     resonance_proximity_updates,
     thermal_vev_updates,
 )
@@ -36,11 +36,12 @@ from ewpt_x_history import X_HISTORY_COLUMNS, x_history_updates
 
 
 CHECKPOINT_SCHEMA_VERSION = 1
-REPROCESSOR_SCHEMA = "trsm_ewpt_reprocessing_v1"
-M1_GEV = 125.09
-NON_DM_CONSTRAINT_COLUMNS = ("evo", "thc", "hb", "hs", "ewpo", "wmass")
+REPROCESSOR_SCHEMA = "trsm_ewpt_reprocessing_v2"
+from trsm_inputs import M1 as M1_GEV, PHYSICS_VERSION
+from ewpt_assessment import STATUS_COLUMNS, status_updates
+NON_DM_CONSTRAINT_COLUMNS = ("thc", "hb", "hs", "ewpo", "wmass")
 POINT_COLUMNS = ("M2", "M3", "vs", "vx", "a12", "lX", "lPhiX", "lSX")
-REQUIRED_INPUT_COLUMNS = POINT_COLUMNS + NON_DM_CONSTRAINT_COLUMNS + ("dm",)
+REQUIRED_INPUT_COLUMNS = POINT_COLUMNS + NON_DM_CONSTRAINT_COLUMNS + ("evo","dm",)
 EWPT_COLUMNS = (
     "ewpt_ew_true_over_T",
     "ewpt_ew_jump_over_T",
@@ -53,6 +54,7 @@ EWPT_COLUMNS = (
     *X_HISTORY_COLUMNS,
     *THERMAL_VEV_COLUMNS,
     *RESONANCE_COLUMNS,
+    *THERMAL_COUPLING_COLUMNS, *STATUS_COLUMNS, "ewpt_constraint_version",
 )
 EWPT_STRENGTH_PRIORITY = ("nucl", "perc", "compl", "crit")
 ELIGIBLE_OUTCOMES = {
@@ -88,6 +90,8 @@ def utc_now() -> str:
 
 
 def json_safe(value):
+    if isinstance(value,float) and not math.isfinite(value):
+        return None
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, dict):
@@ -193,10 +197,11 @@ def select_primary_strength(payload: Mapping[str, object]) -> Mapping[str, objec
 def updates_from_payload(
     payload: Mapping[str, object], *, w1_threshold: float = 5.0,
     freezeout_temperature: float | None = None,
-    m2: float | None = None, m3: float | None = None,
+    m2: float | None = None, m3: float | None = None, point=None,
 ) -> dict[str, object]:
     updates = empty_ewpt_updates()
-    updates["ewpt_status"] = "success"
+    updates.update(status_updates(payload))
+    updates["ewpt_constraint_version"]=PHYSICS_VERSION
     updates["ewpt_error"] = ""
 
     strength = select_primary_strength(payload)
@@ -211,6 +216,8 @@ def updates_from_payload(
     updates.update(x_history_updates(payload, freezeout_temperature))
     updates.update(thermal_vev_updates(payload, freezeout_temperature))
     updates.update(resonance_proximity_updates(m2, m3, freezeout_temperature))
+    if point is not None:
+        updates.update(thermal_input_updates(payload, point))
 
     minimatracer = payload.get("minimatracer") or {}
     if isinstance(minimatracer, Mapping):
@@ -250,14 +257,18 @@ class ProductionEvaluator:
 
     def __call__(self, row: Mapping[str, str], point_index: int) -> RowEvaluation:
         row_number = point_index + 1
-        constraint_values = [
-            require_bool(row, column, row_number)
-            for column in NON_DM_CONSTRAINT_COLUMNS
-        ]
-        dm_passed = require_bool(row, "dm", row_number)
-        if not all(constraint_values):
+        def verdict(name):
+            value=row.get(name)
+            if value not in (True,False,"True","False",None,"nan","None","null",""):
+                raise EWPTReprocessingError(f"input row {row_number} has invalid {name}={value!r}")
+            return True if value in (True,"True") else False if value in (False,"False") else None
+        dm_passed=verdict("dm")
+        known_exclusion=any(verdict(k) is False for k in ("hb","hs","ewpo"))
+        mass=finite_number(row.get("M2"))
+        known_exclusion |= mass is not None and 133<=mass<=999 and verdict("wmass") is False
+        if verdict("thc") is not True or known_exclusion:
             return RowEvaluation({}, "ineligible", dm_passed)
-        if not self.rerun_existing and existing_ewpt_attempt(row):
+        if not self.rerun_existing and row.get("ewpt_constraint_version")==PHYSICS_VERSION and existing_ewpt_attempt(row):
             return RowEvaluation({}, "existing", dm_passed)
 
         m2 = require_float(row, "M2", row_number)
@@ -341,7 +352,7 @@ class ProductionEvaluator:
                 w1_threshold=self.config.w1_threshold,
                 freezeout_temperature=finite_number(row.get("dm_freezeout_temperature_GeV")),
                 m2=m2,
-                m3=m3,
+                m3=m3, point=row,
             ),
             "success",
             dm_passed,
@@ -453,7 +464,7 @@ def create_checkpoint(path: Path, metadata: Mapping[str, object]) -> sqlite3.Con
             connection.execute(
                 "CREATE TABLE rows ("
                 "row_index INTEGER PRIMARY KEY, payload TEXT NOT NULL, "
-                "outcome TEXT NOT NULL, dm_passed INTEGER NOT NULL)"
+                "outcome TEXT NOT NULL, dm_passed INTEGER)"
             )
             connection.executemany(
                 "INSERT INTO metadata(key, value) VALUES (?, ?)",
@@ -686,12 +697,13 @@ def reprocess(
                         updates.update(resonance_proximity_updates(
                             rows[index].get("M2"), rows[index].get("M3"),
                             rows[index].get("dm_freezeout_temperature_GeV"),
+                            widths=(rows[index].get("dm_h1_width_GeV"),rows[index].get("dm_h2_width_GeV")),
                         ))
                     payload = merged_payload(rows[index], updates, final_header)
                     connection.execute(
                         "INSERT INTO rows(row_index, payload, outcome, dm_passed) "
                         "VALUES (?, ?, ?, ?)",
-                        (index, payload, result.outcome, int(result.dm_passed)),
+                        (index, payload, result.outcome, int(result.dm_passed) if result.dm_passed is not None else None),
                     )
                 connection.commit()
             except BaseException:
@@ -869,7 +881,11 @@ def run(
     if args.ewpt_minima_executable is not None:
         config_kwargs["minima_executable"] = args.ewpt_minima_executable
     config = ewpt_module.EWPTConfig(**config_kwargs)
+    from trsm_constraint_profile import physics_manifest
+    from trsm_micromegas import default_micromegas_main
     settings = {
+        "physics_version":PHYSICS_VERSION,
+        "physics_manifest":physics_manifest(str(default_micromegas_main()),str(getattr(config,"executable",getattr(ewpt_module,"DEFAULT_EXECUTABLE",Path("/unavailable/CalcTemps")))),str(getattr(config,"minima_executable",None) or Path(getattr(config,"executable",getattr(ewpt_module,"DEFAULT_EXECUTABLE",Path("/unavailable/CalcTemps")))).with_name("MinimaTracer"))),
         "selection": "evo & thc & hb & hs & ewpo & wmass; dm recorded but not required",
         "rerun_existing_ewpt": args.rerun_existing_ewpt,
         "ewpt_require_eq418": args.ewpt_require_eq418,

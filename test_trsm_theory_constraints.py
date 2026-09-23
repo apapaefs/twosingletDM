@@ -3,13 +3,12 @@
 import math
 
 import numpy as np
+from trsm_inputs import VEV as VH, M1
 
 
 __all__ = ["theory_constraints", "theory_constraints_vxzero"]
 
 
-VH = 246.0
-M1 = 125.09
 COPOSITIVITY_TOLERANCE = 1.0e-12
 ROOT_IMAGINARY_TOLERANCE = 1.0e-10
 
@@ -65,25 +64,13 @@ def _copositive_quartic_matrix(lphi, ls, lx, lphis, lphix, lsx):
 
 
 def _unitarity_eigenvalues(lphi, ls, lx, lphis, lphix, lsx):
-    coefficients = [
-        1.0,
-        -12.0 * lphi - 6.0 * ls - 6.0 * lx,
-        72.0 * lphi * (ls + lx)
-        - 4.0 * (lphis**2 + lphix**2)
-        + 36.0 * ls * lx
-        - lsx**2,
-        12.0 * lphi * lsx**2
-        + 24.0 * lphis**2 * lx
-        + 24.0 * lphix**2 * ls
-        - 8.0 * lphis * lphix * lsx
-        - 432.0 * lphi * ls * lx,
-    ]
-    if not _all_finite(*coefficients):
+    if not _all_finite(lphi, ls, lx, lphis, lphix, lsx):
         return None
-    roots = np.roots(coefficients)
-    if len(roots) != 3:
-        return None
-    return roots
+    return np.linalg.eigvalsh([
+        [12*lphi, 2*lphis, 2*lphix],
+        [2*lphis, 6*ls, lsx],
+        [2*lphix, lsx, 6*lx],
+    ])
 
 
 def _passes_tree_level_constraints(lphi, ls, lx, lphis, lphix, lsx):

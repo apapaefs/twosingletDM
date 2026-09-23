@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_LIMIT_MODEL = "lz2025-source"
+DEFAULT_LIMIT_MODEL = "lz-ws2024-observed-v2"
+DEFAULT_LIMIT_TABLE = Path(__file__).resolve().parent / "DM/data/lz2024/observed-si-v2.json"
 SI_TABLE_SCHEMA = "trsm_si_upper_limit_v1"
 
 
@@ -62,7 +63,7 @@ class SILimitTable:
             "comparison_unit": "pb",
             "mass_range_gev": [self.masses_gev[0], self.masses_gev[-1]],
             "interpolation": "log-log",
-            "extrapolation": "error",
+            "extrapolation": "unassessed",
         }
         if self.provenance_json is not None:
             metadata["provenance"] = json.loads(self.provenance_json)
@@ -139,5 +140,5 @@ def load_si_limit_table(path):
 def direct_detection_configuration(args):
     table = getattr(args, "_dm_limit_table", None)
     if table is None:
-        return {"model": DEFAULT_LIMIT_MODEL}
+        return load_si_limit_table(DEFAULT_LIMIT_TABLE).metadata()
     return table.metadata()

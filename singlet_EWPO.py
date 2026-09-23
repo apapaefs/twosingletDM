@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+from trsm_inputs import M1 as MH, VEV as v0, MW, MZ, GF
 import math
 import warnings
 from pathlib import Path
@@ -8,20 +9,20 @@ from scipy.interpolate import interp1d
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 # first some EW parameters:
-mz = 91.1876 # from the PDG: http://pdg.lbl.gov/2019/tables/rpp2019-sum-gauge-higgs-bosons.pdf
-mw = 80.385
-Gf = 1.1663787E-5
+mz = MZ # from the PDG: http://pdg.lbl.gov/2019/tables/rpp2019-sum-gauge-higgs-bosons.pdf
+mw = MW
+Gf = GF
 alpha = 7.2973525693E-3
-v0 = 246.
+
 # the SM value of the self-coupling and Higgs boson mass in [GeV]
-v0 = 246.
-MH = 125.0
+
+
 mt = 172.44 # PDG as of 2019
-Mw = 80.385
-Mz = 91.1876
+Mw = MW
+Mz = MZ
 Mt = 172.44
-Gf = 1.1663787E-5;
-v0 = math.sqrt(1/math.sqrt(2.)*(1/Gf));
+Gf = GF;
+
 yt = mt/v0 * math.sqrt(2.);
 g0sq = 4. * math.sqrt(2.) * Gf * Mw**2;
 g1sq = g0sq * (Mz**2 - Mw**2)/Mw**2
@@ -53,10 +54,10 @@ def check_wmass_tania(mh2, sinth):
         mh2 = float(mh2)
         sinth = float(sinth)
     except (TypeError, ValueError):
-        return False
+        return None
 
     if not math.isfinite(mh2) or not math.isfinite(sinth):
-        return False
+        return None
     if mh2 < WMASS_MH2_MIN or mh2 > WMASS_MH2_MAX:
         warnings.warn(
             f"W-mass constraint not applied at mh2={mh2:g} GeV: "
@@ -76,6 +77,8 @@ def check_wmass_tania(mh2, sinth):
 # x = mh**2 / mz**2
 def B(x):
     resB = -1.
+    if x == 0:
+        return 0.0
     if x >= 4:
         return math.sqrt(x * (x-4)) * math.log( 2/(math.sqrt(x) + math.sqrt(x-4)) )
     elif x < 4 and x >= 0:
@@ -84,12 +87,23 @@ def B(x):
         print("error, B(x) evaluated at x<0")
         exit()
 
+def log_over_one_minus(x):
+    if x <= 0 or not math.isfinite(x):
+        raise ValueError("EWPO mass ratio must be positive and finite")
+    delta = x-1.0
+    if abs(delta) < 1e-5:
+        return -1 + delta/2 - delta**2/3 + delta**3/4 - delta**4/5
+    return math.log(x)/(1-x)
+
+
 def H_S(x):
-    return (3./8.) * x - (1./12.) * x**2 + ( (3.-x)/4. + x**2/24. + 3./(4*(1-x)) ) * x * math.log(x) + (1 - x/3. + x**2/12.) * B(x)
+    if x == 0: return 0.0
+    return (3./8.)*x-x*x/12 + ((3-x)/4+x*x/24)*x*math.log(x) + 3*x/4*log_over_one_minus(x) + (1-x/3+x*x/12)*B(x)
 
 # c**2 = mw**2 / mz**2 
 def H_T(x,c):
-    return (3. * x / 4.) * ( math.log(x) / (1.-x) - math.log(x/c**2)/(1.-x/c**2) )
+    if x == 0: return 0.0
+    return (3. * x / 4.) * ( log_over_one_minus(x) - log_over_one_minus(x/c**2) )
 
 # c**2 = mw**2 / mz**2  
 def H_U(x,c):
@@ -191,6 +205,8 @@ def get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, co
 def check_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU):
     chisq = get_chisq_EWPO_wU(m1, m2, sintheta, mz, mw, Sc, Tc, Uc, errS, errT, errU, covST, covSU, covTU)
     #print('ewpo chisq =', chisq)
+    if not math.isfinite(chisq):
+        return None
     if chisq > 7.82: # three degrees of freedom! 
         return False
     else:

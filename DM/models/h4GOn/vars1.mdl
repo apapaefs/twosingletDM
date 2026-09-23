@@ -1,12 +1,12 @@
 TRSM(+hgg+h4G)
  Variables 
  Name   | Value       |>  Comment                                   <|
-EE      |0.31333      |Electromagnetic coupling constant (<->1/128)
+EE      |0.308272     |Electromagnetic coupling: shared GF MW MZ scheme
 GG      |1.117        |Strong coupling constant (Z point)  (PDG-94)
-SW      |0.474        |sin of the Weinberg angle 0.474 - "on-shell",481 - "MS-bar" )
+SW      |0.47212      |sin(thetaW): shared MW MZ on-shell scheme
 Q       |100          |Scale of effective running masses
 MW      |80.385       |W boson mass
-Mtp     |173.5        |Top quark pole mass
+Mtp     |172.5        |Top quark pole mass
 McMc    |1.23         |Mc(Mc)  MS-BAR
 MbMb    |4.25         |Mb(Mb)  MS-BAR
 alphaSMZ|0.1184       |Srtong alpha(MZ)
@@ -17,7 +17,7 @@ Md      |0.01         |mass of d-quark
 s12     |0.221        |Parameter of C-K-M matrix (PDG-94)
 s23     |0.04         |Parameter of C-K-M matrix (PDG-94)
 s13     |0.0035       |Parameter of C-K-M matrix (PDG-94)
-Mh      |125          |mass of Higgs
+Mh      |125.09       |mass of Higgs
 Mh2     |500          |mass of Higgs-2
 SinT    |0.3          |Sine of the mixing angle between Higgs and phiS
 vevs    |500          |vev of Si

@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Mapping
+from ewpt_assessment import assessment
 
 
 EW_ENTRY_COLUMNS = (
@@ -58,16 +59,13 @@ def _transition_index(value):
 
 
 def _field_jump_over_T(strength, false_vev, true_vev, temperature):
-    value = _finite(strength.get("field_jump_over_T"))
-    if value is not None and value >= 0:
-        return value
     coordinates = []
     for name in ("w1", "wx", "ws"):
         before = _finite(false_vev.get(name))
         after = _finite(true_vev.get(name))
         if before is None or after is None:
             return None
-        coordinates.append(after - before)
+        coordinates.append(abs(after) - abs(before))
     return math.sqrt(sum(change * change for change in coordinates)) / temperature
 
 
@@ -87,10 +85,9 @@ def ew_entry_updates(payload, *, w1_threshold=5.0, strength_threshold=1.0):
         raise ValueError("strength_threshold must be positive and finite")
 
     updates = dict.fromkeys(EW_ENTRY_COLUMNS)
-    # Called only after successful BSMPT runs. No transition is a negative
-    # result, while a run that was not attempted retains null scan fields.
-    updates["ewpt_baryo_candidate"] = False
-    updates["ewpt_gw_candidate"] = False
+    critical_complete, gw_complete = assessment(payload)
+    updates["ewpt_baryo_candidate"] = False if critical_complete else None
+    updates["ewpt_gw_candidate"] = False if gw_complete else None
     groups = defaultdict(dict)
     by_kind = defaultdict(list)
     for strength in payload.get("transition_strengths") or []:
@@ -115,7 +112,7 @@ def ew_entry_updates(payload, *, w1_threshold=5.0, strength_threshold=1.0):
         false_w1 = _finite(false_vev.get("w1"))
         true_w1 = _finite(true_vev.get("w1"))
         ew_jump = (
-            abs(true_w1 - false_w1) / temperature
+            abs(abs(true_w1) - abs(false_w1)) / temperature
             if false_w1 is not None and true_w1 is not None
             else None
         )
@@ -156,9 +153,9 @@ def ew_entry_updates(payload, *, w1_threshold=5.0, strength_threshold=1.0):
                 "ewpt_ew_entry_temperature_GeV": temperature,
                 "ewpt_ew_entry_temperature_kind": "crit",
                 "ewpt_ew_entry_transition_index": index,
-                "ewpt_ew_entry_percolated": bool(kinds.get("perc") or kinds.get("compl")),
-                "ewpt_ew_entry_completed": bool(kinds.get("compl")),
-                "ewpt_baryo_candidate": selected["ew_jump"] > strength_threshold,
+                "ewpt_ew_entry_percolated": True if kinds.get("perc") or kinds.get("compl") else (False if (payload.get("calctemps") or {}).get(f"status_perc_{index}")=="not_met" else None),
+                "ewpt_ew_entry_completed": True if kinds.get("compl") else (False if (payload.get("calctemps") or {}).get(f"status_compl_{index}")=="not_met" else None),
+                "ewpt_baryo_candidate": True if selected["ew_jump"] > strength_threshold else (False if critical_complete else None),
             }
         )
         for kind in ("nucl", "perc"):
@@ -184,6 +181,6 @@ def ew_entry_updates(payload, *, w1_threshold=5.0, strength_threshold=1.0):
         updates["ewpt_gw_max_field_jump_over_T"] = strongest["field_jump"]
         updates["ewpt_gw_max_temperature_kind"] = strongest["kind"]
         updates["ewpt_gw_max_transition_index"] = strongest["index"]
-        updates["ewpt_gw_candidate"] = strongest["field_jump"] > strength_threshold
+        updates["ewpt_gw_candidate"] = True if strongest["field_jump"] > strength_threshold else (False if gw_complete else None)
 
     return updates

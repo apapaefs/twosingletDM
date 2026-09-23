@@ -27,7 +27,14 @@ patch -p1 < "$script_dir/patches/micromegas-$version-calcspectrum-finite-guard.p
 make
 ./newProject TRSM
 cp "$script_dir/main.c" TRSM/main.c
+cp "$script_dir/trsm_loop.c" TRSM/lib/trsm_loop.c
+if [ "$version" = 7.1.4 ]; then
+    sed '1i\
+#define TRSM_MO7 1\
+' "$script_dir/trsm_loop.c" > TRSM/lib/trsm_loop.c
+fi
 cp "$script_dir"/models/h4GOn/*.mdl TRSM/work/models/
+printf '\nextern double trsm_loop_abs(double,double);\n' >> TRSM/work/models/extlib1.mdl
 cp "$script_dir/data.par" TRSM/data.par
 make -C TRSM main=main.c
 echo "Installed micrOMEGAs $version: $install_dir/TRSM/main"

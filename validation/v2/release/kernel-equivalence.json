@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "BSMPT_version": "3.2.1",
+  "BSMPT_upstream_commit": "32ccb11e856631f770e7e7471a85f4928729510b",
+  "BSMPT_source_tree_sha256": "5ac4b3e9ac72b3119c61e0ca62ecce8af9da61056b98ea29cdbaa1fbc88ab1c8",
+  "HiggsTools_source_tree_sha256": "04486a24cceebae8d2d42de2c3a30a2d49f2880835a6a85d019684c1796972ce",
+  "both_backend_driver_model_sources_match": true,
+  "loop_note": "Both runtime receipts verify the loop source against canonical DM/trsm_loop.c, allowing the required MO7 preprocessor adapter prefix; the prefix blank line differs between hosts.",
+  "canonical_loop_sha256": "cfc43733fe4259d2bd35b612fb71557f31c5543c292fc589ea5990110f02875c",
+  "shared_inputs_and_packages_match": true,
+  "active_source_hashes_match_canonical_100_point_run": true,
+  "local_22_thermal_rows_source_identical_to_release": true,
+  "all_active_sources_and_datasets_match_between_hosts": true,
+  "datasets": {
+    "hbdataset": {
+      "commit": "3539f9adf3724f8752701208bf059d1658824cd2",
+      "tree_sha256": "c7e4070faac4e5846cb89a7f3cc7718686e58b82604f0c6659b93a0d2a39d0b2"
+    },
+    "hsdataset": {
+      "commit": "3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1",
+      "tree_sha256": "36076ada7b6dbd807b34e813c047d6f0859cfbcf5bcef91f752bcc9ba95496f3"
+    }
+  }
+}

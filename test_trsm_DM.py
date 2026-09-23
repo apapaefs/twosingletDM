@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
 import math
+import json
+import os
 import re
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-from trsm_micromegas import default_micromegas_main
-from trsm_direct_detection import DEFAULT_LIMIT_MODEL, SILimitTable, load_si_limit_table
+from trsm_micromegas import default_micromegas_main, require_v2_capability
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, SILimitTable, load_si_limit_table
+from trsm_inputs import RELIC_UPPER_LIMIT, ABUNDANCE_REFERENCE, micromegas_sm_inputs, nullable_and
 from trsm_cmb import (
     CMBSignal, CMBLimitResult, assess_cmb_limit, cmb_diagnostics,
     parse_cmb_signal, require_cmb_capability,
@@ -17,7 +21,6 @@ from trsm_cmb import (
 
 __test__ = False
 
-RELIC_UPPER_LIMIT = 0.121
 NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
 
@@ -175,6 +178,9 @@ class MicromegasResult:
     indirect_line_channels: tuple[IndirectLineChannel, ...] = ()
     cmb_signal: CMBSignal = CMBSignal()
     xf: float | None = None
+    solver_error: int | None = None
+    inputs: dict | None = None
+    hook_calls: tuple | None = None
 
 
 @dataclass(frozen=True)
@@ -197,23 +203,25 @@ class DMSummary:
     lux_base_limit: float
     indirect_limit: IndirectLimitResult
     relic_excluded: bool
-    direct_detection_excluded: bool
+    direct_detection_excluded: bool | None
     cmb_limit: CMBLimitResult | None = None
 
     @property
     def passed(self):
-        return not (
-            self.relic_excluded
-            or self.direct_detection_excluded
-            or self.indirect_limit.excluded
-            or (self.cmb_limit is not None and not self.cmb_limit.passed)
-        )
+        if self.result.solver_error != 0:
+            return None
+        verdicts = [not self.relic_excluded,
+                    None if self.direct_detection_excluded is None else not self.direct_detection_excluded,
+                    not self.indirect_limit.excluded]
+        if self.cmb_limit is not None:
+            verdicts.append(self.cmb_limit.passed if self.cmb_limit.signal.available else None)
+        return nullable_and(verdicts)
 
 
 def format_value(value):
     if math.isinf(value):
         return "inf"
-    return f"{value:.6g}"
+    return f"{value:.17g}"
 
 
 def write_micromegas_card(point, card_path):
@@ -228,6 +236,7 @@ def write_micromegas_card(point, card_path):
         f"SinT\t{format_value(point.sinT)}",
         f"Mh2\t\t{format_value(point.M2)}",
     ]
+    lines.extend(f"{key}\t{value:.17g}" for key, value in micromegas_sm_inputs().items())
     card_path.write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
@@ -280,7 +289,7 @@ def fermi_lat_r16_line_limit(energy_gev):
     return limits[-1][1]
 
 
-def relic_density_fraction(omega, relic_upper_limit=RELIC_UPPER_LIMIT):
+def relic_density_fraction(omega, relic_upper_limit=ABUNDANCE_REFERENCE):
     if not math.isfinite(omega) or omega < 0.0:
         raise ValueError("Relic density Omega must be finite and non-negative")
     if not math.isfinite(relic_upper_limit) or relic_upper_limit <= 0.0:
@@ -299,7 +308,7 @@ def assess_indirect_limit(
         if not math.isfinite(omega) or omega < 0.0:
             raise ValueError("Relic density Omega must be finite and non-negative")
         if rescale:
-            abundance_fraction = relic_density_fraction(omega, relic_upper_limit)
+            abundance_fraction = relic_density_fraction(omega)
 
     best = IndirectLimitResult(
         available=False,
@@ -379,7 +388,13 @@ def parse_micromegas_output(text):
         xf = None
 
     neutron_cross_section = neutron_si_cross_section(text)
+    error_match = re.search(r"darkOmega_error=(-?\d+)", text)
+    inputs_match = re.search(r"^TRSM_inputs_v2 (.+)$", text, flags=re.MULTILINE)
+    inputs = json.loads(inputs_match.group(1)) if inputs_match else None
+    if inputs is not None:
+        mdm = float(inputs["MX"])
 
+    hook = re.search(r"TRSM_loop_hook_v2 relic_calls=(\d+) indirect_calls=(\d+)",text)
     return MicromegasResult(
         mdm=mdm,
         omega=omega,
@@ -387,6 +402,9 @@ def parse_micromegas_output(text):
         indirect_line_channels=parse_indirect_line_channels(text),
         cmb_signal=parse_cmb_signal(text),
         xf=xf,
+        solver_error=int(error_match.group(1)) if error_match else None,
+        inputs=inputs,
+        hook_calls=tuple(map(int,hook.groups())) if hook else None,
     )
 
 
@@ -429,9 +447,13 @@ def neutron_si_cross_section(text):
 def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL, limit_table=None):
     if not math.isfinite(mdm) or mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
+    if limit_table is None and model == DEFAULT_LIMIT_MODEL:
+        limit_table = load_si_limit_table(DEFAULT_LIMIT_TABLE)
     if limit_table is not None:
         if model != DEFAULT_LIMIT_MODEL:
             raise ValueError("Do not combine a tabulated SI limit with another limit model")
+        if not limit_table.masses_gev[0] <= mdm <= limit_table.masses_gev[-1]:
+            return math.nan
         return limit_table.upper_limit_pb(mdm)
     if model == "legacy-output":
         return legacy_output_direct_detection_base_limit(mdm)
@@ -506,7 +528,7 @@ def summarize_dm_result(
 ):
     if not math.isfinite(result.mdm) or result.mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
-    abundance_fraction = relic_density_fraction(result.omega, relic_upper_limit)
+    abundance_fraction = relic_density_fraction(result.omega)
     if not math.isfinite(result.dir_det) or result.dir_det < 0.0:
         raise ValueError(
             "Direct-detection cross section must be finite and non-negative"
@@ -536,13 +558,24 @@ def summarize_dm_result(
         lux_base_limit=lux_base_limit,
         indirect_limit=indirect_limit,
         relic_excluded=result.omega > relic_upper_limit,
-        direct_detection_excluded=result.dir_det > dir_det_limit,
+        direct_detection_excluded=(result.dir_det > dir_det_limit if not math.isnan(dir_det_limit) else None),
         cmb_limit=assess_cmb_limit(result.cmb_signal, result.omega, rescale) if planck_cmb else None,
     )
 
 
+_RUNTIME_DIRECTORIES = {}
+
+
 def run_micromegas(card_path, micromegas_main, planck_cmb=False):
-    command = [str(micromegas_main), str(card_path)]
+    main = Path(micromegas_main).resolve()
+    require_v2_capability(main)
+    command = [str(main), str(Path(card_path).resolve())]
+    stat = main.stat()
+    key = (os.getpid(), threading.get_ident(), str(main), stat.st_mtime_ns, stat.st_size)
+    if key not in _RUNTIME_DIRECTORIES:
+        _RUNTIME_DIRECTORIES[key] = tempfile.TemporaryDirectory(prefix="trsm_worker_")
+    directory = _RUNTIME_DIRECTORIES[key].name
+    env = dict(os.environ, TRSM_RUNTIME_DIR=directory)
     if planck_cmb:
         require_cmb_capability(micromegas_main)
         command.append("--planck-cmb")
@@ -552,6 +585,8 @@ def run_micromegas(card_path, micromegas_main, planck_cmb=False):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        cwd=directory,
+        env=env,
     )
     return completed.stdout
 
@@ -579,7 +614,7 @@ def dm_info_string(summary):
         reasons.append("all DM checks passed")
 
     return (
-        f"DM check: {'Pass' if summary.passed else 'Fail'}\n"
+        f"DM check: {('Pass' if summary.passed else 'Fail') if summary.passed is not None else 'Unassessed'}\n"
         f"  LX={format_value(summary.point.lX)} "
         f"LHX={format_value(summary.point.lPhiX)} "
         f"LSX={format_value(summary.point.lSX)} "
@@ -606,6 +641,17 @@ def dm_info_string(summary):
 
 def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
     diagnostics = {
+        "dm_solver_error": summary.result.solver_error,
+        "dm_loop_hook_relic_calls": summary.result.hook_calls[0] if summary.result.hook_calls else None,
+        "dm_loop_hook_indirect_calls": summary.result.hook_calls[1] if summary.result.hook_calls else None,
+        "dm_calculation_status": "success" if summary.result.solver_error == 0 else "solver_unassessed",
+        "dm_assessment_reason": ("darkOmega failed or status missing" if summary.result.solver_error != 0 else
+                                 "DD outside table coverage" if summary.direct_detection_excluded is None else "assessed"),
+        "dm_direct_detection_available": summary.direct_detection_excluded is not None,
+        "dm_actual_inputs": json.dumps(summary.result.inputs, sort_keys=True, separators=(",", ":")) if summary.result.inputs else None,
+        "dm_h1_width_GeV": (summary.result.inputs or {}).get("width_h1"),
+        "dm_h2_width_GeV": (summary.result.inputs or {}).get("width_h2"),
+        "dm_abundance_reference": ABUNDANCE_REFERENCE,
         "dm_mdm": summary.result.mdm,
         "dm_omega": summary.result.omega,
         "dm_xf": summary.result.xf,
@@ -630,8 +676,15 @@ def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
         "dm_limit_model": limit_model,
         "dm_rescale": rescale,
     }
+    if summary.result.solver_error != 0:
+        diagnostics["dm_actual_inputs"]=json.dumps({**(summary.result.inputs or {}),"raw_Xf":summary.result.xf,"raw_Omega":summary.result.omega},sort_keys=True)
+        diagnostics["dm_xf"]=diagnostics["dm_freezeout_temperature_GeV"]=None
+        for key in ("dm_relic_excluded","dm_direct_detection_excluded","dm_indirect_detection_excluded"):
+            diagnostics[key]=None
+        diagnostics["dm_direct_detection_available"]=False
     if summary.cmb_limit is not None:
-        diagnostics.update(cmb_diagnostics(summary.cmb_limit))
+        diagnostics.update(cmb_diagnostics(summary.cmb_limit) if summary.result.solver_error == 0 else
+                           cmb_diagnostics(enabled=True, reason="darkOmega failed or status missing"))
     return diagnostics
 
 
@@ -758,9 +811,31 @@ def test_dm(
 
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         diagnostics = empty_dm_exclusion_info()
+        diagnostics.update(dm_calculation_status="error", dm_assessment_reason=str(exc))
+        # Keep solver evidence even when an invalid Omega or missing DD block
+        # prevents construction of a complete, usable result.
+        from trsm_inputs import json_safe
+        text = raw_output or (getattr(exc, "stdout", None) or "")
+        if isinstance(text, bytes):
+            text = text.decode(errors="replace")
+        error_match = re.search(r"darkOmega_error=(-?\d+)", text)
+        diagnostics["dm_solver_error"] = int(error_match[1]) if error_match else None
+        inputs_match = re.search(r"^TRSM_inputs_v2 (.+)$", text, re.M)
+        try:
+            inputs = json.loads(inputs_match[1]) if inputs_match else {}
+        except ValueError:
+            inputs = {}
+        for name in ("Omega", "Xf"):
+            match = re.search(rf"(?:^|\s){name}\s*=\s*(\S+)", text)
+            if match:
+                inputs["raw_"+name] = match[1]
+        if inputs:
+            diagnostics.update(dm_actual_inputs=json.dumps(json_safe(inputs), sort_keys=True, allow_nan=False),
+                               dm_h1_width_GeV=inputs.get("width_h1"), dm_h2_width_GeV=inputs.get("width_h2"),
+                               dm_mdm=inputs.get("MX"))
         if planck_cmb:
             diagnostics.update(cmb_diagnostics(enabled=True, reason=str(exc)))
-        return False, f"DM check: Error\n  Reason: {exc}", diagnostics
+        return None, f"DM check: Error\n  Reason: {exc}", diagnostics
 
 
 if __name__ == "__main__":

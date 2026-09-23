@@ -1,0 +1,1130 @@
+{
+  "status": "passed",
+  "physics_version": "trsm_constraints_v2",
+  "scope": "100 zero-temperature rows on both hosts; all 22 eligible thermal rows locally at Tmax=300 GeV; point223615 and integrated pilot on both hosts",
+  "strata": {
+    "stored_transition": 13,
+    "h1_resonance": 20,
+    "h2_resonance": 20,
+    "DD_boundary": 20,
+    "exclusions_and_general": 27
+  },
+  "counts": {
+    "dm": {
+      "False": 91,
+      "unassessed": 3,
+      "True": 6
+    },
+    "hb": {
+      "True": 34,
+      "False": 66
+    },
+    "hs": {
+      "True": 35,
+      "False": 65
+    },
+    "ewpo": {
+      "True": 100
+    },
+    "wmass": {
+      "True": 72,
+      "False": 28
+    },
+    "thc": {
+      "True": 79,
+      "False": 21
+    },
+    "experimental_subset": {
+      "True": 23,
+      "False": 77
+    },
+    "ewpt_eligible": {
+      "True": 22,
+      "False": 78
+    },
+    "vacuum_tree_global": {
+      "True": 74,
+      "False": 26
+    },
+    "rg_integration_success": {
+      "True": 99,
+      "False": 1
+    },
+    "rg_bfb": {
+      "True": 64,
+      "False": 35,
+      "unassessed": 1
+    },
+    "rg_unitarity": {
+      "False": 15,
+      "True": 85
+    },
+    "theory_strict_subset": {
+      "False": 53,
+      "True": 47
+    },
+    "ewpt_baryo_candidate": {
+      "False": 17,
+      "unassessed": 83
+    },
+    "ewpt_gw_candidate": {
+      "True": 3,
+      "unassessed": 87,
+      "False": 10
+    }
+  },
+  "historical_transitions": {
+    "dm": {
+      "unassessed -> False": 9,
+      "unassessed -> unassessed": 3,
+      "unassessed -> True": 1,
+      "False -> False": 79,
+      "True -> False": 3,
+      "False -> True": 4,
+      "True -> True": 1
+    },
+    "hb": {
+      "unassessed -> True": 13,
+      "True -> True": 21,
+      "False -> False": 58,
+      "True -> False": 8
+    },
+    "hs": {
+      "unassessed -> True": 13,
+      "True -> True": 22,
+      "False -> False": 49,
+      "True -> False": 16
+    },
+    "ewpo": {
+      "unassessed -> True": 13,
+      "True -> True": 87
+    },
+    "wmass": {
+      "unassessed -> True": 13,
+      "True -> True": 59,
+      "False -> False": 20,
+      "True -> False": 8
+    },
+    "thc": {
+      "unassessed -> True": 13,
+      "True -> True": 66,
+      "True -> False": 21
+    },
+    "evo": {
+      "unassessed -> True": 13,
+      "False -> False": 1,
+      "True -> True": 86
+    }
+  },
+  "cross_host_stored100": {
+    "dm_omega": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "dm_xf": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "dm_freezeout_temperature_GeV": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "dm_dir_det": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "dm_h1_width_GeV": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "dm_h2_width_GeV": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "higgstools_hs_chi2": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    },
+    "higgstools_hs_delta_chi2": {
+      "compared": 100,
+      "max_relative_difference": 0.0
+    }
+  },
+  "cross_host_28_runtime_cases": {
+    "omega": {
+      "compared": 28,
+      "max_relative_difference": 0.0
+    },
+    "Xf": {
+      "compared": 28,
+      "max_relative_difference": 0.0
+    },
+    "Tf_GeV": {
+      "compared": 28,
+      "max_relative_difference": 0.0
+    },
+    "SI_pb": {
+      "compared": 28,
+      "max_relative_difference": 0.0
+    }
+  },
+  "maximum_backend_version_relative_omega_difference": 0.0012459310843063731,
+  "W_below_virtual_on_over_off": 0.4162137290501769,
+  "point223615": {
+    "local": {
+      "status": "passed",
+      "flags": {
+        "ewpt_ew_entry_true_over_T": 0.13597336486546382,
+        "ewpt_ew_entry_false_over_T": 8.211992186331186e-12,
+        "ewpt_ew_entry_jump_over_T": 0.13597336485725184,
+        "ewpt_ew_entry_temperature_GeV": 154.14713448465974,
+        "ewpt_ew_entry_temperature_kind": "crit",
+        "ewpt_ew_entry_transition_index": 0,
+        "ewpt_ew_entry_nucl_jump_over_T": 0.14111258076271263,
+        "ewpt_ew_entry_nucl_temperature_GeV": 154.13861843219945,
+        "ewpt_ew_entry_perc_jump_over_T": 0.14252251836897029,
+        "ewpt_ew_entry_perc_temperature_GeV": 154.13607037515908,
+        "ewpt_ew_entry_percolated": true,
+        "ewpt_ew_entry_completed": true,
+        "ewpt_baryo_candidate": false,
+        "ewpt_gw_crit_field_jump_over_T": 6.59080081421389,
+        "ewpt_gw_crit_temperature_GeV": 51.55250680719584,
+        "ewpt_gw_nucl_field_jump_over_T": 0.14111258076289146,
+        "ewpt_gw_nucl_temperature_GeV": 154.13861843219945,
+        "ewpt_gw_perc_field_jump_over_T": 0.14252251836914753,
+        "ewpt_gw_perc_temperature_GeV": 154.13607037515908,
+        "ewpt_gw_max_field_jump_over_T": 6.59080081421389,
+        "ewpt_gw_max_temperature_kind": "crit",
+        "ewpt_gw_max_transition_index": 2,
+        "ewpt_gw_candidate": true
+      },
+      "calculation": {
+        "ewpt_transition_strengths": "[{\"transition_index\":0,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":154.14713448465974,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":20.95990456024836,\"wx\":-2.536655420712679e-10,\"ws\":-6.48184224897629e-10},\"delta_vev\":{\"w1\":20.959904558982505,\"wx\":-1.587452921085178e-08,\"ws\":-3.4648523992294946e-05},\"ew_jump\":20.959904558982505,\"field_jump\":20.959904559011143,\"ew_jump_over_T\":0.13597336485725184,\"ew_true_over_T\":0.13597336486546382,\"ew_false_over_T\":8.211992186331186e-12,\"field_jump_over_T\":0.1359733648574376},{\"transition_index\":0,\"temperature_kind\":\"nucl_approx\",\"status\":\"success\",\"temperature\":154.1383166701863,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.776911385371385,\"wx\":-2.0097358272813017e-09,\"ws\":2.0593356932707013e-08},\"delta_vev\":{\"w1\":21.776911384105528,\"wx\":-1.4118458925641745e-08,\"ws\":-3.462857881958713e-05},\"ew_jump\":21.776911384105528,\"field_jump\":21.776911384133058,\"ew_jump_over_T\":0.14128162195193908,\"ew_true_over_T\":0.14128162196015154,\"ew_false_over_T\":8.212461971035734e-12,\"field_jump_over_T\":0.14128162195211766},{\"transition_index\":0,\"temperature_kind\":\"nucl\",\"status\":\"success\",\"temperature\":154.13861843219945,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.750898243432548,\"wx\":1.4078886796331823e-08,\"ws\":2.1360627915456307e-08},\"delta_vev\":{\"w1\":21.75089824216669,\"wx\":-2.0493079565912237e-09,\"ws\":-3.4627811548604386e-05},\"ew_jump\":21.75089824216669,\"field_jump\":21.750898242194257,\"ew_jump_over_T\":0.14111258076271263,\"ew_true_over_T\":0.1411125807709251,\"ew_false_over_T\":8.212445893241067e-12,\"field_jump_over_T\":0.14111258076289146},{\"transition_index\":0,\"temperature_kind\":\"perc\",\"status\":\"success\",\"temperature\":154.13607037515908,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.96786092263036,\"wx\":-8.683406874128164e-09,\"ws\":3.2516857329813725e-09},\"delta_vev\":{\"w1\":21.967860921364505,\"wx\":-7.444787878794883e-09,\"ws\":-3.4645920490786856e-05},\"ew_jump\":21.967860921364505,\"field_jump\":21.967860921391825,\"ew_jump_over_T\":0.14252251836897029,\"ew_true_over_T\":0.14252251837718286,\"ew_false_over_T\":8.212581654977604e-12,\"field_jump_over_T\":0.14252251836914753},{\"transition_index\":0,\"temperature_kind\":\"compl\",\"status\":\"success\",\"temperature\":154.13589930825822,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.982161899568663,\"wx\":-1.2287274823482153e-09,\"ws\":6.160472753762472e-09},\"delta_vev\":{\"w1\":21.982161898302806,\"wx\":-1.4899467270574831e-08,\"ws\":-3.4643011703766076e-05},\"ew_jump\":21.982161898302806,\"field_jump\":21.982161898330105,\"ew_jump_over_T\":0.14261545815709303,\"ew_true_over_T\":0.14261545816530563,\"ew_false_over_T\":8.21259076966729e-12,\"field_jump_over_T\":0.14261545815727014},{\"transition_index\":1,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":130.82138112810534,\"false_vev\":{\"w1\":155.75874614640833,\"wx\":8.829440930866665e-08,\"ws\":-1.9804594674450554e-08},\"true_vev\":{\"w1\":155.75183742739887,\"wx\":15.965402236413976,\"ws\":2.8021471506227356e-08},\"delta_vev\":{\"w1\":-0.006908719009459219,\"wx\":15.965402148119566,\"ws\":8.216876831776802e-09},\"ew_jump\":0.006908719009459219,\"field_jump\":15.965403642926765,\"ew_jump_over_T\":5.281032007064606e-05,\"ew_true_over_T\":1.1905686676314835,\"ew_false_over_T\":1.190621477951554,\"field_jump_over_T\":0.12203971174477073},{\"transition_index\":1,\"temperature_kind\":\"nucl_approx\",\"status\":\"success\",\"temperature\":130.78570081829764,\"false_vev\":{\"w1\":155.84720143331737,\"wx\":-7.449857526838631e-09,\"ws\":-1.4557489936048384e-08},\"true_vev\":{\"w1\":155.83996093814113,\"wx\":16.32136207607595,\"ws\":-2.6003067166746975e-08},\"delta_vev\":{\"w1\":-0.007240495176233708,\"wx\":16.321362068626094,\"ws\":1.1445577230698591e-08},\"ew_jump\":0.007240495176233708,\"field_jump\":16.32136367464303,\"ew_jump_over_T\":5.5361519882766286e-05,\"ew_true_over_T\":1.1915672735099054,\"ew_false_over_T\":1.1916226350297883,\"field_jump_over_T\":0.12479471052663872},{\"transition_index\":1,\"temperature_kind\":\"nucl\",\"status\":\"success\",\"temperature\":130.7869715856516,\"false_vev\":{\"w1\":155.84405235448406,\"wx\":-1.7192750752857255e-07,\"ws\":-1.0413346269131318e-08},\"true_vev\":{\"w1\":155.8368230685448,\"wx\":16.30942673306825,\"ws\":-2.7099735771088055e-08},\"delta_vev\":{\"w1\":-0.007229285939274632,\"wx\":16.309426561140743,\"ws\":1.6686389501956737e-08},\"ew_jump\":0.007229285939274632,\"field_jump\":16.30942816336055,\"ew_jump_over_T\":5.527527590575195e-05,\"ew_true_over_T\":1.1915317036489999,\"ew_false_over_T\":1.1915869789249056,\"field_jump_over_T\":0.12470223880579423},{\"transition_index\":1,\"temperature_kind\":\"perc\",\"status\":\"success\",\"temperature\":130.77850802652165,\"false_vev\":{\"w1\":155.86502359176845,\"wx\":4.329274996654145e-08,\"ws\":1.4462159601447896e-08},\"true_vev\":{\"w1\":155.85771950805682,\"wx\":16.388639205632963,\"ws\":3.850382330519357e-08},\"delta_vev\":{\"w1\":-0.007304083711630938,\"wx\":16.388639162340212,\"ws\":2.4041663703745677e-08},\"ew_jump\":0.007304083711630938,\"field_jump\":16.388640789981032,\"ew_jump_over_T\":5.585079553094215e-05,\"ew_true_over_T\":1.191768600666779,\"ew_false_over_T\":1.1918244514623098,\"field_jump_over_T\":0.1253160097732377},{\"transition_index\":1,\"temperature_kind\":\"compl\",\"status\":\"success\",\"temperature\":130.77790955814987,\"false_vev\":{\"w1\":155.86650626382612,\"wx\":1.48256239207726e-08,\"ws\":1.8422527690380315e-08},\"true_vev\":{\"w1\":155.85919694106758,\"wx\":16.394184455463662,\"ws\":-9.038500170926982e-09},\"delta_vev\":{\"w1\":-0.0073093227585445675,\"wx\":16.39418444063804,\"ws\":-9.384027519453333e-09},\"ew_jump\":0.0073093227585445675,\"field_jump\":16.394186070063302,\"ew_jump_over_T\":5.5891111757636e-05,\"ew_true_over_T\":1.1917853517284234,\"ew_false_over_T\":1.191841242840181,\"field_jump_over_T\":0.125358985515621},{\"transition_index\":2,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":51.55250680719584,\"false_vev\":{\"w1\":234.87819046558434,\"wx\":60.319881034292756,\"ws\":2.4334129184462924e-08},\"true_vev\":{\"w1\":242.84982971667293,\"wx\":-9.299736627849279e-10,\"ws\":334.28009721270047},\"delta_vev\":{\"w1\":7.97163925108859,\"wx\":-60.31988103336278,\"ws\":334.2800971883663},\"ew_jump\":7.97163925108859,\"field_jump\":339.7723038396334,\"ew_jump_over_T\":0.15463145722286945,\"ew_true_over_T\":4.7107278531560235,\"ew_false_over_T\":4.556096395933154,\"field_jump_over_T\":6.59080081421389}]",
+        "ewpt_calctemps_returncode": 0,
+        "ewpt_minimatracer_returncode": 0,
+        "ewpt_execution_status": "completed",
+        "ewpt_nlo_stability_status": "success",
+        "ewpt_tracing_status": "success",
+        "ewpt_coexistence_status": "success",
+        "ewpt_equilibrium_status": "resolved",
+        "ewpt_candidate_assessment_reason": "complete",
+        "ewpt_status": "assessed"
+      },
+      "crossing": {
+        "low_T_GeV": 51.552258325490826,
+        "high_T_GeV": 51.553136319649,
+        "low_phase": 3,
+        "high_phase": 2,
+        "initial_bracket_GeV": [
+          51.0,
+          51.89906601796918
+        ],
+        "status": "resolved"
+      },
+      "equilibrium_status": "partially_unresolved",
+      "executables": {
+        "CalcTemps": "704348926f440706f23311c19b641b0b681a6f793c22b8825f02561e5cd89428",
+        "MinimaTracer": "6cf918a5324dde878e4f0adaa9e107fda8db3334b00e81a23a1c3089df70f266",
+        "PhaseProbe": "c29ad728a2756c6b82e84a1cd2f194cfcd79ccf79d18a4fb111bcb152375c11c"
+      }
+    },
+    "manto": {
+      "status": "passed",
+      "flags": {
+        "ewpt_ew_entry_true_over_T": 0.13597336486546382,
+        "ewpt_ew_entry_false_over_T": 8.211992186331186e-12,
+        "ewpt_ew_entry_jump_over_T": 0.13597336485725184,
+        "ewpt_ew_entry_temperature_GeV": 154.14713448465974,
+        "ewpt_ew_entry_temperature_kind": "crit",
+        "ewpt_ew_entry_transition_index": 0,
+        "ewpt_ew_entry_nucl_jump_over_T": 0.14111258076271263,
+        "ewpt_ew_entry_nucl_temperature_GeV": 154.13861843219945,
+        "ewpt_ew_entry_perc_jump_over_T": 0.14252251836897029,
+        "ewpt_ew_entry_perc_temperature_GeV": 154.13607037515908,
+        "ewpt_ew_entry_percolated": true,
+        "ewpt_ew_entry_completed": true,
+        "ewpt_baryo_candidate": false,
+        "ewpt_gw_crit_field_jump_over_T": 6.59080081421389,
+        "ewpt_gw_crit_temperature_GeV": 51.55250680719584,
+        "ewpt_gw_nucl_field_jump_over_T": 0.14111258076289146,
+        "ewpt_gw_nucl_temperature_GeV": 154.13861843219945,
+        "ewpt_gw_perc_field_jump_over_T": 0.14252251836914753,
+        "ewpt_gw_perc_temperature_GeV": 154.13607037515908,
+        "ewpt_gw_max_field_jump_over_T": 6.59080081421389,
+        "ewpt_gw_max_temperature_kind": "crit",
+        "ewpt_gw_max_transition_index": 2,
+        "ewpt_gw_candidate": true
+      },
+      "calculation": {
+        "ewpt_transition_strengths": "[{\"transition_index\":0,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":154.14713448465974,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":20.95990456024836,\"wx\":-2.536655420712679e-10,\"ws\":-6.48184224897629e-10},\"delta_vev\":{\"w1\":20.959904558982505,\"wx\":-1.587452921085178e-08,\"ws\":-3.4648523992294946e-05},\"ew_jump\":20.959904558982505,\"field_jump\":20.959904559011143,\"ew_jump_over_T\":0.13597336485725184,\"ew_true_over_T\":0.13597336486546382,\"ew_false_over_T\":8.211992186331186e-12,\"field_jump_over_T\":0.1359733648574376},{\"transition_index\":0,\"temperature_kind\":\"nucl_approx\",\"status\":\"success\",\"temperature\":154.1383166701863,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.776911385371385,\"wx\":-2.0097358272813017e-09,\"ws\":2.0593356932707013e-08},\"delta_vev\":{\"w1\":21.776911384105528,\"wx\":-1.4118458925641745e-08,\"ws\":-3.462857881958713e-05},\"ew_jump\":21.776911384105528,\"field_jump\":21.776911384133058,\"ew_jump_over_T\":0.14128162195193908,\"ew_true_over_T\":0.14128162196015154,\"ew_false_over_T\":8.212461971035734e-12,\"field_jump_over_T\":0.14128162195211766},{\"transition_index\":0,\"temperature_kind\":\"nucl\",\"status\":\"success\",\"temperature\":154.13861843219945,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.750898243432548,\"wx\":1.4078886796331823e-08,\"ws\":2.1360627915456307e-08},\"delta_vev\":{\"w1\":21.75089824216669,\"wx\":-2.0493079565912237e-09,\"ws\":-3.4627811548604386e-05},\"ew_jump\":21.75089824216669,\"field_jump\":21.750898242194257,\"ew_jump_over_T\":0.14111258076271263,\"ew_true_over_T\":0.1411125807709251,\"ew_false_over_T\":8.212445893241067e-12,\"field_jump_over_T\":0.14111258076289146},{\"transition_index\":0,\"temperature_kind\":\"perc\",\"status\":\"success\",\"temperature\":154.13607037515908,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.96786092263036,\"wx\":-8.683406874128164e-09,\"ws\":3.2516857329813725e-09},\"delta_vev\":{\"w1\":21.967860921364505,\"wx\":-7.444787878794883e-09,\"ws\":-3.4645920490786856e-05},\"ew_jump\":21.967860921364505,\"field_jump\":21.967860921391825,\"ew_jump_over_T\":0.14252251836897029,\"ew_true_over_T\":0.14252251837718286,\"ew_false_over_T\":8.212581654977604e-12,\"field_jump_over_T\":0.14252251836914753},{\"transition_index\":0,\"temperature_kind\":\"compl\",\"status\":\"success\",\"temperature\":154.13589930825822,\"false_vev\":{\"w1\":-1.2658550639333682e-09,\"wx\":1.6128194752923047e-08,\"ws\":3.464917217651984e-05},\"true_vev\":{\"w1\":21.982161899568663,\"wx\":-1.2287274823482153e-09,\"ws\":6.160472753762472e-09},\"delta_vev\":{\"w1\":21.982161898302806,\"wx\":-1.4899467270574831e-08,\"ws\":-3.4643011703766076e-05},\"ew_jump\":21.982161898302806,\"field_jump\":21.982161898330105,\"ew_jump_over_T\":0.14261545815709303,\"ew_true_over_T\":0.14261545816530563,\"ew_false_over_T\":8.21259076966729e-12,\"field_jump_over_T\":0.14261545815727014},{\"transition_index\":1,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":130.82138112810534,\"false_vev\":{\"w1\":155.75874614640833,\"wx\":8.829440930866665e-08,\"ws\":-1.9804594674450554e-08},\"true_vev\":{\"w1\":155.75183742739887,\"wx\":15.965402236413976,\"ws\":2.8021471506227356e-08},\"delta_vev\":{\"w1\":-0.006908719009459219,\"wx\":15.965402148119566,\"ws\":8.216876831776802e-09},\"ew_jump\":0.006908719009459219,\"field_jump\":15.965403642926765,\"ew_jump_over_T\":5.281032007064606e-05,\"ew_true_over_T\":1.1905686676314835,\"ew_false_over_T\":1.190621477951554,\"field_jump_over_T\":0.12203971174477073},{\"transition_index\":1,\"temperature_kind\":\"nucl_approx\",\"status\":\"success\",\"temperature\":130.78570081829764,\"false_vev\":{\"w1\":155.84720143331737,\"wx\":-7.449857526838631e-09,\"ws\":-1.4557489936048384e-08},\"true_vev\":{\"w1\":155.83996093814113,\"wx\":16.32136207607595,\"ws\":-2.6003067166746975e-08},\"delta_vev\":{\"w1\":-0.007240495176233708,\"wx\":16.321362068626094,\"ws\":1.1445577230698591e-08},\"ew_jump\":0.007240495176233708,\"field_jump\":16.32136367464303,\"ew_jump_over_T\":5.5361519882766286e-05,\"ew_true_over_T\":1.1915672735099054,\"ew_false_over_T\":1.1916226350297883,\"field_jump_over_T\":0.12479471052663872},{\"transition_index\":1,\"temperature_kind\":\"nucl\",\"status\":\"success\",\"temperature\":130.7869715856516,\"false_vev\":{\"w1\":155.84405235448406,\"wx\":-1.7192750752857255e-07,\"ws\":-1.0413346269131318e-08},\"true_vev\":{\"w1\":155.8368230685448,\"wx\":16.30942673306825,\"ws\":-2.7099735771088055e-08},\"delta_vev\":{\"w1\":-0.007229285939274632,\"wx\":16.309426561140743,\"ws\":1.6686389501956737e-08},\"ew_jump\":0.007229285939274632,\"field_jump\":16.30942816336055,\"ew_jump_over_T\":5.527527590575195e-05,\"ew_true_over_T\":1.1915317036489999,\"ew_false_over_T\":1.1915869789249056,\"field_jump_over_T\":0.12470223880579423},{\"transition_index\":1,\"temperature_kind\":\"perc\",\"status\":\"success\",\"temperature\":130.77850802652165,\"false_vev\":{\"w1\":155.86502359176845,\"wx\":4.329274996654145e-08,\"ws\":1.4462159601447896e-08},\"true_vev\":{\"w1\":155.85771950805682,\"wx\":16.388639205632963,\"ws\":3.850382330519357e-08},\"delta_vev\":{\"w1\":-0.007304083711630938,\"wx\":16.388639162340212,\"ws\":2.4041663703745677e-08},\"ew_jump\":0.007304083711630938,\"field_jump\":16.388640789981032,\"ew_jump_over_T\":5.585079553094215e-05,\"ew_true_over_T\":1.191768600666779,\"ew_false_over_T\":1.1918244514623098,\"field_jump_over_T\":0.1253160097732377},{\"transition_index\":1,\"temperature_kind\":\"compl\",\"status\":\"success\",\"temperature\":130.77790955814987,\"false_vev\":{\"w1\":155.86650626382612,\"wx\":1.48256239207726e-08,\"ws\":1.8422527690380315e-08},\"true_vev\":{\"w1\":155.85919694106758,\"wx\":16.394184455463662,\"ws\":-9.038500170926982e-09},\"delta_vev\":{\"w1\":-0.0073093227585445675,\"wx\":16.39418444063804,\"ws\":-9.384027519453333e-09},\"ew_jump\":0.0073093227585445675,\"field_jump\":16.394186070063302,\"ew_jump_over_T\":5.5891111757636e-05,\"ew_true_over_T\":1.1917853517284234,\"ew_false_over_T\":1.191841242840181,\"field_jump_over_T\":0.125358985515621},{\"transition_index\":2,\"temperature_kind\":\"crit\",\"status\":\"success\",\"temperature\":51.55250680719584,\"false_vev\":{\"w1\":234.87819046558434,\"wx\":60.319881034292756,\"ws\":2.4334129184462924e-08},\"true_vev\":{\"w1\":242.84982971667293,\"wx\":-9.299736627849279e-10,\"ws\":334.28009721270047},\"delta_vev\":{\"w1\":7.97163925108859,\"wx\":-60.31988103336278,\"ws\":334.2800971883663},\"ew_jump\":7.97163925108859,\"field_jump\":339.7723038396334,\"ew_jump_over_T\":0.15463145722286945,\"ew_true_over_T\":4.7107278531560235,\"ew_false_over_T\":4.556096395933154,\"field_jump_over_T\":6.59080081421389}]",
+        "ewpt_calctemps_returncode": 0,
+        "ewpt_minimatracer_returncode": 0,
+        "ewpt_execution_status": "completed",
+        "ewpt_nlo_stability_status": "success",
+        "ewpt_tracing_status": "success",
+        "ewpt_coexistence_status": "success",
+        "ewpt_equilibrium_status": "resolved",
+        "ewpt_candidate_assessment_reason": "complete",
+        "ewpt_status": "assessed"
+      },
+      "crossing": {
+        "low_T_GeV": 51.552258325490826,
+        "high_T_GeV": 51.553136319649,
+        "low_phase": 3,
+        "high_phase": 2,
+        "initial_bracket_GeV": [
+          51.0,
+          51.89906601796918
+        ],
+        "status": "resolved"
+      },
+      "equilibrium_status": "partially_unresolved",
+      "executables": {
+        "CalcTemps": "8e2892d377d444b22c31527c5077a8a4daf5887eff62bb1b789402ea94777e1f",
+        "MinimaTracer": "c0816a15407cae54fac9fdb67d8f6ade649bdd140f16bd8a9480c386c184b76f",
+        "PhaseProbe": "0be061c2fa2d2d0acc927d4eab85901f24c6b9aa89601dde39ce7814aa8e3c7f"
+      }
+    }
+  },
+  "tolerances": {
+    "DM_cross_host_rtol": 2e-06,
+    "DM_cross_host_atol": 1e-30,
+    "HS_rtol": 1e-08,
+    "HS_atol": 1e-10,
+    "thermal_temperature_atol_GeV": 0.003,
+    "thermal_ratio_rtol": 0.001,
+    "loop_amplitude_rtol": 2e-08,
+    "on_shell_width_rtol": 2e-06,
+    "crossing_bracket_GeV": 0.001
+  },
+  "input_sha256": {
+    "benchmarks/v2/stored100.tsv": "7bb6ac4c9fc7bf89772ad5c0a7cc91c80224b9f4ee6adef88ea2ed990c7079dd",
+    "validation/v2/stored100-local-canonical.tsv": "fc4a9789913371cc95272310fb9927d97e631a5a4e95310c20dbfa0fb7891e95",
+    "validation/v2/manto/stored100-manto-canonical.tsv": "fc4a9789913371cc95272310fb9927d97e631a5a4e95310c20dbfa0fb7891e95",
+    "validation/v2/stored100-ewpt/assessed100.tsv": "df88fc3fe5e23474effce4f19df77d5f40b453ec7b9be37ac151a698b8f804d2"
+  },
+  "pilot_local": {
+    "status": "passed",
+    "interrupted_after_draws": 1,
+    "resumed_draw_count": 3,
+    "matches_uninterrupted": true,
+    "incompatible_resume_rejected": true,
+    "output_unchanged_after_rejection": true,
+    "point223615": {
+      "dm": "False",
+      "ewpt_eligible": "True",
+      "ewpt_baryo_candidate": "False",
+      "ewpt_gw_candidate": "True"
+    },
+    "plot_files": [
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_candidate_subsets.png",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_candidate_subsets.pdf",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_jump_temperatures.png",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_jump_temperatures.pdf",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_freezeout_restoration.png",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_freezeout_restoration.pdf",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_thermal_sensitivity.png",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_thermal_sensitivity.pdf",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_trajectory_point_000001.png",
+      "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/validation/v2/pilot-integrated-local-release/plots/v2_trajectory_point_000001.pdf"
+    ]
+  },
+  "pilot_manto": {
+    "status": "passed",
+    "interrupted_after_draws": 1,
+    "resumed_draw_count": 3,
+    "matches_uninterrupted": true,
+    "incompatible_resume_rejected": true,
+    "output_unchanged_after_rejection": true,
+    "point223615": {
+      "dm": "False",
+      "ewpt_eligible": "True",
+      "ewpt_baryo_candidate": "False",
+      "ewpt_gw_candidate": "True"
+    },
+    "plot_files": [
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_candidate_subsets.png",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_candidate_subsets.pdf",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_jump_temperatures.png",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_jump_temperatures.pdf",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_freezeout_restoration.png",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_freezeout_restoration.pdf",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_thermal_sensitivity.png",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_thermal_sensitivity.pdf",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_trajectory_point_000001.png",
+      "/Users/apapaefs/Projects/runtime-v2/source/validation/v2/pilot-integrated-manto-release/plots/v2_trajectory_point_000001.pdf"
+    ]
+  },
+  "audit_local": {
+    "tree_vacuum": {
+      "old": {
+        "input": {
+          "vs": 300.0,
+          "M2": 200.0,
+          "M3": 50.0,
+          "a12": 0.1,
+          "lX": 0.1,
+          "lPhiX": 0.1,
+          "lSX": 1.0
+        },
+        "thc": true,
+        "evo": true,
+        "wanted_vacuum": {
+          "fields_h_s_x_GeV": [
+            246.0,
+            300.0,
+            0.0
+          ],
+          "potential_GeV4": -612102462.0572187,
+          "radial_hessian_eigenvalues_GeV2": [
+            2500.0,
+            15647.5081,
+            39999.99999999999
+          ]
+        },
+        "x_vacuum": {
+          "fields_h_s_x_GeV": [
+            0.0,
+            0.0,
+            674.7280933828085
+          ],
+          "potential_GeV4": -5181496164.1,
+          "radial_hessian_eigenvalues_GeV2": [
+            13342.760388924786,
+            91051.6,
+            206758.54800527726
+          ]
+        }
+      },
+      "new": {
+        "vacuum_tree_global": false,
+        "vacuum_tree_status": "nonglobal",
+        "vacuum_tree_depth_gap_GeV4": 4570369696.732167,
+        "stationary_points": [
+          {
+            "fields_GeV": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "potential_GeV4": 0.0,
+            "hessian_eigenvalues_GeV2": [
+              -45531.205821859345,
+              -20871.337570579948,
+              -9418.82374872945
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              268.08409996326645,
+              0.0,
+              0.0
+            ],
+            "potential_GeV4": -169230560.33255088,
+            "hessian_eigenvalues_GeV2": [
+              -41937.75158920361,
+              -19694.511196292307,
+              18837.647497458896
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              307.3994103604796,
+              0.0
+            ],
+            "potential_GeV4": -493056117.1354344,
+            "hessian_eigenvalues_GeV2": [
+              -7871.51728552131,
+              1715.992923125923,
+              41742.67514115989
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              0.0,
+              674.7681514554414
+            ],
+            "potential_GeV4": -5182726758.981295,
+            "hessian_eigenvalues_GeV2": [
+              13346.779162200226,
+              91062.41164371872,
+              206784.69153871678
+            ],
+            "local_minimum": true
+          },
+          {
+            "fields_GeV": [
+              246.21965079413738,
+              300.0,
+              0.0
+            ],
+            "potential_GeV4": -612357062.2491277,
+            "hessian_eigenvalues_GeV2": [
+              2500.0,
+              15647.508100000001,
+              40000.00000000001
+            ],
+            "local_minimum": true
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              301.21389798264806,
+              40.779854451528344
+            ],
+            "potential_GeV4": -492342694.56666,
+            "hessian_eigenvalues_GeV2": [
+              -7850.010975421554,
+              -3157.1001432674775,
+              43569.37806115709
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              245.72974206635598,
+              290.75788388888,
+              49.191157059958435
+            ],
+            "potential_GeV4": -610844706.0410668,
+            "hessian_eigenvalues_GeV2": [
+              -4422.075143422327,
+              15579.922888643103,
+              42498.565945428025
+            ],
+            "local_minimum": false
+          }
+        ],
+        "vacuum_tree_competitor_h_GeV": 0.0,
+        "vacuum_tree_competitor_s_GeV": 0.0,
+        "vacuum_tree_competitor_x_GeV": 674.7681514554414
+      }
+    },
+    "running": {
+      "old": {
+        "input": {
+          "vs": 300,
+          "M2": 200,
+          "M3": 50,
+          "a12": 0,
+          "lX": 3,
+          "lPhiX": 0,
+          "lSX": 0
+        },
+        "thc_at_input": true,
+        "evo_flag": true,
+        "solver_success": true,
+        "lambdaX_900_1000_GeV": [
+          13.863927056385203,
+          16.633406355355344
+        ],
+        "thc_at_900_1000_GeV": [
+          false,
+          false
+        ]
+      },
+      "new": {
+        "rg_integration_success": true,
+        "rg_bfb": true,
+        "rg_unitarity": false,
+        "rg_status": "assessed",
+        "rg_reached_scale_GeV": 1000.0,
+        "rg_first_bfb_failure_GeV": null,
+        "rg_first_unitarity_failure_GeV": 594.6596312440931
+      }
+    },
+    "unitarity": [
+      {
+        "old": {
+          "quartics": [
+            0.5,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "roots_real_imag": [
+            [
+              6.0000286947890915,
+              4.970156344013249e-05
+            ],
+            [
+              6.0000286947890915,
+              -4.970156344013249e-05
+            ],
+            [
+              5.999942610421807,
+              0.0
+            ]
+          ],
+          "thc": false
+        },
+        "new_eigenvalues": [
+          6.0,
+          6.0,
+          6.0
+        ]
+      },
+      {
+        "old": {
+          "quartics": [
+            0.12928405793509157,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "roots_real_imag": [
+            [
+              6.000000000000002,
+              1.12961921372413e-07
+            ],
+            [
+              6.000000000000002,
+              -1.12961921372413e-07
+            ],
+            [
+              1.5514086952210986,
+              0.0
+            ]
+          ],
+          "thc": false
+        },
+        "new_eigenvalues": [
+          1.5514086952210988,
+          6.0,
+          6.0
+        ]
+      }
+    ],
+    "EWPO": [
+      {
+        "M2": 80.385,
+        "new_STU": [
+          -0.0016566461849838302,
+          0.0010906172173275747,
+          5.994386120301052e-05
+        ]
+      },
+      {
+        "M2": 91.1876,
+        "new_STU": [
+          -0.0011638076551995138,
+          0.000823561775897309,
+          4.432546616515231e-05
+        ]
+      },
+      {
+        "M2": 91.187600911876,
+        "new_STU": [
+          -0.0011638076167095027,
+          0.0008235617533712368,
+          4.432546485995164e-05
+        ]
+      },
+      {
+        "M2": 91.187599088124,
+        "new_STU": [
+          -0.0011638076936895338,
+          0.0008235617984233847,
+          4.432546747036151e-05
+        ]
+      }
+    ],
+    "DD_boundaries": [
+      {
+        "old": {
+          "mass": 10,
+          "below_pb": 1.8446939828119299e-09,
+          "at_pb": 1.0943748007698599e-10
+        },
+        "new_below_pb": 4.9219473248093546e-11,
+        "new_at_pb": 4.921947321593385e-11
+      },
+      {
+        "old": {
+          "mass": 40,
+          "below_pb": 2.45e-12,
+          "at_pb": 2.419096e-12
+        },
+        "new_below_pb": 2.181683382477328e-12,
+        "new_at_pb": 2.1816833824484827e-12
+      },
+      {
+        "old": {
+          "mass": 60,
+          "below_pb": 2.4647689999771637e-12,
+          "at_pb": 2.45794e-12
+        },
+        "new_below_pb": 2.47883404305589e-12,
+        "new_at_pb": 2.478834043138742e-12
+      },
+      {
+        "old": {
+          "mass": 80,
+          "below_pb": 2.714669999871635e-12,
+          "at_pb": 2.7269657071384725e-12
+        },
+        "new_below_pb": 2.940196689351064e-12,
+        "new_at_pb": 2.9401966895548904e-12
+      },
+      {
+        "old": {
+          "mass": 100,
+          "below_pb": 3.1676550938678454e-12,
+          "at_pb": 3.1505123872271413e-12
+        },
+        "new_below_pb": 3.457687926612418e-12,
+        "new_at_pb": 3.4576879268793778e-12
+      }
+    ],
+    "empty_EWPT": {
+      "old": {
+        "ewpt_baryo_candidate": false,
+        "ewpt_gw_candidate": false
+      },
+      "new": {
+        "ewpt_baryo_candidate": null,
+        "ewpt_gw_candidate": null
+      }
+    },
+    "HiggsSignals_SM": {
+      "old": {
+        "hb": true,
+        "hs": true,
+        "chi2": 152.68843353902255,
+        "sm_chi2": 152.5488683543418,
+        "delta_chi2": 0.1395651846807482
+      },
+      "new_chi2_reference": 152.68843353902255,
+      "new_delta_chi2": 0.0
+    },
+    "SM_inputs": {
+      "old": {
+        "scan_higgs_mass_GeV": 125.09,
+        "micromegas_higgs_mass_GeV": 125.0,
+        "scan_v_GeV": 246.0,
+        "bsmpt_v_GeV": 246.21965079413738,
+        "micromegas_v_GeV": 243.2099703188332,
+        "micromegas_derived_GF": 1.1954247761474097e-05
+      },
+      "new": {
+        "scheme": "GF_MW_MZ_tree_v1",
+        "M1_GeV": 125.09,
+        "GF_GeV^-2": 1.1663787e-05,
+        "MW_GeV": 80.385,
+        "MZ_GeV": 91.1876,
+        "v_GeV": 246.21965079413738,
+        "SW": 0.47211992387942947,
+        "EE": 0.3082723897840211
+      }
+    },
+    "W_mass_coverage": {
+      "constraint_version": "trsm_constraints_v2",
+      "constraint_schema_version": 2,
+      "experimental_subset": true,
+      "dm_subset": false,
+      "wmass_covered": false,
+      "wmass_status": "outside_coverage",
+      "ewpt_eligible": true,
+      "h1_width_over_mass": null,
+      "h1_ctau_mm": null,
+      "h2_width_over_mass": null,
+      "h2_ctau_mm": null
+    },
+    "status": "passed"
+  },
+  "audit_manto": {
+    "tree_vacuum": {
+      "old": {
+        "input": {
+          "vs": 300.0,
+          "M2": 200.0,
+          "M3": 50.0,
+          "a12": 0.1,
+          "lX": 0.1,
+          "lPhiX": 0.1,
+          "lSX": 1.0
+        },
+        "thc": true,
+        "evo": true,
+        "wanted_vacuum": {
+          "fields_h_s_x_GeV": [
+            246.0,
+            300.0,
+            0.0
+          ],
+          "potential_GeV4": -612102462.0572187,
+          "radial_hessian_eigenvalues_GeV2": [
+            2500.0,
+            15647.5081,
+            39999.99999999999
+          ]
+        },
+        "x_vacuum": {
+          "fields_h_s_x_GeV": [
+            0.0,
+            0.0,
+            674.7280933828085
+          ],
+          "potential_GeV4": -5181496164.1,
+          "radial_hessian_eigenvalues_GeV2": [
+            13342.760388924786,
+            91051.6,
+            206758.54800527726
+          ]
+        }
+      },
+      "new": {
+        "vacuum_tree_global": false,
+        "vacuum_tree_status": "nonglobal",
+        "vacuum_tree_depth_gap_GeV4": 4570369696.732167,
+        "stationary_points": [
+          {
+            "fields_GeV": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "potential_GeV4": 0.0,
+            "hessian_eigenvalues_GeV2": [
+              -45531.205821859345,
+              -20871.337570579948,
+              -9418.82374872945
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              268.08409996326645,
+              0.0,
+              0.0
+            ],
+            "potential_GeV4": -169230560.33255088,
+            "hessian_eigenvalues_GeV2": [
+              -41937.75158920361,
+              -19694.511196292307,
+              18837.647497458896
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              307.3994103604796,
+              0.0
+            ],
+            "potential_GeV4": -493056117.1354344,
+            "hessian_eigenvalues_GeV2": [
+              -7871.51728552131,
+              1715.992923125923,
+              41742.67514115989
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              0.0,
+              674.7681514554414
+            ],
+            "potential_GeV4": -5182726758.981295,
+            "hessian_eigenvalues_GeV2": [
+              13346.779162200226,
+              91062.41164371872,
+              206784.69153871678
+            ],
+            "local_minimum": true
+          },
+          {
+            "fields_GeV": [
+              246.21965079413738,
+              300.0,
+              0.0
+            ],
+            "potential_GeV4": -612357062.2491277,
+            "hessian_eigenvalues_GeV2": [
+              2500.0,
+              15647.508100000001,
+              40000.00000000001
+            ],
+            "local_minimum": true
+          },
+          {
+            "fields_GeV": [
+              0.0,
+              301.21389798264806,
+              40.779854451528344
+            ],
+            "potential_GeV4": -492342694.56666,
+            "hessian_eigenvalues_GeV2": [
+              -7850.010975421554,
+              -3157.1001432674775,
+              43569.37806115709
+            ],
+            "local_minimum": false
+          },
+          {
+            "fields_GeV": [
+              245.72974206635598,
+              290.75788388888,
+              49.191157059958435
+            ],
+            "potential_GeV4": -610844706.0410668,
+            "hessian_eigenvalues_GeV2": [
+              -4422.075143422327,
+              15579.922888643103,
+              42498.565945428025
+            ],
+            "local_minimum": false
+          }
+        ],
+        "vacuum_tree_competitor_h_GeV": 0.0,
+        "vacuum_tree_competitor_s_GeV": 0.0,
+        "vacuum_tree_competitor_x_GeV": 674.7681514554414
+      }
+    },
+    "running": {
+      "old": {
+        "input": {
+          "vs": 300,
+          "M2": 200,
+          "M3": 50,
+          "a12": 0,
+          "lX": 3,
+          "lPhiX": 0,
+          "lSX": 0
+        },
+        "thc_at_input": true,
+        "evo_flag": true,
+        "solver_success": true,
+        "lambdaX_900_1000_GeV": [
+          13.863927056385203,
+          16.633406355355344
+        ],
+        "thc_at_900_1000_GeV": [
+          false,
+          false
+        ]
+      },
+      "new": {
+        "rg_integration_success": true,
+        "rg_bfb": true,
+        "rg_unitarity": false,
+        "rg_status": "assessed",
+        "rg_reached_scale_GeV": 1000.0,
+        "rg_first_bfb_failure_GeV": null,
+        "rg_first_unitarity_failure_GeV": 594.6596312440931
+      }
+    },
+    "unitarity": [
+      {
+        "old": {
+          "quartics": [
+            0.5,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "roots_real_imag": [
+            [
+              6.0000286947890915,
+              4.970156344013249e-05
+            ],
+            [
+              6.0000286947890915,
+              -4.970156344013249e-05
+            ],
+            [
+              5.999942610421807,
+              0.0
+            ]
+          ],
+          "thc": false
+        },
+        "new_eigenvalues": [
+          6.0,
+          6.0,
+          6.0
+        ]
+      },
+      {
+        "old": {
+          "quartics": [
+            0.12928405793509157,
+            1,
+            1,
+            0,
+            0,
+            0
+          ],
+          "roots_real_imag": [
+            [
+              6.000000000000002,
+              1.12961921372413e-07
+            ],
+            [
+              6.000000000000002,
+              -1.12961921372413e-07
+            ],
+            [
+              1.5514086952210986,
+              0.0
+            ]
+          ],
+          "thc": false
+        },
+        "new_eigenvalues": [
+          1.5514086952210988,
+          6.0,
+          6.0
+        ]
+      }
+    ],
+    "EWPO": [
+      {
+        "M2": 80.385,
+        "new_STU": [
+          -0.0016566461849838302,
+          0.0010906172173275747,
+          5.994386120301052e-05
+        ]
+      },
+      {
+        "M2": 91.1876,
+        "new_STU": [
+          -0.0011638076551995138,
+          0.000823561775897309,
+          4.432546616515231e-05
+        ]
+      },
+      {
+        "M2": 91.187600911876,
+        "new_STU": [
+          -0.0011638076167095027,
+          0.0008235617533712368,
+          4.432546485995164e-05
+        ]
+      },
+      {
+        "M2": 91.187599088124,
+        "new_STU": [
+          -0.0011638076936895338,
+          0.0008235617984233847,
+          4.432546747036151e-05
+        ]
+      }
+    ],
+    "DD_boundaries": [
+      {
+        "old": {
+          "mass": 10,
+          "below_pb": 1.8446939828119299e-09,
+          "at_pb": 1.0943748007698599e-10
+        },
+        "new_below_pb": 4.9219473248093546e-11,
+        "new_at_pb": 4.921947321593385e-11
+      },
+      {
+        "old": {
+          "mass": 40,
+          "below_pb": 2.45e-12,
+          "at_pb": 2.419096e-12
+        },
+        "new_below_pb": 2.181683382477328e-12,
+        "new_at_pb": 2.1816833824484827e-12
+      },
+      {
+        "old": {
+          "mass": 60,
+          "below_pb": 2.4647689999771637e-12,
+          "at_pb": 2.45794e-12
+        },
+        "new_below_pb": 2.47883404305589e-12,
+        "new_at_pb": 2.478834043138742e-12
+      },
+      {
+        "old": {
+          "mass": 80,
+          "below_pb": 2.714669999871635e-12,
+          "at_pb": 2.7269657071384725e-12
+        },
+        "new_below_pb": 2.940196689351064e-12,
+        "new_at_pb": 2.9401966895548904e-12
+      },
+      {
+        "old": {
+          "mass": 100,
+          "below_pb": 3.1676550938678454e-12,
+          "at_pb": 3.1505123872271413e-12
+        },
+        "new_below_pb": 3.457687926612418e-12,
+        "new_at_pb": 3.4576879268793778e-12
+      }
+    ],
+    "empty_EWPT": {
+      "old": {
+        "ewpt_baryo_candidate": false,
+        "ewpt_gw_candidate": false
+      },
+      "new": {
+        "ewpt_baryo_candidate": null,
+        "ewpt_gw_candidate": null
+      }
+    },
+    "HiggsSignals_SM": {
+      "old": {
+        "hb": true,
+        "hs": true,
+        "chi2": 152.68843353902255,
+        "sm_chi2": 152.5488683543418,
+        "delta_chi2": 0.1395651846807482
+      },
+      "new_chi2_reference": 152.68843353902255,
+      "new_delta_chi2": 0.0
+    },
+    "SM_inputs": {
+      "old": {
+        "scan_higgs_mass_GeV": 125.09,
+        "micromegas_higgs_mass_GeV": 125.0,
+        "scan_v_GeV": 246.0,
+        "bsmpt_v_GeV": 246.21965079413738,
+        "micromegas_v_GeV": 243.2099703188332,
+        "micromegas_derived_GF": 1.1954247761474097e-05
+      },
+      "new": {
+        "scheme": "GF_MW_MZ_tree_v1",
+        "M1_GeV": 125.09,
+        "GF_GeV^-2": 1.1663787e-05,
+        "MW_GeV": 80.385,
+        "MZ_GeV": 91.1876,
+        "v_GeV": 246.21965079413738,
+        "SW": 0.47211992387942947,
+        "EE": 0.3082723897840211
+      }
+    },
+    "W_mass_coverage": {
+      "constraint_version": "trsm_constraints_v2",
+      "constraint_schema_version": 2,
+      "experimental_subset": true,
+      "dm_subset": false,
+      "wmass_covered": false,
+      "wmass_status": "outside_coverage",
+      "ewpt_eligible": true,
+      "h1_width_over_mass": null,
+      "h1_ctau_mm": null,
+      "h2_width_over_mass": null,
+      "h2_ctau_mm": null
+    },
+    "status": "passed"
+  }
+}

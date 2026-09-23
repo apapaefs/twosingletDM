@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 CHECKPOINT_SCHEMA = "trsm_scan_checkpoint_v1"
-SAMPLING_ALGORITHM_VERSION = "trsm_random_vxzero_v1"
+SAMPLING_ALGORITHM_VERSION = "trsm_random_vxzero_v2"
 
 
 class CampaignStateError(RuntimeError):

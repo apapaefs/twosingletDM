@@ -1,3 +1,4 @@
+from trsm_inputs import VEV, M1 as SM_M1
 import math, cmath
 import string, os, sys, fileinput, pprint, math
 import numpy as np
@@ -24,7 +25,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 PORTAL_CONVENTION_ID = "trsm_vxzero_canonical_v1"
-TRSM_SM_VEV = 246.0
+TRSM_SM_VEV = VEV
 HIGGSTOOLS_YR4_LOWMASS_MIN_GEV = 4.0
 HIGGSTOOLS_YR4_LOWMASS_SWITCH_GEV = 20.0
 
@@ -799,10 +800,10 @@ def convert_to_HBHS(name, v, vs, vx, M1, M2, M3, a12, a13, a23, R, lambda_dict, 
 
 # function to generate the lamdbas
 def generate_lams(myseed, Mass2, Mass3, VS, VX, A12, A13, A23, PRINT, lX=-999, lPhiX=-999, lSX=-999):
-    v = 246.
+    v = VEV
     vs = VS#140.
     vx = VX#100.
-    M1 = 125.09
+    M1 = SM_M1
     M2 = Mass2
     M3 = Mass3
     

@@ -1,9 +1,19 @@
 from pathlib import Path
 
-from dm_thermal_relic_diagnostic import RESONANCE_COLUMNS, THERMAL_VEV_COLUMNS
+from dm_thermal_relic_diagnostic import RESONANCE_COLUMNS, THERMAL_VEV_COLUMNS, THERMAL_COUPLING_COLUMNS
 from ewpt_entry_criterion import EW_ENTRY_COLUMNS
 from ewpt_x_history import X_HISTORY_COLUMNS
 from trsm_cmb import CMB_COLUMNS
+from trsm_theory_diagnostics import THEORY_COLUMNS
+from trsm_constraint_profile import PROFILE_COLUMNS
+from ewpt_assessment import STATUS_COLUMNS
+
+V2_COLUMNS = list(PROFILE_COLUMNS) + list(THEORY_COLUMNS) + list(STATUS_COLUMNS) + [
+    "dm_solver_error", "dm_calculation_status", "dm_assessment_reason",
+    "dm_direct_detection_available", "dm_actual_inputs", "dm_h1_width_GeV", "dm_h2_width_GeV",
+    "dm_abundance_reference", "dm_loop_hook_relic_calls", "dm_loop_hook_indirect_calls",
+    "ewpt_constraint_version",
+]
 
 
 POINT_COLUMNS = [
@@ -104,6 +114,7 @@ EWPT_COLUMNS = [
     "ewpt_error",
     *X_HISTORY_COLUMNS,
     *THERMAL_VEV_COLUMNS,
+    *THERMAL_COUPLING_COLUMNS,
 ]
 
 
@@ -121,7 +132,7 @@ def output_columns(mg5xsecs, *, planck_cmb=False):
     if mg5xsecs is None:
         mg5xsecs = {}
     cmb_columns = list(CMB_COLUMNS) if planck_cmb else []
-    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs) + cmb_columns + list(EW_ENTRY_COLUMNS)
+    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs) + cmb_columns + list(EW_ENTRY_COLUMNS) + V2_COLUMNS
 
 
 def output_row(point_info, mg5xsecs=None, *, planck_cmb=False):
@@ -133,6 +144,7 @@ def output_row(point_info, mg5xsecs=None, *, planck_cmb=False):
     if planck_cmb:
         values.extend(point_info.get(column) for column in CMB_COLUMNS)
     values.extend(point_info.get(column) for column in EW_ENTRY_COLUMNS)
+    values.extend(point_info.get(column) for column in V2_COLUMNS)
     return "\t".join(format_output_value(value) for value in values)
 
 

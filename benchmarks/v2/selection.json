@@ -1,0 +1,29 @@
+{
+  "algorithm": "deterministic_stratified_v1",
+  "count": 100,
+  "source_files_sha256": {
+    "output/trsm_points_13.6-20260514-1234-False_vxzero.dat": "45357f4165757f20c6061fdc2f18d3bca568100b62a813fd250ef83d21b09d1e",
+    "output/trsm_points_13.6-20260518-1234-False_vxzero.dat": "45357f4165757f20c6061fdc2f18d3bca568100b62a813fd250ef83d21b09d1e",
+    "output/trsm_points_13.6-20260520-777-False_vxzero_manual.dat": "99a786c583d3156df6ffe3f95f797c5eea7f21da505babec5edd4822d2ea9a5f",
+    "output/trsm_points_13.6-20260529-123-False_vxzero.dat": "2c04a8ee3b22312c9c7b39a1bb2c77ab9719a8bec75847b0bb08d8052991d743",
+    "output/trsm_points_13.6-20260529-123-False_vxzero_dm_failed.dat": "e487ce3e6e790690c4fff355d59d2f35cc7c9fbf866caa1e336bae1eaeda3916",
+    "output/trsm_points_13.6-20260529-1234-False_vxzero_dm_failed.dat": "e2fd8b8bc8a82fc029cc067f53e6092e5e1f3e0d0503479013a078c74ae31300",
+    "output/trsm_points_13.6-20260602-999-False_vxzero_dm_failed.dat": "c8cb659a71c6151f4daedf33285447b14cdb96d643dd4435c8964feaa3d7ed66",
+    "output/trsm_points_13.6-20260617-123-False_vxzero_dm_failed.dat": "c4e9c185dc649e580a924d09b3f62be13da71c41bd36a47b85690e2805cb61b4",
+    "output/trsm_points_13.6-20260715-777-False_vxzero.dat": "242ffdf4f4aa79261ad62dca7ef5e3c75c55b7a11d2dc73313af2f1c27ddbb4b",
+    "plots/seed66666_xbroken_phases/sources/point_009867/ewpt_result.json": "6e309ac22f717c8d91f568d526fdcb8bb065deb977db44655e8fd9f50bba218a",
+    "plots/seed66666_xbroken_phases/sources/point_012988/ewpt_result.json": "693277b30ff9d5412237f7c894daca488c5f16fbfc97421f3011b4d3bb357f82",
+    "plots/seed66666_xbroken_phases/sources/point_037067/ewpt_result.json": "b37eed6e9f05d7164f6b01cf3cf8f2fed92783fccf97fd4e04c8a823cfe0bbfc",
+    "plots/seed66666_xbroken_phases/sources/point_060445/ewpt_result.json": "fa15fc056bb83a687a241213044061a2a9fe106af1c6eb2f08120af9202c57ef",
+    "plots/seed66666_xbroken_phases/sources/point_131879/ewpt_result.json": "78fa0d8d7f6d08733074cd84b07c9084286508fcf6dbf07fca3739529e6645e4",
+    "plots/seed66666_xbroken_phases/sources/point_167756/ewpt_result.json": "d14cea353a104baa623a160b9ea2a3969de6688db032aa2db9c4925ad4ee0e7d",
+    "plots/seed66666_xbroken_phases/sources/point_223615/ewpt_result.json": "bd9e08e0570f341ce706c7bc4914fa88fa22d9c6af7627c4457b2f76c01cf256",
+    "plots/seed66666_xbroken_phases/sources/point_224813/ewpt_result.json": "d639b2a86fe8120a9a0c7f7080c0d9efe1cb1f5b02216db8aa034dce1c23eef9",
+    "plots/seed66666_xbroken_phases/sources/point_258320/ewpt_result.json": "4af14888504e175c5b9a5ed071a7e80b5d2d97d32d23e3a5d4f44c99dac213d4",
+    "plots/seed66666_xbroken_phases/sources/point_260762/ewpt_result.json": "0776c56b47be2abe7cddb3b6f7e01e0d945cb0216c426d01353d0ec80b824a9a",
+    "plots/seed66666_xbroken_phases/sources/point_312002/ewpt_result.json": "f52d8df34ab39c7a24d202dce6eb3b49680f9063445c79aee76696e009ae4f5c",
+    "plots/seed66666_xbroken_phases/sources/point_327621/ewpt_result.json": "9cb49fb53d2d578149723cdc9aa00c214109ad7271e32d5f5bbd3f24cd36e43c",
+    "plots/seed66666_xbroken_phases/sources/point_419653/ewpt_result.json": "d251895d4998132d13b25d534bdcf4ccf482fe538546dc8407e9d3caac07a1c2"
+  },
+  "output_sha256": "7bb6ac4c9fc7bf89772ad5c0a7cc91c80224b9f4ee6adef88ea2ed990c7079dd"
+}

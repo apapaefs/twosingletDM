@@ -89,7 +89,9 @@ def synthetic_phase_traces(ewpt):
 
 
 class TestTRSMEWPT(unittest.TestCase):
+    @mock.patch.dict(os.environ)
     def test_default_binaries_work_in_laptop_and_manto_repository_layouts(self):
+        os.environ.pop("TRSM_RUNTIME_ROOT", None)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir).resolve()
             for layout in ("laptop/TwoSingletDM/twosingletDM", "manto/TwoSingletDM"):
@@ -98,7 +100,7 @@ class TestTRSMEWPT(unittest.TestCase):
                     repo.mkdir(parents=True)
                     script = repo / SCRIPT_PATH.name
                     shutil.copyfile(SCRIPT_PATH, script)
-                    binaries = repo.parent / "BSMPT/build/macos-armv8-release/bin"
+                    binaries = repo.parent / "runtime-v2/BSMPT-3.2.1/build/bin"
                     binaries.mkdir(parents=True)
                     for name in ("MinimaTracer", "CalcTemps"):
                         executable = binaries / name
@@ -141,7 +143,7 @@ class TestTRSMEWPT(unittest.TestCase):
                 rows = list(csv.reader(stream, delimiter="\t"))
 
         self.assertEqual(rows[0], ["", "m1", "m2", "m3", "vs", "a12", "lx", "lphix", "lsx"])
-        self.assertEqual(rows[1], ["7", "125.09", "300.0", "400.0", "200.0", "0.2", "0.1", "0.05", "0.05"])
+        self.assertEqual(list(map(float,rows[1])), [7,125.09,300,400,200,.2,.1,.05,.05])
 
     def test_builds_calctemps_command_from_config(self):
         ewpt = load_module()
@@ -215,11 +217,11 @@ class TestTRSMEWPT(unittest.TestCase):
             for strength in strengths
         }
         nucl = by_key[(0, "nucl")]
-        expected_ew_jump = abs(row["w1_nucl_true_0"] - row["w1_nucl_false_0"]) / row["T_nucl_0"]
+        expected_ew_jump = abs(abs(row["w1_nucl_true_0"]) - abs(row["w1_nucl_false_0"])) / row["T_nucl_0"]
         expected_field_jump = math.sqrt(
-            (row["w1_nucl_true_0"] - row["w1_nucl_false_0"]) ** 2
-            + (row["wx_nucl_true_0"] - row["wx_nucl_false_0"]) ** 2
-            + (row["ws_nucl_true_0"] - row["ws_nucl_false_0"]) ** 2
+            (abs(row["w1_nucl_true_0"]) - abs(row["w1_nucl_false_0"])) ** 2
+            + (abs(row["wx_nucl_true_0"]) - abs(row["wx_nucl_false_0"])) ** 2
+            + (abs(row["ws_nucl_true_0"]) - abs(row["ws_nucl_false_0"])) ** 2
         ) / row["T_nucl_0"]
 
         self.assertTrue(math.isclose(nucl.ew_jump_over_T, expected_ew_jump))

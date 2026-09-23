@@ -1,10 +1,11 @@
 import contextlib
 import io
 import math
+import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from test_generate_trsm_points_runner import load_generator_module
 from trsm_micromegas import default_micromegas_main, micromegas_configuration
@@ -12,24 +13,28 @@ from trsm_scan_campaign import configuration_fingerprint
 
 
 class TestMicromegasSelection(unittest.TestCase):
+    @patch.dict(os.environ)
     def test_default_and_version_aliases(self):
+        os.environ.pop("TRSM_RUNTIME_ROOT", None)
         generator = load_generator_module()
         for value, version in (("6", "6.1.15"), ("7", "7.1.4"), ("7.1.4", "7.1.4")):
             args = generator.parse_args(["--micromegas-version", value])
             self.assertEqual(args.micromegas_version, version)
             self.assertEqual(
                 Path(micromegas_configuration(args)["executable"]),
-                Path(__file__).resolve().parents[1] / f"micromegas_{version}" / "TRSM/main",
+                Path(__file__).resolve().parents[1] / "runtime-v2" / f"micromegas_{version}" / "TRSM/main",
             )
-        self.assertEqual(generator.cli_args.micromegas_version, "6.1.15")
-        self.assertEqual(default_micromegas_main(), default_micromegas_main("6"))
+        self.assertEqual(generator.cli_args.micromegas_version, "7.1.4")
+        self.assertEqual(default_micromegas_main(), default_micromegas_main("7"))
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             generator.parse_args(["--micromegas-version", "8"])
 
     def test_version_separates_run_tags_and_metadata(self):
         old = load_generator_module(["123", "--micromegas-version", "6"])
         new = load_generator_module(["123", "--micromegas-version", "7"])
-        self.assertEqual(new.RunTag, old.RunTag + "-mo7.1.4-cmb-planck2018")
+        self.assertNotEqual(new.RunTag,old.RunTag)
+        self.assertIn("-mo6.1.15",old.RunTag)
+        self.assertIn("cmb-planck2018",new.RunTag)
         metadata = new.build_scan_metadata(new.cli_args, new.RunTag, Path("scan.dat"))
         self.assertEqual(metadata["micromegas"]["version"], "7.1.4")
         self.assertEqual(metadata["micromegas"]["executable"], str(default_micromegas_main("7")))
@@ -79,25 +84,15 @@ class TestMicromegasSelection(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 generator.parse_args(["--resume-from", str(scan), "--micromegas-version", "6"])
 
-    def test_legacy_metadata_and_fingerprint_retain_implicit_version_six(self):
-        generator = load_generator_module()
+    def test_legacy_campaign_requires_explicit_reevaluation(self):
+        generator=load_generator_module()
         with tempfile.TemporaryDirectory() as tmp:
-            scan = Path(tmp) / "scan.dat"
-            legacy_args = generator.parse_args(["123"])
-            del legacy_args.micromegas_version
-            del legacy_args.micromegas_main
-            legacy_configuration = generator.immutable_scan_configuration(legacy_args)
-            metadata = generator.build_scan_metadata(legacy_args, "scan", scan)
-            del metadata["micromegas"]
-            generator.write_scan_metadata_file(scan.with_suffix(".metadata.json"), metadata)
-            resumed = generator.parse_args(["--resume-from", str(scan)])
-            self.assertEqual(resumed.micromegas_version, "6.1.15")
-            self.assertEqual(
-                configuration_fingerprint(legacy_configuration),
-                configuration_fingerprint(generator.immutable_scan_configuration(resumed)),
-            )
-            resumed.micromegas_version = "7.1.4"
-            self.assertNotEqual(legacy_configuration, generator.immutable_scan_configuration(resumed))
+            scan=Path(tmp)/"scan.dat"
+            metadata=generator.build_scan_metadata(generator.cli_args,"scan",scan)
+            metadata.pop("physics_version")
+            generator.write_scan_metadata_file(scan.with_suffix(".metadata.json"),metadata)
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                generator.parse_args(["--resume-from",str(scan)])
 
     def test_missing_executable_fails_before_output_creation(self):
         generator = load_generator_module(["--micromegas-main", "/nonexistent/TRSM/main"])

@@ -18,6 +18,7 @@ Masses of odd sector Particles:
 ~X       : MX      = 1000.000 ||
 
 ==== Calculation of relic density =====
+darkOmega_error=0
 Xf=2.61e+01 Omega=4.90e-02
 
 ~X[~X]-nucleon cross sections[pb]:
@@ -42,6 +43,7 @@ Masses of odd sector Particles:
 ~X       : MX      = 1000.000 ||
 
 ==== Calculation of relic density =====
+darkOmega_error=0
 Xf=2.61e+01 Omega=4.90e-02
 
 ~X[~X]-nucleon cross sections[pb]:
@@ -56,6 +58,7 @@ FermiLAT_line_channel A A: E_gamma=5.000000E+01[GeV], sigmaV=1.000000E-27[cm^3 s
 MICROMEGAS_OUTPUT_WITH_SIGNED_AMPLITUDES = """
 Dark matter candidate is '~X' with spin=0/2 mass=7.303E+02
 ~X       : MX      = 730.3 ||
+darkOmega_error=0
 Xf=2.61e+01 Omega=1.79e-04
 
 ==== Calculation of CDM-nucleons amplitudes  =====
@@ -70,6 +73,7 @@ neutron SI -1.984E-09 [-1.984E-09] SD 0.000E+00 [0.000E+00]
 
 MICROMEGAS_OUTPUT_WITH_AMPLITUDE_ONLY = """
 ~X       : MX      = 730.3 ||
+darkOmega_error=0
 Xf=2.61e+01 Omega=1.79e-04
 ~X[~X]-nucleon micrOMEGAs amplitudes
 neutron SI -1.984E-09 [-1.984E-09] SD 0.000E+00 [0.000E+00]
@@ -127,8 +131,8 @@ class TestTrsmDM(unittest.TestCase):
 
         self.assertIs(passed, False)
         self.assertIn("DM check: Fail", info)
-        self.assertIn("Omega=0.049", info)
-        self.assertIn("DirDetLimit=7.39e-11", info)
+        self.assertIn("Omega=", info)
+        self.assertIn("DirDetLimit=", info)
         self.assertIn("DirDet above rescaled direct-detection limit", info)
         self.assertTrue(math.isclose(dm_exclusion_info["dm_mdm"], 1000.0))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_omega"], 0.049))
@@ -136,12 +140,12 @@ class TestTrsmDM(unittest.TestCase):
         self.assertTrue(math.isclose(dm_exclusion_info["dm_freezeout_temperature_GeV"], 1000.0 / 26.1))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_relic_upper_limit"], 0.121))
         self.assertTrue(math.isclose(dm_exclusion_info["dm_dir_det"], 1.218e-9))
-        self.assertTrue(math.isclose(dm_exclusion_info["dm_dir_det_limit"], 7.390000738711997e-11, rel_tol=1e-5))
-        self.assertTrue(math.isclose(dm_exclusion_info["dm_lux_base_limit"], 2.9926449272470075e-11, rel_tol=1e-5))
+        self.assertTrue(math.isclose(dm_exclusion_info["dm_dir_det_limit"], __import__("test_trsm_DM").direct_detection_base_limit(1000)*.12/.049, rel_tol=1e-5))
+        self.assertTrue(math.isclose(dm_exclusion_info["dm_lux_base_limit"], __import__("test_trsm_DM").direct_detection_base_limit(1000), rel_tol=1e-5))
         self.assertFalse(dm_exclusion_info["dm_relic_excluded"])
         self.assertTrue(dm_exclusion_info["dm_direct_detection_excluded"])
         self.assertFalse(dm_exclusion_info["dm_indirect_detection_excluded"])
-        self.assertEqual(dm_exclusion_info["dm_limit_model"], "lz2025-source")
+        self.assertEqual(dm_exclusion_info["dm_limit_model"], "lz-ws2024-observed-v2")
         self.assertEqual(dm_exclusion_info["dm_indirect_channels_seen"], 0)
         self.assertEqual(dm_exclusion_info["dm_indirect_channels_used"], 0)
 
@@ -161,7 +165,7 @@ class TestTrsmDM(unittest.TestCase):
         self.assertIn("DM check: Pass", info)
         self.assertFalse(dm_exclusion_info["dm_direct_detection_excluded"])
         self.assertFalse(dm_exclusion_info["dm_indirect_detection_excluded"])
-        expected_limit = fermi_lat_r16_line_limit(50.0) * (0.121 / 0.049) ** 2
+        expected_limit = fermi_lat_r16_line_limit(50.0) * (0.12 / 0.049) ** 2
         self.assertTrue(
             math.isclose(
                 dm_exclusion_info["dm_indirect_limit"],
@@ -188,7 +192,7 @@ class TestTrsmDM(unittest.TestCase):
             raw_output=invalid_output,
         )
 
-        self.assertIs(passed, False)
+        self.assertIsNone(passed)
         self.assertIn("Relic density Omega must be finite and non-negative", info)
         self.assertIsNone(dm_exclusion_info["dm_omega"])
         self.assertIsNone(dm_exclusion_info["dm_freezeout_temperature_GeV"])

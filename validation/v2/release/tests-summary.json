@@ -1,0 +1,16 @@
+{
+  "local": {
+    "tests": 343,
+    "seconds": 6.827,
+    "status": "passed",
+    "skipped": 0,
+    "log_sha256": "803724ee0b80208175a6f440ddcf63bc2c7602128bec30f0fe5c131edfc0f25d"
+  },
+  "manto": {
+    "tests": 343,
+    "seconds": 8.405,
+    "status": "passed",
+    "skipped": 0,
+    "log_sha256": "fdeba7b2ca1028f703a55dcb3b1805b8771b1f698b8a0e47b5469e4c4e9660c8"
+  }
+}

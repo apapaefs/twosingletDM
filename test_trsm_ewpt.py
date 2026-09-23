@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
+from trsm_inputs import M1 as SHARED_M1
 
+from trsm_inputs import GF as SM_GF, VEV as SM_VEV
 import argparse
 import csv
 import json
 import math
+import os
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
 # BSMPT is a sibling of the scan repository. The repository itself is nested
 # under TwoSingletDM on the laptop, but lives directly in Projects on manto.
 DEFAULT_EXECUTABLE = (
-    Path(__file__).resolve().parents[1]
-    / "BSMPT/build/macos-armv8-release/bin/CalcTemps"
+    Path(os.environ.get("TRSM_RUNTIME_ROOT",Path(__file__).resolve().parents[1] / "runtime-v2"))
+    / "BSMPT-3.2.1/build/bin/CalcTemps"
 )
 DEFAULT_MINIMA_EXECUTABLE = DEFAULT_EXECUTABLE.with_name("MinimaTracer")
-SM_GF = 1.1663787e-5
-SM_VEV = math.sqrt(1 / math.sqrt(2) / SM_GF)
 TRSM_COLUMNS = ["m1", "m2", "m3", "vs", "a12", "lx", "lphix", "lsx"]
 SUMMARY_BASE_COLUMNS = [
     "status_nlo_stability",
@@ -39,7 +40,7 @@ class TRSMEWPTPoint:
     lx: float
     lphix: float
     lsx: float
-    m1: float = 125.09
+    m1: float = SHARED_M1
     index: int = 1
 
     def as_row(self):
@@ -73,6 +74,7 @@ class EWPTConfig:
     w1_threshold: float = 5.0
     wx_threshold: float = 1.0
     ws_threshold: float = 1.0
+    timeout_seconds: float = 900.0
 
 
 @dataclass(frozen=True)
@@ -89,6 +91,7 @@ class EWPTResult:
     minima_returncode: int | None = None
     minima_stdout: str = ""
     minima_stderr: str = ""
+    equilibrium_error: str | None = None
     minima_analysis: object | None = None
     plot_paths: tuple = ()
 
@@ -202,10 +205,16 @@ class MinimaTracerAnalysis:
     global_branch: list
     global_phase_path: list
     ew_step_index: int | None
+    equilibrium_status: str = "legacy_interpolated_unverified"
+    crossings: list = field(default_factory=list)
+    potential_samples: list = field(default_factory=list)
 
     def to_dict(self):
         return {
             "phase_traces": [trace.to_dict() for trace in self.phase_traces],
+            "equilibrium_status": self.equilibrium_status,
+            "crossings": self.crossings,
+            "potential_samples": self.potential_samples,
             "temperature_grid": self.temperature_grid,
             "global_branch": [point.to_dict() for point in self.global_branch],
             "global_phase_path": self.global_phase_path,
@@ -214,7 +223,7 @@ class MinimaTracerAnalysis:
 
 
 def format_value(value):
-    return str(value)
+    return format(value, ".17g") if isinstance(value, float) else str(value)
 
 
 def write_trsm_input(path, point):
@@ -346,7 +355,7 @@ def calculate_fopt_strengths(row):
                 true_vev[component] = true_value
             else:
                 delta_vev = {
-                    component: true_vev[component] - false_vev[component]
+                    component: abs(true_vev[component]) - abs(false_vev[component])
                     for component in ("w1", "wx", "ws")
                 }
                 ew_jump = abs(delta_vev["w1"])
@@ -731,21 +740,40 @@ def run_trsm_ewpt(
     write_trsm_input(input_path, point)
 
     minima_command = build_minimatracer_command(config, input_path, minima_output_prefix)
-    minima_completed = runner(
-        minima_command,
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=run_dir,
-    )
-    phase_traces = parse_minimatracer_output(minima_output_path)
+    limits={"timeout":config.timeout_seconds} if runner is subprocess.run else {}
+    def execute(command):
+        try:
+            return runner(command, check=False, capture_output=True, text=True, cwd=run_dir, **limits)
+        except subprocess.TimeoutExpired as error:
+            return subprocess.CompletedProcess(command, 124, "", f"timeout after {error.timeout:g} seconds")
+        except OSError as error:
+            return subprocess.CompletedProcess(command, 127, "", str(error))
+
+    minima_completed = execute(minima_command)
+    phase_traces = parse_minimatracer_output(minima_output_path) if minima_completed.returncode == 0 and minima_output_path.is_file() else []
     thresholds = PhaseClassificationThresholds(
         sym_threshold=config.sym_threshold,
         w1_threshold=config.w1_threshold,
         wx_threshold=config.wx_threshold,
         ws_threshold=config.ws_threshold,
     )
-    minima_analysis = analyze_minimatracer_phases(phase_traces, thresholds)
+    from ewpt_equilibrium import PhaseProbe, refine_equilibrium
+    helper = Path(config.executable).with_name("PhaseProbe")
+    equilibrium_error = None
+    if runner is subprocess.run:
+        # A failed equilibrium diagnostic must not erase independent CalcTemps evidence.
+        minima_analysis = MinimaTracerAnalysis(phase_traces, [], [], [], None,
+                                               equilibrium_status="unassessed")
+        if phase_traces:
+            try:
+                if not helper.is_file():
+                    raise RuntimeError(f"v2 common-temperature helper is missing: {helper}")
+                with PhaseProbe(helper, input_path, run_dir / "phase_probe.log") as probe:
+                    minima_analysis = refine_equilibrium(phase_traces, thresholds, probe)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+                equilibrium_error = str(error)
+    else:
+        minima_analysis = analyze_minimatracer_phases(phase_traces, thresholds)
     plot_paths = ()
     if config.plot_phases:
         plot_base = config.plot_output
@@ -763,14 +791,8 @@ def run_trsm_ewpt(
         )
 
     command = build_calctemps_command(config, input_path, output_path)
-    completed = runner(
-        command,
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=run_dir,
-    )
-    rows = parse_calctemps_output(output_path)
+    completed = execute(command)
+    rows = parse_calctemps_output(output_path) if completed.returncode == 0 and output_path.is_file() else []
 
     if temporary_directory is not None:
         temporary_directory.cleanup()
@@ -788,6 +810,7 @@ def run_trsm_ewpt(
         minima_returncode=minima_completed.returncode,
         minima_stdout=minima_completed.stdout,
         minima_stderr=minima_completed.stderr,
+        equilibrium_error=equilibrium_error,
         minima_analysis=minima_analysis,
         plot_paths=tuple(plot_paths),
     )
@@ -801,7 +824,7 @@ def run_vxzero_scan_point(
     lX,
     lPhiX,
     lSX,
-    m1=125.09,
+    m1=SHARED_M1,
     **kwargs,
 ):
     point = TRSMEWPTPoint(
@@ -866,9 +889,13 @@ def path_to_string(path):
 
 
 def result_to_json(result):
+    from trsm_inputs import json_safe
     row = first_row(result)
-    return {
+    return json_safe({
         "calctemps": row,
+        "execution": {"calctemps_returncode":result.returncode,"minimatracer_returncode":result.minima_returncode,
+                      "calctemps_stderr":result.stderr,"minimatracer_stderr":result.minima_stderr,
+                      "equilibrium_error":result.equilibrium_error},
         "transition_strengths": [
             strength.to_dict() for strength in calculate_fopt_strengths(row)
         ],
@@ -887,14 +914,14 @@ def result_to_json(result):
             if result.minima_analysis is not None
             else None
         ),
-    }
+    })
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run BSMPT CalcTemps for one TRSM EWPT point and parse the TSV output."
     )
-    parser.add_argument("--m1", type=float, default=125.09)
+    parser.add_argument("--m1", type=float, default=SHARED_M1)
     parser.add_argument("--m2", type=float, required=True)
     parser.add_argument("--m3", type=float, required=True)
     parser.add_argument("--vs", type=float, required=True)

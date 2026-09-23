@@ -1,0 +1,127 @@
+{
+  "schema": "trsm_si_upper_limit_v1",
+  "label": "lz-ws2024-observed-v2",
+  "source": "https://doi.org/10.17182/hepdata.155182.v2/t1",
+  "confidence_level": 0.9,
+  "interaction": "elastic_isoscalar_si",
+  "limit_kind": "observed_upper",
+  "cross_section": "per_nucleon",
+  "cross_section_unit": "cm2",
+  "provenance": {
+    "publication": "https://arxiv.org/abs/2410.17036v3",
+    "table": "SI cross section",
+    "column": "limit",
+    "power_constraint": "published observed power-constrained limit; not limit_unconstr or median",
+    "original_yaml_sha256": "cdcb151339937e9bb1e27fe858359e3c4eb5f14ae4ff82c8538eaba1a8d5a870",
+    "original_yaml": "hepdata-si-v2.yaml",
+    "license": "CC0",
+    "retrieved": "2026-09-23",
+    "units_verified_against": "Fig. 5 and 40 GeV minimum of arXiv:2410.17036v3"
+  },
+  "points": [
+    {
+      "mass_GeV": 9.0,
+      "upper_limit": 9.797484060822151e-47
+    },
+    {
+      "mass_GeV": 11.0,
+      "upper_limit": 2.6404553011944104e-47
+    },
+    {
+      "mass_GeV": 13.0,
+      "upper_limit": 1.2143606153767551e-47
+    },
+    {
+      "mass_GeV": 16.0,
+      "upper_limit": 5.856844288044662e-48
+    },
+    {
+      "mass_GeV": 17.0,
+      "upper_limit": 5.045161843317137e-48
+    },
+    {
+      "mass_GeV": 19.0,
+      "upper_limit": 3.919409267394542e-48
+    },
+    {
+      "mass_GeV": 21.0,
+      "upper_limit": 3.264671412324803e-48
+    },
+    {
+      "mass_GeV": 23.0,
+      "upper_limit": 2.910809973414534e-48
+    },
+    {
+      "mass_GeV": 26.0,
+      "upper_limit": 2.5810717410182406e-48
+    },
+    {
+      "mass_GeV": 29.0,
+      "upper_limit": 2.4277055125156674e-48
+    },
+    {
+      "mass_GeV": 32.0,
+      "upper_limit": 2.2931217929082963e-48
+    },
+    {
+      "mass_GeV": 36.0,
+      "upper_limit": 2.2122904331621182e-48
+    },
+    {
+      "mass_GeV": 40.0,
+      "upper_limit": 2.1816833824484827e-48
+    },
+    {
+      "mass_GeV": 43.0,
+      "upper_limit": 2.217871458662707e-48
+    },
+    {
+      "mass_GeV": 46.0,
+      "upper_limit": 2.2681993499922688e-48
+    },
+    {
+      "mass_GeV": 65.0,
+      "upper_limit": 2.546041480288214e-48
+    },
+    {
+      "mass_GeV": 91.0,
+      "upper_limit": 3.214860921122965e-48
+    },
+    {
+      "mass_GeV": 129.0,
+      "upper_limit": 4.208919881771564e-48
+    },
+    {
+      "mass_GeV": 182.0,
+      "upper_limit": 5.533572054224652e-48
+    },
+    {
+      "mass_GeV": 256.0,
+      "upper_limit": 8.153750896244134e-48
+    },
+    {
+      "mass_GeV": 361.0,
+      "upper_limit": 1.0969733548583377e-47
+    },
+    {
+      "mass_GeV": 508.0,
+      "upper_limit": 1.546307933183269e-47
+    },
+    {
+      "mass_GeV": 1008.0,
+      "upper_limit": 3.056000501431157e-47
+    },
+    {
+      "mass_GeV": 2000.0,
+      "upper_limit": 5.732895978980354e-47
+    },
+    {
+      "mass_GeV": 5000.0,
+      "upper_limit": 1.4448421055253768e-46
+    },
+    {
+      "mass_GeV": 10000.0,
+      "upper_limit": 2.93003225261514e-46
+    }
+  ]
+}

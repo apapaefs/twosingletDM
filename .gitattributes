@@ -1,0 +1,2 @@
+# Trailing TSV separators preserve unavailable final columns.
+*.tsv whitespace=-blank-at-eol

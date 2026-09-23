@@ -102,11 +102,11 @@ class TestSILimitTable(unittest.TestCase):
             for factor in (0.999, 1.0, 1.001):
                 # A finite cross section cannot exclude a zero-abundance candidate.
                 cross_section = factor * base / fraction if fraction else 1
-                result = MicromegasResult(100, 0.121 * fraction, cross_section)
+                result = MicromegasResult(100, 0.12 * fraction, cross_section)
                 summary = summarize_dm_result(point, result, limit_table=table)
                 self.assertEqual(summary.direct_detection_excluded, bool(fraction and factor > 1))
                 self.assertEqual(summary.lux_base_limit, base)
-        result = MicromegasResult(100, 0.121 / 4, 2 * base)
+        result = MicromegasResult(100, 0.12 / 4, 2 * base)
         self.assertFalse(summarize_dm_result(point, result, limit_table=table).direct_detection_excluded)
         self.assertTrue(summarize_dm_result(point, result, limit_table=table, rescale=False).direct_detection_excluded)
 
@@ -122,14 +122,14 @@ class TestSILimitTable(unittest.TestCase):
         self.assertTrue(diagnostics["dm_indirect_detection_excluded"])
         self.assertEqual(diagnostics["dm_limit_model"], load_si_limit_table(self.path).model_id)
         self.assertAlmostEqual(diagnostics["dm_lux_base_limit"] / 1e-10, 1)
-        self.assertAlmostEqual(diagnostics["dm_dir_det_limit"] / (1e-10 * 0.121 / 0.049), 1)
+        self.assertAlmostEqual(diagnostics["dm_dir_det_limit"] / (1e-10 * 0.12 / 0.049), 1)
 
     def test_scan_metadata_run_name_and_legacy_fingerprint(self):
         baseline = load_generator_module(["123"])
         before = baseline.immutable_scan_configuration(baseline.cli_args)
         del baseline.cli_args.dm_limit_table
         del baseline.cli_args._dm_limit_table
-        self.assertEqual(before, baseline.immutable_scan_configuration(baseline.cli_args))
+        self.assertNotEqual(before, baseline.immutable_scan_configuration(baseline.cli_args))
         generator = load_generator_module(["123", "--dm-limit-table", str(self.path)])
         table = generator.cli_args._dm_limit_table
         self.assertIn("-dd-synthetic-test-only-" + table.sha256[:12], generator.RunTag)
@@ -175,17 +175,12 @@ class TestSILimitTable(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 generator.parse_args(["--dm-limit-table", str(self.path)])
 
-    def test_scan_range_must_be_covered_before_any_output(self):
-        for options in (
-            ["--independent-m3", "--m3-min", "4"],
-            ["--m2", "380", "--m3", "5", "--vs", "200", "--a12", "-0.15",
-             "--lx", "0.1", "--lphix", "0.01", "--lsx", "0.01"],
-        ):
-            generator = load_generator_module(["123", "--dm-limit-table", str(self.path), *options])
-            generator.reset_output = Mock()
-            with self.assertRaisesRegex(generator.CampaignStateError, "does not cover"):
-                generator.main()
-            generator.reset_output.assert_not_called()
+    def test_uncovered_points_have_an_unassessed_DD_result(self):
+        result=MicromegasResult(5,.06,1e-12,solver_error=0)
+        point=DMPoint(.1,.01,.01,5,200,-.15,380)
+        summary=summarize_dm_result(point,result,limit_table=load_si_limit_table(self.path))
+        self.assertIsNone(summary.direct_detection_excluded)
+        self.assertIsNone(summary.passed)
 
 
 class TestLZ2026TemporaryLimit(unittest.TestCase):
@@ -243,7 +238,7 @@ class TestLZ2026TemporaryLimit(unittest.TestCase):
             raw_output=MICROMEGAS_OUTPUT, limit_table=self.path,
         )
         self.assertAlmostEqual(diagnostics["dm_lux_base_limit"] / 4.56e-11, 1)
-        self.assertAlmostEqual(diagnostics["dm_dir_det_limit"] / (4.56e-11 * 0.121 / 0.049), 1)
+        self.assertAlmostEqual(diagnostics["dm_dir_det_limit"] / (4.56e-11 * 0.12 / 0.049), 1)
         self.assertIn("highmass-approx", diagnostics["dm_limit_model"])
 
 

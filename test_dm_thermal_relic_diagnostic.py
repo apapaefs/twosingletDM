@@ -71,9 +71,7 @@ class TestThermalRelicDiagnostic(unittest.TestCase):
         self.assertIsNone(missing_tf["dm_resonance_h2_abs_gap_over_Tf"])
 
     def test_archived_point_223615_is_stable_on_equilibrium_branch(self):
-        archive = Path(__file__).resolve().parent / "plots/seed66666_xbroken_phases/sources/point_223615/ewpt_result.json"
-        if not archive.is_file():
-            self.skipTest("archived point 223615 is unavailable")
+        archive = Path(__file__).resolve().parent / "benchmarks/v2/point_223615/legacy-thermal-history.json"
         payload = json.loads(archive.read_text(encoding="utf-8"))
         result = thermal_vev_updates(payload, 23.51 / 31.2)
         self.assertTrue(math.isclose(result["dm_relic_thermal_ew_vev_Tf_over_T0"], 1, rel_tol=1e-5))
