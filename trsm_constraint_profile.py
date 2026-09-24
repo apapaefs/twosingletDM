@@ -69,7 +69,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
         "trsm_micromegas", "trsm_cmb", "trsm_scan_campaign", "trsm_kstoalphas", "scan_output",
         "ewpt_assessment", "ewpt_entry_criterion", "ewpt_equilibrium", "ewpt_x_history",
         "dm_thermal_relic_diagnostic", "reevaluate_trsm_dm_higgs", "reprocess_trsm_ewpt",
-        "run_trsm_seed_campaign", "mg5_process_runner", "generate_mg5_trsm_xsecs")
+        "run_trsm_seed_campaign", "trsm_parallel", "mg5_process_runner", "generate_mg5_trsm_xsecs")
     paths = [root/(name+".py") for name in source_names] + list((root/"DM/models/h4GOn").glob("*.mdl"))
     paths += [root/"DM/main.c", root/"DM/trsm_loop.c", root/"DM/models/lanhep_mdl/TRSM_mixed.mdl"]
     paths += list((root/"config").glob("*.json")) + list((root/"DM/data").rglob("*.json"))
@@ -92,6 +92,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
                 "runtime_build_manifest_sha256": sha256(Path(micromegas_executable).resolve().parents[2]/"runtime-manifest.json") if len(Path(micromegas_executable).resolve().parents)>2 else None,
                 "python_packages": {name:package_version(name) for name in ("HiggsTools","numpy","scipy")},
                 "virtual_WZ_decays": "TRSM_LEGACY_VIRTUAL_OFF" not in os.environ,
+                "highs_threads": os.environ.get("TRSM_HIGHS_THREADS"),
                 "datasets": {name: {"commit":git_revision(root.parent/name),"tree_sha256":dataset_digest(root.parent/name)} for name in ("hbdataset", "hsdataset")},
                 "experimental_prescriptions": {
                     "HiggsSignals":"pipeline SM reference, delta chi2 < 4; heuristic fixed threshold",

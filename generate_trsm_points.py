@@ -61,6 +61,7 @@ RESUME_PATH_OPTIONS = {
     "ewpt_plot_output",
 }
 RESUME_RUNTIME_DESTS = {
+    "preflight",
     "resume_from",
     "checkpoint_every",
     "nrandom",
@@ -546,6 +547,10 @@ def parse_args(argv=None):
         help="BSMPT multistepmode passed to MinimaTracer and CalcTemps.",
     )
     parser.add_argument(
+        "--ewpt-multithreading", action=argparse.BooleanOptionalAction, default=True,
+        help="Enable BSMPT internal threads; parallel campaigns disable these.",
+    )
+    parser.add_argument(
         "--ewpt-workdir",
         type=Path,
         help="Base directory for EWPT outputs; each viable point gets a point_XXXXXX subdirectory.",
@@ -576,6 +581,8 @@ def parse_args(argv=None):
     parser.add_argument("--ewpt-wx-threshold", type=float, default=1.0)
     parser.add_argument("--ewpt-ws-threshold", type=float, default=1.0)
     parser.add_argument("--output-manifest",type=Path,help="Write the actual output paths for campaign aggregation")
+    parser.add_argument("--preflight", action="store_true",
+                        help="Validate the runtime and print a receipt without generating points.")
     args = parser.parse_args(raw_argv)
     args = _hydrate_resume_args(parser, args, raw_argv)
     if args.planck_cmb is None:
@@ -1349,6 +1356,7 @@ def run_ewpt_if_requested(
         lsx=point_info["lSX"],
     )
     config_kwargs = {
+        "use_multithreading": getattr(args, "ewpt_multithreading", True),
         "multistepmode": args.ewpt_multistepmode,
         "thigh": args.ewpt_thigh,
         "plot_phases": args.ewpt_plot_phases,
@@ -2289,10 +2297,11 @@ def _resolved_path_value(value):
 
 
 def scan_physics_manifest(args):
-    from test_trsm_ewpt import DEFAULT_EXECUTABLE, DEFAULT_MINIMA_EXECUTABLE
+    from test_trsm_ewpt import DEFAULT_EXECUTABLE
+    calctemps = getattr(args, "ewpt_executable", None) or DEFAULT_EXECUTABLE
     return physics_manifest(micromegas_configuration(args)["executable"],
-        str(getattr(args, "ewpt_executable", None) or DEFAULT_EXECUTABLE),
-        str(getattr(args, "ewpt_minima_executable", None) or DEFAULT_MINIMA_EXECUTABLE))
+        str(calctemps),
+        str(getattr(args, "ewpt_minima_executable", None) or Path(calctemps).with_name("MinimaTracer")))
 
 
 def immutable_scan_configuration(args):
@@ -2916,10 +2925,10 @@ def run_random_vxzero_scan(runtime=None):
             candidate["lSX"],
             runmg5=RunMG5,
             point_index=point_index,
-            return_status=count_evo_thc,
+            return_status=count_evo_thc or runtime is not None,
         )
         drawcounter = point_index
-        if count_evo_thc:
+        if isinstance(evalpoint, dict):
             passcounter = passcounter + evalpoint["viable"]
             if evalpoint["evo_thc"]:
                 evo_thc_counter = evo_thc_counter + 1
@@ -3002,6 +3011,21 @@ def main():
         if saved_cmb != cmb_config:
             raise CampaignStateError("Planck CMB settings differ from the saved campaign")
     print(f"Planck CMB constraint: {'enabled' if cli_args.planck_cmb else 'disabled'}")
+    if getattr(cli_args, "preflight", False):
+        if cli_args.run_ewpt or cli_args.run_ewpt_on_dm_failed:
+            from test_trsm_ewpt import DEFAULT_EXECUTABLE
+            calctemps = cli_args.ewpt_executable or DEFAULT_EXECUTABLE
+            minima = cli_args.ewpt_minima_executable or Path(calctemps).with_name("MinimaTracer")
+            for path in (calctemps, minima, Path(calctemps).with_name("PhaseProbe")):
+                if not Path(path).is_file() or not os.access(path, os.X_OK):
+                    raise CampaignStateError(f"Missing or non-executable BSMPT program: {path}")
+        # HiggsTools has already loaded both datasets during module initialization.
+        from trsm_parallel import THREAD_ENVIRONMENT
+        receipt = {"physics_manifest": scan_physics_manifest(cli_args),
+                   "thread_environment": {key: os.environ.get(key) for key in THREAD_ENVIRONMENT},
+                   "ewpt_multithreading": cli_args.ewpt_multithreading}
+        print("TRSM_PREFLIGHT " + json.dumps(receipt, sort_keys=True))
+        return
     if cli_args.resume_from is not None:
         if has_explicit_point(cli_args):
             raise CampaignStateError("Explicit-point evaluations cannot be resumed")
@@ -3025,7 +3049,7 @@ def main():
     with CampaignLock(scan_path, ORIGINAL_COMMAND_LINE) as campaign_lock:
         if campaign_lock.archived_stale_lock is not None:
             print("Archived stale campaign lock", campaign_lock.archived_stale_lock)
-        if cli_args.resume_from is None:
+        if cli_args.resume_from is None and not getattr(cli_args, "output_manifest", None):
             running = _running_legacy_generators(cli_args.seed)
             if running:
                 details = "; ".join(

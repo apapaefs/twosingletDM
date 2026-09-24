@@ -7,9 +7,12 @@ These screens never determine whether an exploratory point is retained.
 
 import itertools
 import math
+import os
+import warnings
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.optimize import bisect, linprog
+from scipy.optimize import OptimizeWarning
 from trsm_inputs import M1, VEV, RG_BOUNDARY, nullable_and
 from test_trsm_theory_constraints import _copositive_quartic_matrix, _unitarity_eigenvalues
 from test_trsm_evolution import rhs
@@ -21,6 +24,21 @@ THEORY_COLUMNS = (
     "rg_first_bfb_failure_GeV", "rg_first_unitarity_failure_GeV",
     "rg_reached_scale_GeV", "theory_strict_subset",
 )
+
+
+def _vacuum_linprog(*args, **kwargs):
+    """Cap HiGHS' own thread pool when running inside a scan worker."""
+    threads = os.environ.get("TRSM_HIGHS_THREADS")
+    if threads is None:
+        return linprog(*args, **kwargs)
+    count = int(threads)
+    if count < 1:
+        raise ValueError("TRSM_HIGHS_THREADS must be positive")
+    with warnings.catch_warnings():
+        # SciPy forwards these supported HiGHS options but warns about its API.
+        warnings.filterwarnings("ignore", message="Unrecognized options detected:.*threads.*",
+                                category=OptimizeWarning)
+        return linprog(*args, options={"threads": count, "parallel": False}, **kwargs)
 
 
 def potential_parameters(vs, m2, m3, angle, lx, lphix, lsx):
@@ -64,11 +82,11 @@ def assess_vacuum(vs, m2, m3, angle, lx, lphix, lsx):
                 if np.linalg.matrix_rank(sub, tol=1e-12*max(1.0, np.linalg.norm(sub))) < size:
                     # A nonnegative quartic-null direction with negative mass
                     # term is unbounded even though quartic copositivity passes.
-                    lp = linprog(mu[ids], A_eq=np.vstack([sub, np.ones(size)]),
+                    lp = _vacuum_linprog(mu[ids], A_eq=np.vstack([sub, np.ones(size)]),
                                  b_eq=np.r_[np.zeros(size), 1.0], bounds=(0, None), method="highs")
                     if lp.success and lp.fun < -1e-9*max(1.0, np.linalg.norm(mu)):
                         unbounded_flat = True
-                    feasible = linprog(np.zeros(size), A_eq=sub, b_eq=b,
+                    feasible = _vacuum_linprog(np.zeros(size), A_eq=sub, b_eq=b,
                                        bounds=(0, None), method="highs")
                     if not feasible.success:
                         continue

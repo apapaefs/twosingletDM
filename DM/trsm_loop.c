@@ -1,6 +1,7 @@
 /* Single-scalar SM loops at one loop, GF electroweak input scheme.
  * q-dependent MS effective charm/bottom/strange masses, pole top and W.
- * No heavy-top QCD K factor and no multi-Higgs-loop approximation.
+ * This helper has no heavy-top QCD K factor or multi-Higgs-loop approximation.
+ * The separate historical two-Higgs contacts are defined in the model tables.
  * The on-shell absolute coefficient is sufficient for a partial width;
  * annihilation keeps the complex coefficient and coherent propagators.
  */

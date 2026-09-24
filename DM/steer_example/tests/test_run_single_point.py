@@ -172,6 +172,8 @@ class ExampleTests(unittest.TestCase):
         self.assertEqual(len((self.root / 'out/cmbexcl.dat').read_text().split()), 18)
         counts = json.loads((self.root / 'out/counts.json').read_text())
         self.assertEqual(counts['cmb_caughtit'], 1)
+        self.assertEqual(counts['all_indirpass'], 1)
+        self.assertEqual(counts['allall'], 0)
         self.assertEqual(counts['allall'] + counts['dmexcl'] + counts['dmunassessed'], 1)
         with self.assertRaisesRegex(ValueError, 'already exists'):
             self.evaluate()

@@ -14,8 +14,8 @@ import sys
 import tempfile
 from dataclasses import asdict, dataclass
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
+from _bootstrap import repository_root
+REPO_ROOT = repository_root()
 
 from test_trsm_DM import DMPoint, test_dm, write_micromegas_card
 from trsm_cmb import add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
@@ -115,6 +115,8 @@ def add_physics_arguments(parser):
     parser.add_argument('--micromegas-main', type=Path, help='Path to the rebuilt v2 TRSM/main')
     add_cmb_arguments(parser)
     parser.add_argument('--no-rescale', action='store_true', help='Use unit DM abundance for all signals')
+    parser.add_argument('--relic-upper-limit', type=float, default=RELIC_UPPER_LIMIT,
+                        help='Relic-density upper cut (default: %(default)s); abundance reference remains 0.12')
     parser.add_argument('--limit-model', default=DEFAULT_LIMIT_MODEL,
                         choices=(DEFAULT_LIMIT_MODEL, 'legacy-output', 'lz2025-source'))
     parser.add_argument('--limit-table', type=Path, help='Explicit normalized SI table (default: LZ WS2024)')
@@ -127,11 +129,14 @@ def configure(args, *, replay=False):
         args.planck_cmb = args.micromegas_version == '7.1.4'
     if args.timeout <= 0 or not math.isfinite(args.timeout):
         raise ValueError('--timeout must be finite and positive')
+    if args.relic_upper_limit <= 0 or not math.isfinite(args.relic_upper_limit):
+        raise ValueError('--relic-upper-limit must be finite and positive')
     if args.limit_table and args.limit_model != DEFAULT_LIMIT_MODEL:
         raise ValueError('Use either --limit-table or a historical --limit-model')
     args.si_table = (load_si_limit_table(args.limit_table or DEFAULT_LIMIT_TABLE)
                      if args.limit_model == DEFAULT_LIMIT_MODEL else None)
-    args.micromegas_main = (args.micromegas_main or default_micromegas_main(args.micromegas_version)).expanduser().resolve()
+    args.micromegas_main = Path(args.micromegas_main or os.environ.get('MICROMEGAS_MAIN') or
+                               default_micromegas_main(args.micromegas_version)).expanduser().resolve()
     args.capabilities = None
     if not replay:
         args.capabilities = require_v2_capability(args.micromegas_main)
@@ -149,7 +154,8 @@ def metadata(args, *, replay=False):
                               capture_output=True, text=True)
     sources = ['test_trsm_DM.py', 'trsm_cmb.py', 'trsm_direct_detection.py',
                'trsm_inputs.py', 'trsm_micromegas.py', 'config/sm-inputs-v2.json',
-               'DM/steer_example/run_single_point.py', 'DM/steer_example/run_scan.py']
+               'DM/steer_example/run_single_point.py', 'DM/steer_example/run_scan.py',
+               'DM/steer_example/cutflow.py']
     return {
         'schema': SCHEMA, 'physics_version': PHYSICS_VERSION,
         'source_commit': revision.stdout.strip() if revision.returncode == 0 else None,
@@ -159,7 +165,7 @@ def metadata(args, *, replay=False):
         'executable': None if replay else str(args.micromegas_main),
         'executable_sha256': None if replay else sha256(args.micromegas_main),
         'driver_capabilities': args.capabilities, 'sm_inputs': sm_inputs(),
-        'relic_upper_limit': RELIC_UPPER_LIMIT, 'abundance_reference': ABUNDANCE_REFERENCE,
+        'relic_upper_limit': args.relic_upper_limit, 'abundance_reference': ABUNDANCE_REFERENCE,
         'rescale': not args.no_rescale, 'planck_cmb': {
             **cmb_configuration(args), 'rescale': not args.no_rescale,
             'abundance_rescaling': '1' if args.no_rescale else 'min(1, Omega_h2 / 0.12)^2'},
@@ -258,6 +264,7 @@ def evaluate_point(point, args, output_dir, *, runner=None, raw_output=None, raw
     (output_dir / f'ERR_mO_{stem}').write_text(stderr)
     passed, _info, diagnostics = test_dm(**asdict(point.dm_point()), raw_output=raw_output,
                                       limit_model=args.limit_model, limit_table=args.si_table,
+                                      relic_upper_limit=args.relic_upper_limit,
                                       rescale=not args.no_rescale, planck_cmb=args.planck_cmb)
     if not args.planck_cmb:
         diagnostics.update(cmb_diagnostics(enabled=False))
@@ -276,6 +283,13 @@ def evaluate_point(point, args, output_dir, *, runner=None, raw_output=None, raw
                              'raw_output_sha256': hashlib.sha256(raw_output.encode()).hexdigest()})
     write_tsv(output_dir / f'result_{stem}.tsv', [row])
     (output_dir / f'DM_data_{stem}').write_text(legacy_line(row))
+    # Keep the directory layout consumed by the original shell/plot workflow.
+    for subdir, filename, content in (
+        ('OUT_mO', f'OUT_mO_{stem}', raw_output),
+        ('DM_data', f'DM_data_{stem}', legacy_line(row)),
+    ):
+        (output_dir / subdir).mkdir(exist_ok=True)
+        (output_dir / subdir / filename).write_text(content)
     (output_dir / f'scan_result_{stem}.dat').write_text(legacy_line(row, scan=True))
     return row
 
@@ -284,6 +298,9 @@ def print_summary(row):
     def verdict(value):
         return 'unassessed' if value is None else 'excluded' if value else 'pass'
     print(f"Point {row['index']}: Omega={row.get('dm_omega')}  Xf={row.get('dm_xf')}  Tf={row.get('dm_freezeout_temperature_GeV')} GeV")
+    for label, key in (('Relic density', 'relic'), ('Direct detection', 'direct_detection'),
+                       ('Gamma lines', 'indirect_detection')):
+        print(f"  {label}: {verdict(row.get('dm_' + key + '_excluded'))}")
     print(f"  Planck CMB: raw={row.get('dm_cmb_ratio_raw')}  xi={row.get('dm_cmb_abundance_fraction')}  rescaled={row.get('dm_cmb_ratio')}  {verdict(row.get('dm_cmb_excluded')) if row.get('dm_cmb_enabled') else 'disabled'} ({row['dm_cmb_status']})")
     print('  DM:', 'unassessed' if row['dm_passed'] is None else 'pass' if row['dm_passed'] else 'excluded',
           '|', row.get('dm_assessment_reason', ''))

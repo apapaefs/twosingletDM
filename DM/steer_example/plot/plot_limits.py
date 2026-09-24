@@ -3,7 +3,9 @@
 import argparse
 from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _bootstrap import repository_root
+repository_root()
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

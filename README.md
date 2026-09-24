@@ -13,6 +13,11 @@ independent subsets; they do not gate EWPT exploration. Baryogenesis and GW
 candidate flags follow the separate criteria documented there. Older workflow
 examples below retain historical conventions where they differ from v2.
 
+For micrOMEGAs-only work, start with the [DM installation instructions](DM/README.md)
+and [standalone scan/card/plot walkthrough](DM/steer_example/README.md).
+The [model change audit](DM/models/changes-v2.md) explains the loop corrections
+and the roles of `x1` and the retained four-gluon auxiliary fields.
+
 # Instructions:
 
 ## Download MG5_aMC and prepare generated processes
@@ -99,14 +104,14 @@ omitted, the script defaults to 100 random points.
 
 Select the micrOMEGAs backend with `--micromegas-version 7` (7.1.4) or
 `--micromegas-version 6` (6.1.15). The exact version strings also work.
-Existing commands continue to use 6.1.15 by default. For example, on manto:
+New v2 commands default to 7.1.4. For example, from this repository:
 
 ```bash
-cd /Users/apapaefs/Projects/TwoSingletDM
-./trsmdm/bin/python generate_trsm_points.py 123 --nrandom 500 --micromegas-version 7
+python generate_trsm_points.py 123 --nrandom 500 --micromegas-version 7
 ```
 
-Each backend uses `../micromegas_<version>/TRSM/main` relative to the script.
+Each backend uses `../runtime-v2/micromegas_<version>/TRSM/main` relative to the
+repository. Set `TRSM_RUNTIME_ROOT` to select a different runtime parent.
 For another installation, add `--micromegas-main /absolute/path/to/TRSM/main`
 and specify its version with `--micromegas-version`. The executable is checked
 before any scan output is created. The version and resolved executable path
@@ -116,7 +121,7 @@ Custom executable paths add `-customMO`.
 
 New version 7 scans enable the Planck CMB annihilation constraint by default
 and add `-cmb-planck2018` to the filename. Use `--no-planck-cmb` to disable
-it. Version 6 remains the default backend, with CMB disabled; explicit
+it. Version 6 is an explicit comparison backend, with CMB disabled; explicit
 `--planck-cmb` requires a rebuilt, capable driver. The constraint uses the
 built-in low-velocity s-wave approximation and rescales its bound ratio by
 `min(1, Omega_h2 / 0.12)^2`. The existing relic-density upper cut remains
@@ -1197,6 +1202,11 @@ python3 test_trsm_ewpt_runner.py
 ```
 
 ## Run Multi-Seed TRSM Campaigns
+
+For configurable concurrency, evo/thc targets, automatic campaign resume and
+Odysseus launch/pilot commands, use the [parallel campaign guide](docs/parallel-campaigns.md).
+The examples below retain the older basic CLI; `--run-cwd` now selects a parent
+for isolated per-seed directories.
 
 `run_trsm_seed_campaign.py` launches `generate_trsm_points.py` over a contiguous
 seed range, keeps a live per-seed log, aggregates viable point files, and ranks

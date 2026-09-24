@@ -326,7 +326,9 @@ def main():
     output_dir = Path(args.output_dir)
     accepted_file = output_dir / "all_dirpass.dat"
     if args.mark_indirect_fail:
-        accepted_file = output_dir / "allall.dat"
+        accepted_file = output_dir / "all_indirpass.dat"
+        if not accepted_file.is_file():
+            accepted_file = output_dir / "allall.dat"  # historical files predate CMB
     dir_excluded_file = output_dir / "omgpass_dirfail.dat"
     indirect_file = output_dir / "indir_caughtit.dat"
 
@@ -360,11 +362,10 @@ def main():
     #     row for row in indirect_rows if row_key(row) in accepted_keys
     # ]
 
-    if not accepted_rows and not dir_excluded_rows:
-        raise SystemExit(
-            f"No points in {output_dir} satisfy Omega <= {RELIC_MAX}"
-        )
-    accepted_norm = build_normalization(accepted_rows, accepted_file.name)
+    if not accepted_rows and not dir_excluded_rows and not indir_excluded_rows:
+        print(f"Skipping empty exclusion plot in {output_dir}")
+        return
+    accepted_norm = build_normalization(accepted_rows, accepted_file.name) if accepted_rows else None
     dir_excluded_norm = (
         build_normalization(dir_excluded_rows, dir_excluded_file.name)
         if dir_excluded_rows

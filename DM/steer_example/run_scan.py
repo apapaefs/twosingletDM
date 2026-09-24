@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run an oks.dat list or a directory of cards, retaining CMB and failure diagnostics."""
+"""Evaluate an oks.dat list or cards with relic, DD, gamma-line and optional CMB cuts."""
 import argparse
-from contextlib import nullcontext
+from contextlib import nullcontext, redirect_stdout, redirect_stderr
 from pathlib import Path
 import sys
 import subprocess
@@ -9,6 +9,28 @@ import subprocess
 from run_single_point import (NativeRunner, add_physics_arguments, configure, evaluate_point,
                               legacy_line, metadata, print_summary, read_card, read_points,
                               tsv_value, write_json, write_tsv)
+from cutflow import stages
+
+
+class Tee:
+    def __init__(self, terminal, log):
+        self.terminal, self.log = terminal, log
+
+    def write(self, text):
+        self.log.write(text)
+        self.log.flush()
+        return self.terminal.write(text)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+
+def raw_output_path(directory, index):
+    for path in (directory / f'OUT_mO_{index}', directory / 'OUT_mO' / f'OUT_mO_{index}'):
+        if path.is_file():
+            return path
+    raise ValueError(f'Missing raw output for point {index} in {directory}')
 
 
 def aggregate(output, rows):
@@ -35,6 +57,7 @@ def aggregate(output, rows):
         'luxpass': lambda r: passes(r, 'direct_detection'),
         'luxexcl': lambda r: fails(r, 'direct_detection'),
         'all_dirpass': lambda r: passes(r, 'relic') and passes(r, 'direct_detection'),
+        'all_indirpass': lambda r: all(passes(r, name) for name in ('relic', 'direct_detection', 'indirect_detection')),
         'omgpass_dirfail': lambda r: passes(r, 'relic') and fails(r, 'direct_detection'),
         'indirpass': lambda r: passes(r, 'indirect_detection') and r.get('dm_indirect_available'),
         'indirexcl': lambda r: fails(r, 'indirect_detection'),
@@ -52,6 +75,7 @@ def aggregate(output, rows):
         (output / (name + '.dat')).write_text(''.join(legacy_line(r) for r in selected_rows))
         counts[name] = len(selected_rows)
     write_json(output / 'counts.json', {'points': len(rows), **counts})
+    write_json(output / 'cutflow.json', list(stages(rows)))
 
 
 def main(argv=None):
@@ -60,7 +84,8 @@ def main(argv=None):
     group.add_argument('--input', type=Path, help='Eight-column oks.dat')
     group.add_argument('--cards', type=Path, help='Directory of MO_inp<index>.dat cards')
     parser.add_argument('--output-dir', type=Path, required=True, help='New, empty output directory')
-    parser.add_argument('--raw-output-dir', type=Path, help='Replay flat OUT_mO_<index> logs without a backend')
+    parser.add_argument('--raw-output-dir', type=Path, help='Replay flat or historical OUT_mO/ logs without a backend')
+    parser.add_argument('--log-file', type=Path, help='Terminal log (default: <output-dir>/MOrun.log)')
     add_physics_arguments(parser)
     args = parser.parse_args(argv)
     try:
@@ -74,20 +99,22 @@ def main(argv=None):
             raise ValueError('Output directory is not empty; use a new directory')
         if replay:
             for point in points:
-                if not (args.raw_output_dir / f'OUT_mO_{point.index}').is_file():
-                    raise ValueError(f'Missing raw output for point {point.index}')
+                raw_output_path(args.raw_output_dir, point.index)
         args.output_dir.mkdir(parents=True, exist_ok=True)
         write_json(args.output_dir / 'metadata.json', metadata(args, replay=replay))
         rows = []
-        with nullcontext() if replay else NativeRunner(args) as runner:
-            for point in points:
-                raw_path = args.raw_output_dir / f'OUT_mO_{point.index}' if replay else None
-                row = evaluate_point(point, args, args.output_dir, runner=runner,
-                                     raw_output=raw_path.read_text() if replay else None, raw_source=raw_path)
-                rows.append(row)
-                aggregate(args.output_dir, rows)
-                print_summary(row)
-                sys.stdout.flush()
+        log_path = args.log_file or args.output_dir / 'MOrun.log'
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open('a') as log, redirect_stdout(Tee(sys.stdout, log)), redirect_stderr(Tee(sys.stderr, log)):
+            with nullcontext() if replay else NativeRunner(args) as runner:
+                for point in points:
+                    raw_path = raw_output_path(args.raw_output_dir, point.index) if replay else None
+                    row = evaluate_point(point, args, args.output_dir, runner=runner,
+                                         raw_output=raw_path.read_text() if replay else None, raw_source=raw_path)
+                    rows.append(row)
+                    aggregate(args.output_dir, rows)
+                    print_summary(row)
+                    sys.stdout.flush()
         print('Saved:', args.output_dir.resolve() / 'results.tsv')
         return int(any(r.get('dm_calculation_status') != 'success' or
                        (args.planck_cmb and not r['dm_cmb_available']) for r in rows))

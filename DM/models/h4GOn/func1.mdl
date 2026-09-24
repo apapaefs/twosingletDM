@@ -32,6 +32,10 @@ LAA1   |CosT*trsm_loop_abs(Mh, 22)
 LAA2   |SinT*trsm_loop_abs(Mh2, 22)
 LGG1   |CosT*trsm_loop_abs(Mh, 21)
 LGG2   |SinT*trsm_loop_abs(Mh2, 21)
+LAAh   |-cabs(lAAhiggs(Mh, "h1"))
+LGGh   |-cabs(lGGhiggs(Mh, "h1"))
+aQCDh  |alphaQCD(Mh)/acos(-1)
+RQCDh  |sqrt(1+149/12*aQCDh+68.6482*aQCDh^2-212.447*aQCDh^3)
 B00000 |4*CosT^3*LH*MW*SW-2*EE*LS*SinT^3*vevs+2*CosT*LHS*MW*SW*SinT^2-CosT^2*EE*LHS*SinT*vevs
 B00001 |CosT*EE*LHS*vevs-4*LHS*MW*SW*SinT+6*LHS*MW*SW*SinT^3-3*CosT*EE*LHS*SinT^2*vevs+6*CosT*EE*LS*SinT^2*vevs
 B00002 |B00001+12*CosT^2*LH*MW*SW*SinT

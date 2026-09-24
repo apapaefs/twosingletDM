@@ -7,6 +7,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from concurrent.futures import Future
 from pathlib import Path
 
@@ -28,12 +29,17 @@ def write_fake_generator(path):
             import argparse
             import csv
             import json
+            import hashlib
             import sys
             from datetime import date
             from pathlib import Path
 
             parser = argparse.ArgumentParser()
             parser.add_argument("seed", type=int)
+            parser.add_argument("--preflight", action="store_true")
+            parser.add_argument("--no-ewpt-multithreading", action="store_true")
+            parser.add_argument("--checkpoint-every", type=int)
+            parser.add_argument("--nrandom-count-evo-thc", action="store_true")
             parser.add_argument("--output-manifest", type=Path)
             parser.add_argument("--nrandom", type=int)
             parser.add_argument("--sleep", type=float, default=0.0)
@@ -49,6 +55,10 @@ def write_fake_generator(path):
             parser.add_argument("--ewpt-wx-threshold")
             parser.add_argument("--ewpt-ws-threshold")
             args = parser.parse_args()
+
+            if args.preflight:
+                print('TRSM_PREFLIGHT {"fixture": true}')
+                sys.exit(0)
 
             print(f"fake generator seed={args.seed} nrandom={args.nrandom}")
             sys.stdout.flush()
@@ -78,6 +88,17 @@ def write_fake_generator(path):
                 writer.writerows(rows_by_seed.get(args.seed, []))
 
             args.output_manifest.write_text(json.dumps({"outputs":{"main":{"path":str(output_path)}}}))
+            content = output_path.read_bytes()
+            sample = min(len(content), 4096)
+            record = {"path": str(output_path), "size": len(content), "exists": True,
+                      "data_rows": len(rows_by_seed.get(args.seed, [])),
+                      "head_sha256": hashlib.sha256(content[:sample]).hexdigest(),
+                      "tail_sha256": hashlib.sha256(content[-sample:]).hexdigest()}
+            output_path.with_suffix('.checkpoint.json').write_text(json.dumps({
+                "seed": args.seed, "scan_path": str(output_path), "status": "complete",
+                "target": args.nrandom, "count_evo_thc": args.nrandom_count_evo_thc,
+                "draw_count": args.nrandom, "evo_thc_count": args.nrandom,
+                "viable_count": len(rows_by_seed.get(args.seed, [])), "outputs": {"main": record}}))
 
             if args.run_ewpt and args.ewpt_workdir is not None:
                 args.ewpt_workdir.mkdir(parents=True, exist_ok=True)
@@ -263,16 +284,8 @@ class TestTRSMSeedCampaign(unittest.TestCase):
             ["--seed-start", "1", "--nseeds", "2", "--campaign-dir", "campaign", "--jobs", "3"]
         )
 
-        list(
-            campaign.run_seed_jobs(
-                args,
-                [1, 2],
-                run_seed_func=lambda seed, args: campaign.SeedResult(seed=seed, returncode=0),
-                executor_cls=RecordingExecutor,
-            )
-        )
-
-        self.assertEqual(RecordingExecutor.max_workers_seen[-1], 3)
+        with mock.patch('trsm_parallel.available_cpus', return_value=8):
+            self.assertEqual(campaign.effective_jobs(args.jobs, 2), 2)
 
     def test_campaign_runs_fake_generator_and_writes_aggregate_outputs(self):
         campaign = load_module()

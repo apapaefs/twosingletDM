@@ -326,20 +326,43 @@ parameter LAA1=CosT*trsm_loop_abs(Mh,22),
 
 % On-shell decay vertices. Annihilation is replaced by the complex,
 % momentum-dependent amplitude in lib/trsm_loop.c (improveCrossSection).
-% These single-scalar operators do not approximate multi-Higgs loop amplitudes.
+% These coefficients apply only to the single-scalar operators below.
 lterm (LAA1*h1+LAA2*h2)*F**2 where
       F=deriv^mu*A^nu-deriv^nu*A^mu.
 lterm (LGG1*h1+LGG2*h2)*F**2 where
       F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
 
+% Restore the historical two-Higgs effective contacts with their original
+% coefficient prescription. In unitary gauge the subtracted bilinear is h^2/2;
+% it therefore adds no single-Higgs term and does not alter the v2 loop hook.
+% These are the legacy approximation, not a matched two-Higgs loop calculation.
+external_func(lAAhiggs,2).
+external_func(lGGhiggs,2).
+parameter LAAh=-cabs(lAAhiggs(Mh,str(h1))),
+          LGGh=-cabs(lGGhiggs(Mh,str(h1))),
+          aQCDh=alphaQCD(Mh)/acos(-1),
+          RQCDh=sqrt(1+149/12*aQCDh+68.6482*aQCDh**2-212.447*aQCDh**3).
+lterm LAAh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
+      F=deriv^mu*A^nu-deriv^nu*A^mu.
+lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
+      F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
+
 do_if h4G==On.
 parameter Maux=1.
 vector G1t/G1T: (G1T, mass Maux, color c8, aux ('!*')).
+vector G2t/G2T: (G2T, mass Maux, color c8, aux ('!*')).
+scalar x1/X1: (x1, mass Maux, aux ("!*")).
 lterm (LGG1*h1+LGG2*h2)*(F12*F11+F11*F12) where
       F11=deriv^mu*G^nu^a-deriv^nu*G^mu^a,
       F12=i*GG*f_SU3^a^b^c*G^mu^b*G^nu^c.
 lterm (LGG1*h1+LGG2*h2)*(GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1t.t'^m^n^c).
 lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1T.t'^m^n^c.
+
+% Historical two-Higgs/four-gluon contact, split into CalcHEP-sized vertices.
+% The x1/X1 and G2t/G2T propagators are constant, not physical resonances.
+lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*x1*Maux.
+lterm (GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2t.t'^m^n^c)*(X1*Maux).
+lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2T.t'^m^n^c.
 
 end_if. 
 

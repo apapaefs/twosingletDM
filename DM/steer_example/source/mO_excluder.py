@@ -2,8 +2,8 @@
 """Compatibility entry point: assess complete raw logs using the v2 provider.
 
 Example: mO_excluder.py --card MO_inp1.dat --micromegas-output OUT_mO_1
-The old positional (index, mass, Omega, SI, ...) interface cannot carry solver
-or CMB evidence and has been retired. Use complete logs instead.
+The original positional interface retains its historical relic/DD/gamma policy.
+Use complete logs for v2 assessment including solver status and optional CMB.
 """
 from pathlib import Path
 import sys
@@ -18,6 +18,9 @@ if __name__ == '__main__':
         kind = 'direct' if sys.argv[1] == '--plot-dirdet-limits' else 'indirect'
         sys.exit(plot_limits([kind, '--output-dir', output]))
     if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
-        sys.exit('Use --card <card> --micromegas-output <raw log> --output-dir <new directory>; '
-                 'positional summaries omit the Planck CMB and solver results.')
+        from legacy_excluder import main as legacy_main
+        try:
+            sys.exit(legacy_main(sys.argv[1:]))
+        except (OSError, ValueError) as error:
+            sys.exit(str(error))
     sys.exit(main())

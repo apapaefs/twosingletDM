@@ -33,6 +33,7 @@ E    |e    |Z    |     |EE/(4*CW*SW)                                      |4*SW^
 E    |ne   |W-   |     |EE*Sqrt2/(4*SW)                                   |G(m3)*(1-G5)
 G    |G    |G    |     |GG                                                |m2.p3*m1.m3-m1.p3*m2.m3+m3.p1*m1.m2-m2.p1*m1.m3-m3.p2*m1.m2+m1.p2*m2.m3
 G    |G    |G1T.t|     |-GG/2                                             |m1.m3*m2.M3-m1.M3*m2.m3
+G    |G    |G2T.t|     |-GG/2                                             |m1.m3*m2.M3-m1.M3*m2.m3
 G    |G    |h1   |     |-4*LGG1                                           |p1.p2*m1.m2-m2.p1*m1.p2
 G    |G    |h2   |     |-4*LGG2                                           |p1.p2*m1.m2-m2.p1*m1.p2
 G.C  |G.c  |G    |     |GG                                                |m3.p2
@@ -83,17 +84,27 @@ Z    |Z    |h1   |     |CosT*EE*MW/(CW^2*SW)                              |m1.m2
 Z    |Z    |h2   |     |EE*MW*SinT/(CW^2*SW)                              |m1.m2
 h1   |h1   |h1   |     |-3/EE                                             |B00000
 h1   |h1   |h2   |     |-1/EE                                             |B00002
+h1   |h1   |x1   |     |CosT^2*EE*LGGh*Maux*RQCDh/(2*MW*SW)               |1
 h1   |h2   |h2   |     |-1/EE                                             |B00004
+h1   |h2   |x1   |     |EE*LGGh*Maux*RQCDh*SinTT/(4*MW*SW)                |1
 h1   |~X   |~X   |     |1/EE                                              |-B00005
 h2   |h2   |h2   |     |-3/EE                                             |B00006
+h2   |h2   |x1   |     |EE*LGGh*Maux*RQCDh*SinT^2/(2*MW*SW)               |1
 h2   |~X   |~X   |     |-1/EE                                             |B00007
 A    |A    |W+   |W-   |-EE^2                                             |2*m1.m2*m3.m4-m1.m3*m2.m4-m1.m4*m2.m3
+A    |A    |h1   |h1   |-2*CosT^2*EE*LAAh/(MW*SW)                         |p1.p2*m1.m2-m2.p1*m1.p2
+A    |A    |h1   |h2   |-EE*LAAh*SinTT/(MW*SW)                            |p1.p2*m1.m2-m2.p1*m1.p2
+A    |A    |h2   |h2   |-2*EE*LAAh*SinT^2/(MW*SW)                         |p1.p2*m1.m2-m2.p1*m1.p2
 A    |W+   |W-   |Z    |-CW*EE^2/SW                                       |2*m1.m4*m2.m3-m1.m2*m3.m4-m1.m3*m2.m4
 G    |G    |G.t  |     |GG*Sqrt2/2                                        |m1.m3*m2.M3-m1.M3*m2.m3
 G    |G    |G    |h1   |-4*GG*LGG1                                        |m3.p1*m1.m2-m2.p1*m1.m3+m2.p3*m1.m3-m1.p3*m2.m3-m3.p2*m1.m2+m1.p2*m2.m3
 G    |G    |G    |h2   |-4*GG*LGG2                                        |m3.p1*m1.m2-m2.p1*m1.m3+m2.p3*m1.m3-m1.p3*m2.m3-m3.p2*m1.m2+m1.p2*m2.m3
 G    |G    |G1t.t|h1   |-GG*LGG1/2                                        |m1.m3*m2.M3-m1.M3*m2.m3
 G    |G    |G1t.t|h2   |-GG*LGG2/2                                        |m1.m3*m2.M3-m1.M3*m2.m3
+G    |G    |G2t.t|X1   |-GG*Maux/2                                        |m1.m3*m2.M3-m1.M3*m2.m3
+G    |G    |h1   |h1   |-2*CosT^2*EE*LGGh*RQCDh/(MW*SW)                   |p1.p2*m1.m2-m2.p1*m1.p2
+G    |G    |h1   |h2   |-EE*LGGh*RQCDh*SinTT/(MW*SW)                      |p1.p2*m1.m2-m2.p1*m1.p2
+G    |G    |h2   |h2   |-2*EE*LGGh*RQCDh*SinT^2/(MW*SW)                   |p1.p2*m1.m2-m2.p1*m1.p2
 W+   |W+   |W-   |W-   |EE^2/SW^2                                         |2*m1.m2*m3.m4-m1.m4*m2.m3-m1.m3*m2.m4
 W+   |W-   |Z    |Z    |-CW^2*EE^2/SW^2                                   |2*m1.m2*m3.m4-m1.m3*m2.m4-m1.m4*m2.m3
 W+   |W-   |h1   |h1   |CosT^2*EE^2/(2*SW^2)                              |m1.m2

@@ -183,6 +183,17 @@ def choose_yvar(varying_variables, xvar, requested_yvar, scan_rules):
 
 
 def run_script(script_path: Path, outdir: Path, script_args, show=False):
+    # Empty physical subsets are normal scan outcomes, not plotting failures.
+    if script_path.stem in {'plot_omega', 'plot_omega_colored', 'plot_relic_pass_2d', 'plot_relic_strict_2d'}:
+        omega = [float(line.split()[9]) for line in (outdir / 'scan_results.dat').read_text().splitlines()
+                 if line.strip()]
+        if script_path.stem == 'plot_relic_pass_2d':
+            omega = [value for value in omega if value <= .121]
+        elif script_path.stem == 'plot_relic_strict_2d':
+            omega = [value for value in omega if .119 <= value <= .121]
+        if not omega:
+            print(f'Skipping {script_path.name}: no points in this subset.', flush=True)
+            return
     command = [sys.executable, str(script_path), str(outdir), *script_args]
     if show:
         command.append("--show")
@@ -210,15 +221,21 @@ def main():
     if not (outdir / "scan_results.dat").is_file():
         raise SystemExit(f"Could not find {(outdir / 'scan_results.dat')}")
 
-    if (outdir / "results.json").is_file():
-        run_script(plot_dir / "plot_cmb.py", outdir, [], show=args.show)
-
     oks_rows = load_oks_rows(oks_file)
     varying_variables = infer_varying_variables(oks_rows)
     scan_rules = detect_scan_rules(oks_rows, varying_variables)
     title_suffix = build_title_suffix(scan_rules)
     xvar = choose_xvar(varying_variables, args.xvar, scan_rules)
     yvar = choose_yvar(varying_variables, xvar, args.yvar, scan_rules)
+    if (outdir / "results.json").is_file():
+        import json
+        rows = json.loads((outdir / "results.json").read_text())
+        aliases = {"MDM": "dm_mdm", "Omega": "dm_omega", "DirDet": "dm_dir_det"}
+        run_script(plot_dir / "plot_cutflow.py", outdir,
+                   ["--xvar", aliases.get(xvar, xvar), "--yvar", aliases.get(yvar, yvar) if yvar else "dm_omega"],
+                   show=args.show)
+        if any(row.get('dm_cmb_enabled') for row in rows):
+            run_script(plot_dir / "plot_cmb.py", outdir, [], show=args.show)
 
     print(f"Using output directory: {outdir}", flush=True)
     print(

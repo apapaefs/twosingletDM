@@ -1,13 +1,34 @@
 #!/bin/sh
 # Configure a freshly extracted micrOMEGAs release with the canonical TRSM model.
+# A subshell keeps `source setup_micromegas.sh ...` from exiting the caller or
+# changing its directory, variables or shell options on any failure.
+(
 set -eu
 
+usage() {
+    echo "Usage: sh DM/setup_micromegas.sh /path/to/micromegas_6.1.15-or-7.1.4"
+    echo "Download and extract a fresh release first; see DM/README.md."
+    echo "This builds TRSM/main. It does not activate a Python environment."
+}
+if [ "${1:-}" = --help ] || [ "${1:-}" = -h ]; then
+    usage
+    exit 0
+fi
 if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 /path/to/micromegas_6.1.15-or-7.1.4" >&2
+    usage >&2
     exit 2
 fi
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# $0 names the caller when sourced. Bash and zsh expose the script separately.
+script_file=${BASH_SOURCE:-$0}
+if [ -n "${ZSH_VERSION:-}" ]; then
+    eval 'script_file=${(%):-%x}'
+fi
+script_dir=$(CDPATH= cd -- "$(dirname -- "$script_file")" && pwd)
+if [ ! -d "$1" ]; then
+    echo "micrOMEGAs directory does not exist: $1; extract the release first." >&2
+    exit 2
+fi
 install_dir=$(CDPATH= cd -- "$1" && pwd)
 version=${install_dir##*/micromegas_}
 case "$version" in
@@ -38,3 +59,4 @@ printf '\nextern double trsm_loop_abs(double,double);\n' >> TRSM/work/models/ext
 cp "$script_dir/data.par" TRSM/data.par
 make -C TRSM main=main.c
 echo "Installed micrOMEGAs $version: $install_dir/TRSM/main"
+)
