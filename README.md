@@ -18,6 +18,21 @@ and [standalone scan/card/plot walkthrough](DM/steer_example/README.md).
 The [model change audit](DM/models/changes-v2.md) explains the loop corrections
 and the roles of `x1` and the retained four-gluon auxiliary fields.
 
+The independent [Upsilon flavour constraint](docs/flavour-constraints.md) is
+enabled for new scans. Full viability and MG5 eligibility require a flavour
+pass; EWPT eligibility keeps its existing definition. To add flavour results
+to a saved `vx=0` scan without rerunning DM, HiggsTools or EWPT:
+
+```bash
+python reevaluate_trsm_flavour.py old_scan.dat --output scan_with_flavour.tsv
+python plot_trsm_constraint_suite.py scan_with_flavour.tsv --format both
+```
+
+The input remains unchanged. Older files without flavour assessments are
+labelled unassessed and cannot satisfy the updated full-viability selection.
+Start a new scan after upgrading; pre-flavour campaign checkpoints cannot be
+resumed with the changed physics/output prescription.
+
 # Instructions:
 
 ## Download MG5_aMC and prepare generated processes
@@ -55,11 +70,11 @@ python3 generate_trsm_points.py 123 \
 With `--run-mg5` and no `--mg5-process` arguments, the defaults are
 `gg_heta0` and `pp_eta0Z`. A subset can be selected by repeating the option,
 for example `--mg5-process gg_heta0`. By default MadGraph is called only for
-fully viable points: `evo`, `thc`, `hb`, `hs`, `ewpo`, `wmass`, and aggregate
-`dm` must all be `True`.
+fully viable points: the v2 tree-theory, assessed experimental, independent
+`flavour`, and aggregate `dm` verdicts must all be `True`.
 
-To drop only the DM requirement while retaining every evolution, theory, and
-experimental constraint, use:
+To drop only the DM requirement while retaining the theory, experimental, and
+flavour constraints, use:
 
 ```bash
 python3 generate_trsm_points.py 123 \

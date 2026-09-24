@@ -493,15 +493,15 @@ def parse_args(argv=None):
     parser.add_argument(
         "--run-ewpt",
         action="store_true",
-        help="Run test_trsm_ewpt.py/BSMPT only after a point passes all viability checks.",
+        help="Run test_trsm_ewpt.py/BSMPT for EWPT-eligible points, independently of DM and flavour verdicts.",
     )
     parser.add_argument(
         "--run-ewpt-on-dm-failed",
         action="store_true",
         help=(
-            "Also run test_trsm_ewpt.py/BSMPT for vx=0 points that pass all "
-            "non-DM checks but fail the dark-matter check. These points are "
-            "written to the _dm_failed sidecar."
+            "Also run test_trsm_ewpt.py/BSMPT for EWPT-eligible vx=0 points "
+            "without a passing DM verdict. The _dm_failed sidecar contains "
+            "only points that fail DM and pass all non-DM constraints."
         ),
     )
     parser.add_argument(
@@ -663,6 +663,7 @@ from generate_mg5_trsm_xsecs import * # call MG5 to get the cross section for a 
 from mg5_process_runner import run_mg5_processes # run selected MG5 processes and collect cross sections
 from scan_output import output_columns as scan_output_columns
 from scan_output import write_valid_point as write_valid_point_file
+from trsm_flavour import generated_flavour_updates, unassessed_flavour, flavour_configuration
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
 from test_trsm_DM import print_dm_info, test_dm # micrOMEGAs dark matter check for the vx=0 branch
 from prettytable import PrettyTable
@@ -807,9 +808,10 @@ def print_info_vxzero(vs, vx, M2, M3, a12, a13, a23, lX, lPhiX, lSX, w1, w2, w3,
     print(tbl)
     #print('\n')
 
-def print_constraints(evo, thc, hb, hs, ewpo=None, wmass=None, dm=None):
+def print_constraints(evo, thc, hb, hs, ewpo=None, wmass=None, dm=None, flavour=None):
     tbl = PrettyTable(["Constraint", "Pass/Fail"])
     constraint = {}
+    constraint['flavour'] = 'Pass' if flavour is True else 'Fail' if flavour is False else 'Unassessed'
     if evo == True:
         constraint['evo'] = 'Pass'
     else:
@@ -1338,7 +1340,7 @@ def run_ewpt_if_requested(
                 f"{name}={value}" for name, value in eq_4_18.conditions.items()
             )
             print(
-                "Point is viable but failed Eq. 4.18; skipping EWPT:",
+                "EWPT candidate failed Eq. 4.18; skipping EWPT:",
                 condition_summary,
             )
             return None
@@ -1378,9 +1380,9 @@ def run_ewpt_if_requested(
     elif run_for_any_point:
         print("Writing all points enabled; running EWPT analysis in", workdir)
     elif run_for_dm_failed:
-        print("Point passes non-DM constraints but fails DM; running EWPT analysis in", workdir)
+        print("EWPT candidate does not pass DM; running EWPT analysis in", workdir)
     else:
-        print("Point is viable; running EWPT analysis in", workdir)
+        print("Point is EWPT eligible; running EWPT analysis in", workdir)
     try:
         result = ewpt_module.run_trsm_ewpt(
             point,
@@ -1426,11 +1428,12 @@ def mg5_point_eligible(
     wmass,
     dm,
     *,
+    flavour=None,
     require_dm=True,
 ):
     """Return whether a vx=0 point passes the configured MG5 selection."""
     all_non_dm_constraints = all(
-        value is True for value in (evo, thc, hb, hs, ewpo, wmass)
+        value is True for value in (evo, thc, hb, hs, ewpo, wmass, flavour)
     )
     return all_non_dm_constraints and (dm is True or require_dm is False)
 
@@ -1451,6 +1454,8 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     # get the point information (widths, scalar couplings)
     vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, h1_BRs, h2_BRs, h3_BRs, xs136_lo_h1, xs136_lo_h2, xs136_lo_h3 = generate_lams(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, PRINTINFO)
     Lambdas =[K111,K112,K113,K123,K122,K1111,K1112,K1113,K133]
+    flavour_info = generated_flavour_updates(M2, M3, (k1, k2, k3),
+        (h1_BRs, h2_BRs, h3_BRs), (w1, w2, w3), vx=vx)
     if debug is True:
         print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
 
@@ -1501,13 +1506,13 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
     evo = True
     thc = True
     if debug is True:
-        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, flavour=flavour_info["flavour"])
     # get the hh cross section
     # if all constraints are ok, check the xsec for hhh:
-    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True:
+    if evo is True and thc is True and hb is True and hs is True and EWPO_cur is True and wmass is True and flavour_info["flavour"] is True:
         if debug is False:
             print_info(vs, vx, M2, M3, a12, a13, a23, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3)
-            print_constraints(evo, thc, hb, hs, EWPO_cur, wmass)
+            print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, flavour=flavour_info["flavour"])
         MG5xsecs = {}
         if runmg5 is True:
             print('All constraints passed, running selected MG5 processes, please wait!')
@@ -1528,6 +1533,7 @@ def evaluate_trsm_point(myseed, m2_val, m3_val, vs_val, vx_val, a12, a13, a23, r
             print('MG5 cross sections [pb] =', MG5xsecs)
         point_info = valid_point_info(M2, M3, vs, vx, a12, a13, a23, None, None, None, w1, w2, w3, K111, K112, K113, K123, K122, K1111, K1112, K1113, K133, k1, k2, k3, evo, thc, hb, hs, EWPO_cur, wmass)
         add_higgstools_info(point_info, higgstools_details)
+        point_info.update(flavour_info)
         write_valid_point(RunTag, point_info, MG5xsecs)
         return evaluation_result(True)
     return evaluation_result(False)
@@ -1541,6 +1547,7 @@ def evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, l
             lX=lX,lPhiX=lPhiX,lSX=lSX,point_index=point_index,
             constraint_version=PHYSICS_VERSION,constraint_schema_version=2,
             point_assessment_status="unassessed",point_assessment_reason=str(error))
+        point.update(unassessed_flavour(error))
         write_valid_point(RunTag,point,{p:math.nan for p in MG5ProcessesToRun} if runmg5 else {})
         return evaluation_result(False,return_status=return_status)
 
@@ -1611,14 +1618,18 @@ def _evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, 
         invisible_decay_info=invisible_decay_info,
         xs136_lo_h1=xs136_lo_h1, xs136_lo_h2=xs136_lo_h2)
     point_info.update(diagnostics)
+    point_info.update(generated_flavour_updates(M2, M3, (k1, k2, k3),
+        (h1_BRs, h2_BRs, h3_BRs),
+        (invisible_decay_info["w1"], invisible_decay_info["w2"], w3), vx=vx))
     point_info.update(profile_updates(point_info))
     point_info["point_index"] = point_index
     if assessment_errors:
         point_info["point_assessment_reason"] += "; " + "; ".join(assessment_errors)
     point_info["K233"] = K233
     add_higgstools_info(point_info, higgstools_details)
-    passed = thc is True and point_info["experimental_subset"] is True and dm[0] is True
-    mg5_eligible = runmg5 and thc is True and point_info["experimental_subset"] is True and (mg5_without_dm or dm[0] is True)
+    non_dm_passed = thc is True and point_info["experimental_subset"] is True and point_info["flavour"] is True
+    passed = non_dm_passed and dm[0] is True
+    mg5_eligible = runmg5 and non_dm_passed and (mg5_without_dm or dm[0] is True)
     MG5xsecs = {process: math.nan for process in MG5ProcessesToRun} if runmg5 else {}
     if mg5_eligible:
         MG5xsecs.update(run_mg5_processes(MG5ProcessesToRun,
@@ -1632,13 +1643,13 @@ def _evaluate_trsm_point_vxzero(myseed, m2_val, m3_val, vs_val, a12, lX, lPhiX, 
                                   allow_dm_failed=dm[0] is not True)
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             point_info.update(ewpt_status="error", ewpt_execution_status="error", ewpt_error=str(error))
-    if dm[0] is False and point_info["experimental_subset"] is True and thc is True:
+    if dm[0] is False and non_dm_passed:
         if cli_args.write_dm_failed or cli_args.run_ewpt_on_dm_failed:
             write_dm_failed_point(RunTag, point_info)
     # Complete ledger: every evaluated point has one row, with independent flags.
     write_valid_point(RunTag, point_info, MG5xsecs)
     if debug or report or print_info_enabled:
-        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0])
+        print_constraints(evo, thc, hb, hs, EWPO_cur, wmass, dm[0], point_info["flavour"])
         print_dm_info(dm[1])
     return evaluation_result(passed, evo=evo, thc=thc, return_status=return_status)
 
@@ -2253,6 +2264,7 @@ def build_scan_metadata(
         "micromegas": micromegas_configuration(args),
         "direct_detection": direct_detection_configuration(args),
         "planck_cmb": cmb_configuration(args),
+        "flavour": flavour_configuration(),
         "variable_ranges": variable_ranges,
         "fixed_parameters": fixed_parameters,
         "command_line": list(command_line or ORIGINAL_COMMAND_LINE),
@@ -2339,6 +2351,7 @@ def immutable_scan_configuration(args):
         "physics_version": PHYSICS_VERSION,
         "physics_manifest": scan_physics_manifest(args),
         "sampling_algorithm_version": SAMPLING_ALGORITHM_VERSION,
+        "flavour": flavour_configuration(),
         "seed": int(args.seed),
         "mass_sampling_mode": mass_mode,
         "portal_sampling_mode": portal_mode,
@@ -2974,6 +2987,9 @@ def main():
     global OutputDir, RunTag
 
     print('\nScanning TRSM parameter space')
+    flavour_config = flavour_configuration()
+    if cli_args.resume_from is not None and cli_args.resume_metadata.get("flavour") != flavour_config:
+        raise CampaignStateError("Flavour prescription differs from the saved campaign; start a new scan or use flavour-only reevaluation")
     dd_configuration = direct_detection_configuration(cli_args)
     if cli_args.resume_from is not None:
         saved_dd = cli_args.resume_metadata.get("direct_detection")

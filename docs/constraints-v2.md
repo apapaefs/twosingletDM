@@ -8,11 +8,12 @@ The zero-temperature subsets are independent:
 
 - `experimental_subset`: HiggsBounds, HiggsSignals and STU, plus the W-mass comparison where covered.
 - `dm_subset`: the configured relic/DD/line/CMB prescription, without a lower relic-abundance cut.
+- `flavour`: the independent Upsilon lepton-product bounds, including physical invisible-width dilution; see [the flavour prescription](flavour-constraints.md).
 - `vacuum_tree_global`: verified desired tree vacuum; degenerate global minima pass with an explicit status; unresolved flat families remain unavailable.
 - `rg_integration_success`, `rg_bfb`, `rg_unitarity`: numerical completion and the two physical running tests are separate.
 - `theory_strict_subset`: verified tree global vacuum and all RG checks passing through 1 TeV.
 
-`ewpt_eligible = (thc is True) and (experimental_subset is not False)`. Neither DM, vacuum nor RG veto EWPT exploration. Incomplete experimental assessments remain eligible and are shown separately. `evo` survives only as a labelled legacy numerical-integration result. The main TSV is a complete ledger; campaign `viable_count` describes the tree + assessed experimental + DM subset, not the number of retained rows.
+`ewpt_eligible = (thc is True) and (experimental_subset is not False)`. Neither DM, flavour, vacuum nor RG veto EWPT exploration. Incomplete experimental assessments remain eligible and are shown separately. `evo` survives only as a labelled legacy numerical-integration result. The main TSV is a complete ledger; campaign `viable_count` describes the tree + assessed experimental + flavour + DM subset, not the number of retained rows.
 
 ### Qualitative transition candidates
 

@@ -35,6 +35,7 @@ from matplotlib.colors import (
     TwoSlopeNorm,
 )
 from matplotlib.lines import Line2D
+from plot_trsm_flavour import derive_flavour, render_flavour
 
 
 NOMINAL_MASS_GAP_GEV = 125.0
@@ -92,6 +93,7 @@ OPTIONAL_BOOLEAN_COLUMNS = (
 )
 
 OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
+    "flavour",
     "ewpt_has_x_broken",
     "ewpt_ew_entry_percolated",
     "ewpt_ew_entry_completed",
@@ -104,6 +106,7 @@ OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
 )
 
 OPTIONAL_TEXT_COLUMNS = (
+    "flavour_method", "flavour_status", "flavour_reason", "flavour_details",
     "constraint_version", "ewpt_constraint_version",
     "ewpt_x_broken_intervals_GeV",
     "ewpt_x_phase_at_freezeout",
@@ -133,6 +136,7 @@ NUMERIC_COLUMNS = (
 )
 
 OPTIONAL_NUMERIC_COLUMNS = (
+    "flavour_max_ratio",
     "dm_xf",
     "dm_freezeout_temperature_GeV",
     "ewpt_x_broken_min_T_GeV",
@@ -1379,6 +1383,14 @@ PLOT_SPECS = (
     ),
 )
 
+PLOT_SPECS += (
+    PlotSpec("70_flavour_status_m2_m3", "Upsilon flavour constraints", "flavour_status"),
+    PlotSpec("71_flavour_status_lowmass", "Upsilon flavour constraints: low-mass window", "flavour_zoom"),
+    PlotSpec("72_flavour_strength_m2_m3", "Upsilon constraint strength", "flavour_strength"),
+    PlotSpec("73_flavour_lepton_products", "Upsilon lepton products and experimental limits", "flavour_products"),
+    PlotSpec("74_flavour_mixing_m2", "Flavour constraints and scalar mixing", "flavour_mixing"),
+)
+
 PLOT_BY_STEM = {spec.stem: spec for spec in PLOT_SPECS}
 
 DASHBOARDS = OrderedDict(
@@ -2253,8 +2265,10 @@ def load_scan(
     theory = np.where(v2,bools["thc"],bools["evo"] & bools["thc"])
     experimental = bools["hb"] & bools["hs"] & bools["ewpo"] & bools["wmass"]
     experimental = np.where(v2, bools["experimental_subset"], experimental)
-    non_dm_viability = theory & experimental
-    full_viability = theory & experimental & bools["dm"]
+    pre_flavour_non_dm_viability = theory & experimental
+    pre_flavour_full_viability = pre_flavour_non_dm_viability & bools["dm"]
+    non_dm_viability = pre_flavour_non_dm_viability & bools["flavour"]
+    full_viability = non_dm_viability & bools["dm"]
     relic_available = nullable_available["dm_relic_excluded"]
     direct_available = nullable_available["dm_direct_detection_excluded"]
     dm_result_available = np.logical_and.reduce(
@@ -2310,6 +2324,8 @@ def load_scan(
         "experimental": experimental,
         "non_dm_viability": non_dm_viability,
         "full_viability": full_viability,
+        "pre_flavour_non_dm_viability": pre_flavour_non_dm_viability,
+        "pre_flavour_full_viability": pre_flavour_full_viability,
         "relic_pass": relic_pass,
         "direct_pass": direct_pass,
         "relic_available": relic_available,
@@ -2391,6 +2407,9 @@ def load_scan(
             * (1.0 - br)
         )
     derived.update(bsmpt_results)
+    derived.update(derive_flavour(strings, bools["flavour"], nullable_available["flavour"]))
+    if "flavour_max_ratio" not in floats:
+        floats["flavour_max_ratio"] = np.full(len(theory), np.nan)
     signal_error = None
     missing_signal_columns = [
         column for column in SIGNAL_REQUIRED_COLUMNS if column not in floats
@@ -2574,10 +2593,10 @@ SELECTION_LABELS = {
     "relic_pass": "Relic-density pass",
     "dm": "Aggregate DM pass",
     "non_dm_viability": (
-        r"All non-DM constraints: evolution $\wedge$ theory $\wedge$ experimental"
+        r"All non-DM constraints: theory $\wedge$ experimental $\wedge$ flavour"
     ),
     "full_viability": (
-        r"Full viability: evolution $\wedge$ theory $\wedge$ experimental $\wedge$ DM"
+        r"Full viability: theory $\wedge$ experimental $\wedge$ flavour $\wedge$ DM"
     ),
 }
 
@@ -3787,6 +3806,9 @@ def render_ratio_plane(ax, data: ScanData, spec: PlotSpec, compact: bool = False
 
 def constraint_bar_metrics(data: ScanData):
     return (
+        ("Flavour pass (including no applicable bound)", int(np.count_nonzero(data.b("flavour"))), "#CC79A7", ""),
+        ("Flavour unassessed", int(np.count_nonzero(~data.b("flavour_available"))), "#777777", "//"),
+        ("Viable before flavour", int(np.count_nonzero(data.b("pre_flavour_full_viability"))), "#56B4E9", ""),
         ("HiggsBounds pass", int(np.count_nonzero(data.b("hb"))), "#E69F00", ""),
         ("HiggsSignals pass", int(np.count_nonzero(data.b("hs"))), "#E69F00", ""),
         ("EWPO pass", int(np.count_nonzero(data.b("ewpo"))), "#E69F00", ""),
@@ -4429,7 +4451,9 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         raise PlotUnavailable("BSMPT was not run for any stored scan row")
     if spec.requires_signal and not has_signal_results(data):
         raise PlotUnavailable(signal_availability_reason(data) or "signal unavailable")
-    if spec.kind == "categorical_mass":
+    if spec.kind.startswith("flavour_"):
+        render_flavour(fig, ax, data, spec, style_mass_axis, PlotUnavailable)
+    elif spec.kind == "categorical_mass":
         render_categorical_mass(ax, data, spec, compact=compact)
     elif spec.kind == "continuous_mass":
         render_continuous_mass(fig, ax, data, spec, compact=compact)
@@ -4493,6 +4517,14 @@ def has_observable(data: ScanData, name: str) -> bool:
 
 
 def spec_unavailable_reason(data: ScanData, spec: PlotSpec) -> str | None:
+    if spec.kind == "flavour_strength" and not np.any(np.isfinite(data.f("flavour_max_ratio"))):
+        return "no finite flavour prediction/limit ratios"
+    if spec.kind == "flavour_products" and not any(
+        np.any(np.isfinite(data.f(f"flavour_h2_{c}_prediction"))) for c in ("mumu", "tautau")
+    ):
+        return "no stored h2 lepton-product predictions"
+    if spec.kind == "flavour_mixing" and not np.any(data.f("flavour_h2_k2sq") > 0):
+        return "no positive assessed h2 mixing values"
     if spec.requires_bsmpt and not has_bsmpt_results(data):
         return "BSMPT was not run for any stored scan row"
     if spec.requires_signal and not has_signal_results(data):
@@ -4693,12 +4725,25 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
         ("wmass", "W-mass pass"),
         ("theory", "evo & thc"),
         ("experimental", "hb & hs & ewpo & wmass"),
-        ("non_dm_viability", "theory & experimental; DM not required"),
+        ("flavour", "Stored flavour pass, including outside coverage and zero signal"),
+        ("pre_flavour_full_viability", "Viable before flavour; not the current full selection"),
+        ("non_dm_viability", "theory & experimental & flavour; DM not required"),
         ("dm", "Stored aggregate DM pass"),
-        ("full_viability", "theory & experimental & dm"),
+        ("full_viability", "theory & experimental & flavour & dm"),
     ):
         rows.append(SummaryRow(name, int(np.count_nonzero(data.b(name))), n, note))
 
+    before = data.b("pre_flavour_full_viability")
+    available = data.b("flavour_available")
+    for name, mask, note in (
+        ("flavour_unassessed", ~available, "Missing flavour results do not satisfy full viability"),
+        ("flavour_removed_otherwise_viable", before & available & ~data.b("flavour"), "Viable before flavour, excluded by flavour"),
+        ("flavour_unassessed_otherwise_viable", before & ~available, "Viable before flavour, awaiting flavour assessment"),
+    ):
+        rows.append(SummaryRow(name, int(np.count_nonzero(mask)), n, note))
+    for category in ("passed", "zero_signal", "outside_coverage", "mumu", "tautau", "both", "excluded"):
+        rows.append(SummaryRow("flavour_status_" + category,
+                    int(np.count_nonzero(data.s("flavour_category") == category)), n, "Flavour diagnostic category"))
     cumulative_masks = cumulative_constraint_masks(data)
     cumulative_notes = {
         "all": "All stored rows in the collaborator diagnostic sequence",
@@ -5286,7 +5331,7 @@ def scan_information_html(data: ScanData) -> str:
     escaped = lambda value: html.escape(str(value), quote=True)
     metadata = data.metadata
 
-    if metadata is not None:
+    if metadata is not None and metadata.get("variable_ranges"):
         source = data.metadata_source or default_scan_metadata_path(data.source)
         notice = (
             '<div class="notice"><strong>Configured scan metadata</strong> loaded from '
@@ -5306,6 +5351,12 @@ def scan_information_html(data: ScanData) -> str:
             f'<code>{escaped(expected)}</code>. The ranges below are extrema of stored rows, '
             "not the configured scan bounds; selections and finite sampling can narrow them.</div>"
         )
+        if metadata is not None:
+            notice = (
+                '<div class="notice warning"><strong>Observed-range fallback.</strong> '
+                'The sidecar records assessment provenance but no configured scan ranges. '
+                'The ranges below are extrema of stored rows, not the configured scan bounds.</div>'
+            )
         range_entries = [
             {
                 "variable": column,
@@ -5603,6 +5654,9 @@ def write_plot_index(
     non_dm_viable = int(np.count_nonzero(data.b("non_dm_viability")))
     dm_pass = int(np.count_nonzero(data.b("dm")))
     full = int(np.count_nonzero(data.b("full_viability")))
+    before_flavour = int(np.count_nonzero(data.b("pre_flavour_full_viability")))
+    flavour_unknown = int(np.count_nonzero(~data.b("flavour_available")))
+    flavour_removed = int(np.count_nonzero(data.b("pre_flavour_full_viability") & data.b("flavour_available") & ~data.b("flavour")))
     document = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -5648,6 +5702,7 @@ footer {{ margin-top: 36px; color: var(--muted); }}
 <main>
 <header>
 <h1>TRSM constraint plot suite</h1>
+<p>Full and non-DM viability require a flavour pass. Viable before flavour: {before_flavour:,}; removed by flavour: {flavour_removed:,}; flavour unassessed (all rows): {flavour_unknown:,}. Outside coverage is a non-veto, not experimental validation. EWPT eligibility retains its separate definition.</p>
 <p class="meta">Input: <code>{escaped(data.source)}</code> &middot; {len(data):,} rows &middot; experimental {experimental:,} &middot; non-DM viable {non_dm_viable:,} &middot; DM {dm_pass:,} &middot; full viability {full:,} &middot; signal points {signal_count:,} &middot; BSMPT attempted {bsmpt_attempted:,}</p>
 <nav><a href="v2-index.html">Constraint v2 diagnostics</a><a href="#scan">Scan configuration</a><a href="#dashboards">Dashboards</a><a href="#signal">Signals</a><a href="#bsmpt">BSMPT/EWPT</a><a href="#standalone">Individual plots</a><a href="#summary">Constraint summary</a><a href="constraint_summary.tsv">Download TSV</a></nav>
 </header>

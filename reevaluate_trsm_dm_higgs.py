@@ -35,6 +35,7 @@ from trsm_inputs import M1 as M1_GEV, PHYSICS_VERSION
 from trsm_constraint_profile import profile_updates, physics_manifest, precision_updates, validate_v2_result
 from trsm_theory_diagnostics import theory_diagnostics
 from scan_output import V2_COLUMNS
+from trsm_flavour import FLAVOUR_COLUMNS, generated_flavour_updates
 from ewpt_entry_criterion import EW_ENTRY_COLUMNS
 CHECKPOINT_SCHEMA_VERSION = 1
 
@@ -581,6 +582,8 @@ class CoreEvaluator:
             "micromegas_model_convention": EXPECTED_CONVENTION_ID,
         }
         updates.update(dm_values)
+        updates.update(generated_flavour_updates(mass2, mass3, (k1, k2, k3),
+            (h1_brs, h2_brs, h3_brs), (w1, w2, w3), vx=0))
         updates.update(resonance_proximity_updates(
             mass2, mass3, updates.get("dm_freezeout_temperature_GeV")
         ))
@@ -659,6 +662,7 @@ def input_identity(path: Path, header: Sequence[str], row_count: int) -> dict[st
 def output_header(input_header: Sequence[str], *, planck_cmb=False) -> list[str]:
     result = list(input_header)
     result.extend(name for name in UPDATED_COLUMNS if name not in result)
+    result.extend(name for name in FLAVOUR_COLUMNS if name not in result)
     result.extend(name for name in RESONANCE_COLUMNS if name not in result)
     result.extend(name for name in (*V2_COLUMNS,*EW_ENTRY_COLUMNS,"thc","evo","ewpo","wmass","ewpt_status","ewpt_constraint_version","legacy_ewpt_baryo_candidate","legacy_ewpt_gw_candidate") if name not in result)
     if planck_cmb or any(name in result for name in CMB_COLUMNS):

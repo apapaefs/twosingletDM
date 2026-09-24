@@ -783,7 +783,7 @@ def aggregate(args, state):
             record.update(status="failed", returncode=1, error=str(error))
         results.append(seed_result(record, checkpoint))
     names = ("ewpt_baryo_candidate", "ewpt_gw_candidate", "dm_subset", "vacuum_tree_global",
-             "rg_bfb", "rg_unitarity", "experimental_subset")
+             "rg_bfb", "rg_unitarity", "experimental_subset", "flavour")
     counts = {key: {"True": 0, "False": 0, "unassessed": 0} for key in names}
     combined_path = directory / "combined_points.tsv"
     candidate_path = directory / "candidate_points.tsv"

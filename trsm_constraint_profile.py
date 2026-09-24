@@ -9,6 +9,7 @@ import importlib.metadata
 from functools import lru_cache
 from pathlib import Path
 from trsm_inputs import PHYSICS_VERSION, SCHEMA_VERSION, M1, sm_inputs, RG_BOUNDARY, nullable_and
+from trsm_flavour import flavour_configuration
 
 PROFILE_COLUMNS = (
     "constraint_version", "constraint_schema_version", "point_index",
@@ -34,7 +35,7 @@ def profile_updates(point):
         valid = isinstance(width, (int, float)) and math.isfinite(width) and width >= 0
         result[f"h{i}_width_over_mass"] = width/mass if valid else None
         result[f"h{i}_ctau_mm"] = 1.973269804e-13/width if valid and width > 0 else None
-    unassessed=[key for key in ("thc","hb","hs","ewpo","dm","vacuum_tree_global","rg_bfb","rg_unitarity") if point.get(key) is None]
+    unassessed=[key for key in ("thc","hb","hs","ewpo","dm","flavour","vacuum_tree_global","rg_bfb","rg_unitarity") if point.get(key) is None]
     if covered and point.get("wmass") is None:unassessed.append("wmass")
     result["point_assessment_status"]="partially_assessed" if unassessed else "assessed"
     result["point_assessment_reason"]="unassessed: "+", ".join(unassessed) if unassessed else "independent_zero_temperature_subsets_assessed"
@@ -69,12 +70,14 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
         "trsm_micromegas", "trsm_cmb", "trsm_scan_campaign", "trsm_kstoalphas", "scan_output",
         "ewpt_assessment", "ewpt_entry_criterion", "ewpt_equilibrium", "ewpt_x_history",
         "dm_thermal_relic_diagnostic", "reevaluate_trsm_dm_higgs", "reprocess_trsm_ewpt",
-        "run_trsm_seed_campaign", "trsm_parallel", "mg5_process_runner", "generate_mg5_trsm_xsecs")
+        "run_trsm_seed_campaign", "trsm_parallel", "mg5_process_runner", "generate_mg5_trsm_xsecs",
+        "trsm_flavour", "reevaluate_trsm_flavour")
     paths = [root/(name+".py") for name in source_names] + list((root/"DM/models/h4GOn").glob("*.mdl"))
     paths += [root/"DM/main.c", root/"DM/trsm_loop.c", root/"DM/models/lanhep_mdl/TRSM_mixed.mdl"]
     paths += list((root/"config").glob("*.json")) + list((root/"DM/data").rglob("*.json"))
     paths += list((root/"BSMPT").rglob("*.cpp")) + list((root/"BSMPT").rglob("*.h"))
     paths += list((root/"datafiles").glob("*"))
+    paths += list((root/"flavour").glob("*.py")) + list((root/"flavour").glob("*.csv"))
     for directory in ("YR", "couplings_vxzero"):
         paths += [p for p in (root/directory).rglob('*') if p.is_file() and p.suffix in ('.dat','.txt')]
     hashes = {str(p.relative_to(root)): sha256(p) for p in sorted(paths) if p.is_file()}
@@ -88,6 +91,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
     manifest = {"physics_version": PHYSICS_VERSION, "schema_version": SCHEMA_VERSION,
                 "repository_commit": git_revision(root), "sources_sha256": hashes,
                 "sm_inputs": sm_inputs(), "rg_boundary": RG_BOUNDARY,
+                "flavour": flavour_configuration(),
                 "executables": {k: {"path": v, "sha256": sha256(v)} for k, v in executables.items()},
                 "runtime_build_manifest_sha256": sha256(Path(micromegas_executable).resolve().parents[2]/"runtime-manifest.json") if len(Path(micromegas_executable).resolve().parents)>2 else None,
                 "python_packages": {name:package_version(name) for name in ("HiggsTools","numpy","scipy")},
@@ -124,7 +128,7 @@ def precision_updates(m2, angle):
 
 def validate_v2_result(point):
     """Check status/value consistency without coercing missing results to failure."""
-    for key in ('dm','hb','hs','ewpo','thc','experimental_subset','vacuum_tree_global',
+    for key in ('dm','hb','hs','ewpo','thc','flavour','experimental_subset','vacuum_tree_global',
                 'rg_bfb','rg_unitarity','ewpt_baryo_candidate','ewpt_gw_candidate'):
         if point.get(key) is not None and type(point[key]) is not bool:
             raise ValueError(f'{key} must be bool or None')

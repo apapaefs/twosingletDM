@@ -377,11 +377,13 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         generator = load_generator_module()
 
         passing = (True, True, True, True, True, True, True)
-        self.assertTrue(generator.mg5_point_eligible(*passing))
+        self.assertTrue(generator.mg5_point_eligible(*passing, flavour=True))
+        self.assertFalse(generator.mg5_point_eligible(*passing, flavour=False))
+        self.assertFalse(generator.mg5_point_eligible(*passing, flavour=None))
         for index in range(len(passing)):
             values = list(passing)
             values[index] = False
-            self.assertFalse(generator.mg5_point_eligible(*values))
+            self.assertFalse(generator.mg5_point_eligible(*values, flavour=True))
 
     def test_mg5_selection_can_drop_only_the_dm_requirement(self):
         generator = load_generator_module()
@@ -396,6 +398,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 True,
                 False,
                 require_dm=False,
+                flavour=True,
             )
         )
         self.assertFalse(
@@ -408,6 +411,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 True,
                 True,
                 require_dm=False,
+                flavour=True,
             )
         )
 
@@ -422,7 +426,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
             generator.parse_args(["--mg5-without-dm"])
 
     def test_vxzero_mg5_execution_uses_full_or_non_dm_viability_gate(self):
-        def run_case(*, hb, dm, without_dm):
+        def run_case(*, hb, dm, without_dm, flavour=True):
             generator = load_generator_module()
             rows = []
             mg5_calls = []
@@ -431,6 +435,7 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 mg5_without_dm=without_dm,
             )
             generator.RunTag = "unit"
+            generator.generated_flavour_updates = lambda *args, **kwargs: {"flavour": flavour}
             generator.OutputDir = "output/"
             generator.MG5ProcessesToRun = ["gg_heta0"]
             generator.write_valid_point_file = (
@@ -497,7 +502,8 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 {},
                 {"dm_mdm": 500.0, "dm_relic_excluded": not dm},
             )
-            generator.run_ewpt_if_requested = lambda *args, **kwargs: None
+            ewpt_eligibility = []
+            generator.run_ewpt_if_requested = lambda point, *args, **kwargs: ewpt_eligibility.append(point["ewpt_eligible"])
             generator.print_info_vxzero = lambda *args, **kwargs: None
             generator.print_constraints = lambda *args, **kwargs: None
 
@@ -518,7 +524,16 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
                 runmg5=True,
                 point_index=4,
             )
+            if hb is True:
+                self.assertEqual(ewpt_eligibility, [True])
             return result, rows, mg5_calls
+
+        for flavour in (False, None):
+            for without_dm in (False, True):
+                result, rows, calls = run_case(hb=True, dm=True, without_dm=without_dm, flavour=flavour)
+                self.assertEqual((result, len(rows), calls), (0, 1, []))
+                self.assertIs(rows[0][0]["flavour"], flavour)
+                self.assertTrue(rows[0][0]["experimental_subset"])
 
         result, rows, calls = run_case(hb=False, dm=True, without_dm=False)
         self.assertEqual((result, len(rows), calls), (0, 1, []))
