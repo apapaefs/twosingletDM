@@ -14,7 +14,7 @@ if not version or version[1].strip()!='3.2.1':raise SystemExit('The validated v2
 subprocess.run(['rsync','-a','--exclude=.git','--exclude=build','--exclude=__pycache__','--exclude=.venv*',str(a.upstream.resolve())+'/',str(a.destination.resolve())+'/'],check=True)
 subprocess.run(['rsync','-a',str(root/'BSMPT')+'/',str(a.destination.resolve())+'/'],check=True)
 inputs=json.loads((root/'config/sm-inputs-v2.json').read_text())
-f=a.destination/'src/models/SMparam.cpp';s=f.read_text()
+f=a.destination/'src/models/SMParam.cpp';s=f.read_text()
 for name,key in [('C_MassW','MW_GeV'),('C_MassZ','MZ_GeV'),('C_MassSMHiggs','M1_GeV'),('C_GF','GF_GeV^-2')]:
  s,n=re.subn(r'(SM\.'+name+r'\s*=)[^;]+;',lambda m:m[1]+' '+format(inputs[key],'.17g')+';',s)
  if n!=1:raise RuntimeError('Cannot locate SM input '+name)

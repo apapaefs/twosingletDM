@@ -1,0 +1,10 @@
+# Build tools are isolated in the selected runtime's virtual environment.
+# Resolved versions are recorded in setup-manifest.json and pip-freeze.txt.
+setuptools>=68
+wheel>=0.43
+scikit-build>=0.18,<0.19
+cmake>=3.29,<4
+conan>=2.20,<3
+ninja>=1.11
+six>=1.16
+requests>=2.31

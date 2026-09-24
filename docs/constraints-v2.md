@@ -83,6 +83,10 @@ The plot suite adds parameter maps with DM/vacuum/RG overlays, same-transition T
 
 ## Build and run
 
+The [automated installer](runtime-bootstrap.md) performs the download, overlay,
+build, dataset, MadGraph-process, and runtime-receipt steps in a fresh prefix.
+The manual sequence below remains useful for inspecting an individual build.
+
 Use a fresh `runtime-v2` sibling of the repository (or set `TRSM_RUNTIME_ROOT`). Preserve older installations. The runtime receipt is `runtime-manifest.json` in that directory.
 
 1. Create a Python 3.13 virtual environment; install `config/runtime-requirements-v2.txt`. Build HiggsTools from the recorded source and use the recorded HB/HS dataset revisions. On these macOS hosts the local build used `CMAKE_ARGS='-DCMAKE_CXX_FLAGS=-D_LIBCPP_TEMPLATE_VIS='`.

@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from trsm_inputs import PHYSICS_VERSION, SCHEMA_VERSION, M1, sm_inputs, RG_BOUNDARY, nullable_and
 from trsm_flavour import flavour_configuration
+from trsm_paths import higgs_dataset_path
 
 PROFILE_COLUMNS = (
     "constraint_version", "constraint_schema_version", "point_index",
@@ -71,7 +72,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
         "ewpt_assessment", "ewpt_entry_criterion", "ewpt_equilibrium", "ewpt_x_history",
         "dm_thermal_relic_diagnostic", "reevaluate_trsm_dm_higgs", "reprocess_trsm_ewpt",
         "run_trsm_seed_campaign", "trsm_parallel", "mg5_process_runner", "generate_mg5_trsm_xsecs",
-        "trsm_flavour", "reevaluate_trsm_flavour")
+        "trsm_flavour", "reevaluate_trsm_flavour", "trsm_paths")
     paths = [root/(name+".py") for name in source_names] + list((root/"DM/models/h4GOn").glob("*.mdl"))
     paths += [root/"DM/main.c", root/"DM/trsm_loop.c", root/"DM/models/lanhep_mdl/TRSM_mixed.mdl"]
     paths += list((root/"config").glob("*.json")) + list((root/"DM/data").rglob("*.json"))
@@ -97,7 +98,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
                 "python_packages": {name:package_version(name) for name in ("HiggsTools","numpy","scipy")},
                 "virtual_WZ_decays": "TRSM_LEGACY_VIRTUAL_OFF" not in os.environ,
                 "highs_threads": os.environ.get("TRSM_HIGHS_THREADS"),
-                "datasets": {name: {"commit":git_revision(root.parent/name),"tree_sha256":dataset_digest(root.parent/name)} for name in ("hbdataset", "hsdataset")},
+                "datasets": {name: {"commit":git_revision(higgs_dataset_path(name)),"tree_sha256":dataset_digest(higgs_dataset_path(name))} for name in ("hbdataset", "hsdataset")},
                 "experimental_prescriptions": {
                     "HiggsSignals":"pipeline SM reference, delta chi2 < 4; heuristic fixed threshold",
                     "STU":"Jens Erler private communication 2025-05-16; 3 dof chi2 <= 7.82",

@@ -35,6 +35,22 @@ resumed with the changed physics/output prescription.
 
 # Instructions:
 
+## Automated installation
+
+Use the [runtime bootstrap](docs/runtime-bootstrap.md) to download pinned
+software releases, build both micrOMEGAs backends, HiggsTools and BSMPT, fetch
+the Higgs datasets, and generate/compile all supported MadGraph processes:
+
+```bash
+python3.13 tools/bootstrap_runtime.py --prefix ../runtime-v2-new --dry-run
+python3.13 tools/bootstrap_runtime.py --prefix ../runtime-v2-new --jobs 4
+source ../runtime-v2-new/activate.sh
+```
+
+The installer requires a fresh prefix and supports `--resume`. Existing
+runtimes and campaigns are preserved. See the linked guide for prerequisites,
+component selection, provenance, and the MadGraph central-PDF prescription.
+
 ## Download MG5_aMC and prepare generated processes
 
 - Copy `loop_sm_twoscalar_generic` into the MG5 `models` directory.

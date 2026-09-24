@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "python": "3.13",
+  "git": {
+    "higgstools": {"url": "https://gitlab.com/higgsbounds/higgstools.git", "commit": "71a93a82f34fb120e3095460e52cb15b7bffcea0"},
+    "hbdataset": {"url": "https://gitlab.com/higgsbounds/hbdataset.git", "commit": "3539f9adf3724f8752701208bf059d1658824cd2"},
+    "hsdataset": {"url": "https://gitlab.com/higgsbounds/hsdataset.git", "commit": "3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1"},
+    "bsmpt": {"url": "https://github.com/BSMPT/BSMPT.git", "commit": "431df3b6a39cd5458e70f0035f6be87c40d3394d"},
+    "madgraph": {"url": "https://github.com/mg5amcnlo/mg5amcnlo.git", "commit": "1d7559658bdc2b7eba476d4897aa594994fa82af"}
+  },
+  "higgs_dependencies": {
+    "rangev3": {"url": "https://github.com/ericniebler/range-v3.git", "commit": "108f93c279c8f9cec175dac361084983d0176e99"},
+    "magic_enum": {"url": "https://github.com/Neargye/magic_enum.git", "commit": "3d1f6a5a2a3fbcba077e00ad0ccc2dd9fefc2ca7"},
+    "fmt": {"url": "https://github.com/fmtlib/fmt.git", "commit": "d141cdbeb0fb422a3fb7173b285fd38e0d1772dc"},
+    "spdlog": {"url": "https://github.com/gabime/spdlog.git", "commit": "eb3220622e73a4889eee355ffa37972b3cac3df5"},
+    "json": {"url": "https://github.com/nlohmann/json.git", "commit": "55f93686c01528224f448c19128836e7df245f72"},
+    "eigen3": {"url": "https://gitlab.com/libeigen/eigen.git", "commit": "b346103bdcf858e8319e68add97ddefbe3744a89"},
+    "pybind11": {"url": "https://github.com/pybind/pybind11.git", "commit": "bf21a6dfe775edbd53dce32057cf907fe6e6c064"}
+  },
+  "archives": {
+    "micromegas-7.1.4": {"url": "https://micromegasdm.github.io/downloadarea/v7.1/micromegas_7.1.4.tgz", "filename": "micromegas_7.1.4.tgz", "directory": "micromegas_7.1.4", "sha256": "c8cf207b17541a5b7d7e7ff157f1c1eb36e1dd3f7547e7745559b195c2a34264"},
+    "micromegas-6.1.15": {"url": "https://zenodo.org/records/13376690/files/micromegas_6.1.15.tgz?download=1", "filename": "micromegas_6.1.15.tgz", "directory": "micromegas_6.1.15", "sha256": "a8d13209fb2312875c7e17551514f7335428a2b65b85c7777f16175fcd49d9b2"},
+    "collier": {"url": "https://collier.hepforge.org/downloads/?f=collier-1.2.9.tar.gz", "filename": "COLLIER-1.2.9.tar.gz", "directory": "COLLIER-1.2.9", "sha256": "98d14f638d6dda826303f24720715af8c23f1185ddaffd46533c61a92a7fcb54"}
+  },
+  "mg5_processes": {
+    "hh": {"directory": "gg_hh_twoscalar", "generate": "g g > h h [noborn=QCD]"},
+    "hhh": {"directory": "gg_hhh_twoscalar", "generate": "g g > h h h [noborn=QCD]"},
+    "gg_heta0": {"directory": "gg_heta0", "generate": "g g > h eta0 [noborn=QCD]"},
+    "pp_eta0Z": {"directory": "pp_eta0Z", "generate": "p p > eta0 z"}
+  }
+}
