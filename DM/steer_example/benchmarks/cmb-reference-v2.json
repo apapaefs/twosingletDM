@@ -1,0 +1,246 @@
+{
+  "schema": "trsm_example_cmb_reference_v2",
+  "date": "2026-09-24",
+  "physics_source_commit": "34beddb7bce88197019929f994e89c2a83dd9cf2",
+  "points_sha256": "ece0c4662c2508b4f8fca066c7f9d28390ac41bbbe9353f9675197ef0344e63a",
+  "relative_tolerance": 2e-06,
+  "absolute_tolerance": 1e-30,
+  "backends": {
+    "7.1.4": [
+      {
+        "index": 1,
+        "MX": 500.0,
+        "dm_omega": 0.2662035236434477,
+        "dm_xf": 23.66987517167322,
+        "dm_freezeout_temperature_GeV": 21.123896783299138,
+        "dm_dir_det": 1.5121481876926092e-10,
+        "dm_cmb_ratio_raw": 0.010548156530358498,
+        "dm_cmb_abundance_fraction": 1.0,
+        "dm_cmb_ratio": 0.010548156530358498,
+        "dm_cmb_excluded": false,
+        "dm_passed": false
+      },
+      {
+        "index": 2,
+        "MX": 62.0,
+        "dm_omega": 0.001834642114661583,
+        "dm_xf": 26.339029873612287,
+        "dm_freezeout_temperature_GeV": 2.353921169363743,
+        "dm_dir_det": 9.51380049417279e-12,
+        "dm_cmb_ratio_raw": 0.028522301668041178,
+        "dm_cmb_abundance_fraction": 0.015288684288846525,
+        "dm_cmb_ratio": 6.666913095729473e-06,
+        "dm_cmb_excluded": false,
+        "dm_passed": true
+      },
+      {
+        "index": 3,
+        "MX": 62.545,
+        "dm_omega": 0.0030924771944305005,
+        "dm_xf": 23.053328121194358,
+        "dm_freezeout_temperature_GeV": 2.713057293558343,
+        "dm_dir_det": 9.351152741050521e-12,
+        "dm_cmb_ratio_raw": 9078.912713043786,
+        "dm_cmb_abundance_fraction": 0.025770643286920837,
+        "dm_cmb_ratio": 6.029542487631858,
+        "dm_cmb_excluded": true,
+        "dm_passed": false
+      },
+      {
+        "index": 4,
+        "MX": 10.0,
+        "dm_omega": 0.11913539301324359,
+        "dm_xf": 21.04201898380409,
+        "dm_freezeout_temperature_GeV": 0.4752395674434538,
+        "dm_dir_det": 9.14264215032548e-06,
+        "dm_cmb_ratio_raw": 1.6875264017238305,
+        "dm_cmb_abundance_fraction": 0.99279494177703,
+        "dm_cmb_ratio": 1.663296554097975,
+        "dm_cmb_excluded": true,
+        "dm_passed": false
+      }
+    ],
+    "6.1.15": [
+      {
+        "index": 1,
+        "MX": 500.0,
+        "dm_omega": 0.26620351738773307,
+        "dm_xf": 23.66987520334134,
+        "dm_freezeout_temperature_GeV": 21.1238967550373,
+        "dm_dir_det": 1.512148215125163e-10,
+        "dm_cmb_ratio_raw": 0.009711607491885469,
+        "dm_cmb_abundance_fraction": 1.0,
+        "dm_cmb_ratio": 0.009711607491885469,
+        "dm_cmb_excluded": false,
+        "dm_passed": false
+      },
+      {
+        "index": 2,
+        "MX": 62.0,
+        "dm_omega": 0.0018356023915465172,
+        "dm_xf": 26.338337704596643,
+        "dm_freezeout_temperature_GeV": 2.3539830301887115,
+        "dm_dir_det": 9.513800666766878e-12,
+        "dm_cmb_ratio_raw": 0.02785585855974673,
+        "dm_cmb_abundance_fraction": 0.015296686596220977,
+        "dm_cmb_ratio": 6.517953926235878e-06,
+        "dm_cmb_excluded": false,
+        "dm_passed": true
+      },
+      {
+        "index": 3,
+        "MX": 62.545,
+        "dm_omega": 0.0030950336180729523,
+        "dm_xf": 23.049900358381432,
+        "dm_freezeout_temperature_GeV": 2.7134607537362876,
+        "dm_dir_det": 9.351152910693699e-12,
+        "dm_cmb_ratio_raw": 8955.904412879361,
+        "dm_cmb_abundance_fraction": 0.025791946817274602,
+        "dm_cmb_ratio": 5.957687219822082,
+        "dm_cmb_excluded": true,
+        "dm_passed": false
+      },
+      {
+        "index": 4,
+        "MX": 10.0,
+        "dm_omega": 0.1292637687151973,
+        "dm_xf": 20.93113585500009,
+        "dm_freezeout_temperature_GeV": 0.4777571589652251,
+        "dm_dir_det": 9.142642316186231e-06,
+        "dm_cmb_ratio_raw": 1.5653642388366427,
+        "dm_cmb_abundance_fraction": 1.0,
+        "dm_cmb_ratio": 1.5653642388366427,
+        "dm_cmb_excluded": true,
+        "dm_passed": false
+      }
+    ]
+  },
+  "provenance": {
+    "7.1.4": {
+      "executable_sha256": "506feb17a6441279ad5a01b04e02bbfcbe4f1b692fd93f67d5929ebdb89b02a6",
+      "driver_capabilities": {
+        "schema": "trsm_driver_capabilities_v1",
+        "planck_cmb": {
+          "method": "micromegas_planck2018_swave_v1",
+          "pann_limit_cm3_s_GeV": 3.2e-28,
+          "spectrum_key": 7,
+          "spectra_flag": 0,
+          "vrot_km_s": 220,
+          "vz_decay": 1,
+          "vw_decay": 1
+        },
+        "physics_version": "trsm_constraints_v2",
+        "loop_hook": true
+      },
+      "sm_inputs": {
+        "scheme": "GF_MW_MZ_tree_v1",
+        "M1_GeV": 125.09,
+        "GF_GeV^-2": 1.1663787e-05,
+        "MW_GeV": 80.385,
+        "MZ_GeV": 91.1876,
+        "v_GeV": 246.21965079413738,
+        "SW": 0.47211992387942947,
+        "EE": 0.3082723897840211
+      },
+      "direct_detection": {
+        "model": "table:lz-ws2024-observed-v2:09591c18d4c6",
+        "table_path": "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/DM/data/lz2024/observed-si-v2.json",
+        "sha256": "09591c18d4c6a34436044ce82e272345598245356af09d02114407cf39562181",
+        "source": "https://doi.org/10.17182/hepdata.155182.v2/t1",
+        "confidence_level": 0.9,
+        "interaction": "elastic_isoscalar_si",
+        "limit_kind": "observed_upper",
+        "cross_section": "per_nucleon",
+        "input_unit": "cm2",
+        "comparison_unit": "pb",
+        "mass_range_gev": [
+          9.0,
+          10000.0
+        ],
+        "interpolation": "log-log",
+        "extrapolation": "unassessed",
+        "provenance": {
+          "column": "limit",
+          "license": "CC0",
+          "original_yaml": "hepdata-si-v2.yaml",
+          "original_yaml_sha256": "cdcb151339937e9bb1e27fe858359e3c4eb5f14ae4ff82c8538eaba1a8d5a870",
+          "power_constraint": "published observed power-constrained limit; not limit_unconstr or median",
+          "publication": "https://arxiv.org/abs/2410.17036v3",
+          "retrieved": "2026-09-23",
+          "table": "SI cross section",
+          "units_verified_against": "Fig. 5 and 40 GeV minimum of arXiv:2410.17036v3"
+        }
+      },
+      "rescale": true,
+      "raw_output_sha256": {
+        "OUT_mO_1": "c9cf2b7938a6c085378b197f081e8e79809e04e468c43b4e9f250010d98f2494",
+        "OUT_mO_2": "c8a50d89b49e749d64ac5d35781f3bd7baca90b36c7a18ecce5d35ab1285220f",
+        "OUT_mO_3": "945b67653924b741638669902948e24c90ab732b7c223bd09f9823e471590ed5",
+        "OUT_mO_4": "bc17d22561a0d664b33f132686d2d6ba77adfd536dd484d68124534bfae2cc1a"
+      }
+    },
+    "6.1.15": {
+      "executable_sha256": "dcc06b95b53018d9c65d0a38ecdaa13f2222e43e7a8ed75d671b96356daf0c45",
+      "driver_capabilities": {
+        "schema": "trsm_driver_capabilities_v1",
+        "planck_cmb": {
+          "method": "micromegas_planck2018_swave_v1",
+          "pann_limit_cm3_s_GeV": 3.2e-28,
+          "spectrum_key": 7,
+          "spectra_flag": 0,
+          "vrot_km_s": 220,
+          "vz_decay": 1,
+          "vw_decay": 1
+        },
+        "physics_version": "trsm_constraints_v2",
+        "loop_hook": true
+      },
+      "sm_inputs": {
+        "scheme": "GF_MW_MZ_tree_v1",
+        "M1_GeV": 125.09,
+        "GF_GeV^-2": 1.1663787e-05,
+        "MW_GeV": 80.385,
+        "MZ_GeV": 91.1876,
+        "v_GeV": 246.21965079413738,
+        "SW": 0.47211992387942947,
+        "EE": 0.3082723897840211
+      },
+      "direct_detection": {
+        "model": "table:lz-ws2024-observed-v2:09591c18d4c6",
+        "table_path": "/Users/apapaefs/Projects/TwoSingletDM/twosingletDM/DM/data/lz2024/observed-si-v2.json",
+        "sha256": "09591c18d4c6a34436044ce82e272345598245356af09d02114407cf39562181",
+        "source": "https://doi.org/10.17182/hepdata.155182.v2/t1",
+        "confidence_level": 0.9,
+        "interaction": "elastic_isoscalar_si",
+        "limit_kind": "observed_upper",
+        "cross_section": "per_nucleon",
+        "input_unit": "cm2",
+        "comparison_unit": "pb",
+        "mass_range_gev": [
+          9.0,
+          10000.0
+        ],
+        "interpolation": "log-log",
+        "extrapolation": "unassessed",
+        "provenance": {
+          "column": "limit",
+          "license": "CC0",
+          "original_yaml": "hepdata-si-v2.yaml",
+          "original_yaml_sha256": "cdcb151339937e9bb1e27fe858359e3c4eb5f14ae4ff82c8538eaba1a8d5a870",
+          "power_constraint": "published observed power-constrained limit; not limit_unconstr or median",
+          "publication": "https://arxiv.org/abs/2410.17036v3",
+          "retrieved": "2026-09-23",
+          "table": "SI cross section",
+          "units_verified_against": "Fig. 5 and 40 GeV minimum of arXiv:2410.17036v3"
+        }
+      },
+      "rescale": true,
+      "raw_output_sha256": {
+        "OUT_mO_1": "5cfedb66b44cc1793988f31991c9877df20edd10c372af0c9e393e54b4d2abb4",
+        "OUT_mO_2": "7bd379189026067b4efebe84c84eb9f6aa4ce7ec8762f3ea0dac68b14979bd4c",
+        "OUT_mO_3": "53ce59dc2901e089092dd327e58dc8084ca1e19845872054dd6ba6384caf4846",
+        "OUT_mO_4": "ce1839b80f5a918f79e0010cce6e9dfcc8c8a2ea3ce50a1ed8e7b458752b8a59"
+      }
+    }
+  }
+}

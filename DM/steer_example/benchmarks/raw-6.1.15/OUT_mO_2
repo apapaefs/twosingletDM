@@ -1,0 +1,58 @@
+TRSM_inputs_v2 {"Mh":125.09,"Mh2":380,"MX":62,"EE":0.30827238978402111,"SW":0.47211992387942947,"MW":80.385000000000005,"GF":1.1663787000000003e-05,"Mtp":172.5,"MbMb":4.25,"McMc":1.23,"alphaSMZ":0.11840000000000001,"width_h1":0.0038634228090700289,"width_h2":0.6296928071723974,"VWdecay":1,"VZdecay":1}
+
+Dark matter candidate is '~X' with spin=0/2 mass=6.20000000000000000E+01
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.09 3.86E-03
+     h2   380.00 6.30E-01
+
+Masses of odd sector Particles:
+~X       : MX      =  62.000 || 
+
+==== Calculation of relic density =====
+Xf=26.338337704596643 Omega=0.0018356023915465172 darkOmega_error=0
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   62% ~X ~X ->b B 
+   21% ~X ~X ->W+ W- 
+    7% ~X ~X ->l L 
+    5% ~X ~X ->G G 
+    3% ~X ~X ->c C 
+    3% ~X ~X ->Z Z 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 2.80E-27 cm^3/s
+ contribution of processes
+  ~X,~X -> b B                    6.39E-01
+  ~X,~X -> W+ W-                  1.94E-01
+  ~X,~X -> l L                    6.73E-02
+  ~X,~X -> G G                    4.63E-02
+  ~X,~X -> c C                    2.72E-02
+  ~X,~X -> Z Z                    2.36E-02
+  ~X,~X -> A A                    2.51E-03
+  ~X,~X -> m M                    2.38E-04
+  ~X,~X -> s S                    2.32E-04
+  ~X,~X -> u U                    6.40E-06
+  ~X,~X -> d D                    6.40E-06
+TRSM_PlanckCMB_v1 {"status":"ok","ratio_raw":0.027855858559746729,"sigma_v_cm3_s":2.7963539108165459e-27}
+Photon continuum flux diagnostic for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon continuum differential flux = 9.98442056049355751E-14[cm^-2 s^-1 GeV^-1] for E=31.0[GeV]
+This differential continuum value is not used for Fermi-LAT line limits.
+
+Fermi-LAT gamma-line flux estimate using R16 ROI approximation
+ROI: sqrt(l^2+b^2)<16 deg, excluding |b|<5 deg and |l|>6 deg
+FermiLAT_line_channel A A: E_gamma=6.20000000000000000E+01[GeV], sigmaV=7.02763281444640877E-30[cm^3 s^-1], N_gamma*sigmaV=1.40552656288928175E-29[cm^3 s^-1], Phi_R16=1.12142995506026800E-11[cm^-2 s^-1]
+FermiLAT_total_line_flux_R16 = 1.12142995506026800E-11[cm^-2 s^-1]
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  1.48287689929632841E-10 [1.48287689929632841E-10]  SD  0.00000000000000000E+00 [0.00000000000000000E+00]
+neutron: SI  1.49760710034182145E-10 [1.49760710034182145E-10]  SD  0.00000000000000000E+00 [0.00000000000000000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 9.32756891174015240E-12 [9.32756891174015240E-12] SD 0.00000000000000000E+00 [0.00000000000000000E+00]
+ neutron SI 9.51380066676687800E-12 [9.51380066676687800E-12] SD 0.00000000000000000E+00 [0.00000000000000000E+00]
+TRSM_loop_hook_v2 relic_calls=416 indirect_calls=2

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import math
 import subprocess
 import sys
@@ -72,7 +73,7 @@ def load_oks_rows(oks_file: Path):
     rows = []
     with oks_file.open("r", encoding="ascii") as stream:
         for line_number, line in enumerate(stream, start=1):
-            stripped = line.strip()
+            stripped = line.split('#', 1)[0].strip()
             if not stripped:
                 continue
             parts = stripped.split()
@@ -186,7 +187,10 @@ def run_script(script_path: Path, outdir: Path, script_args, show=False):
     if show:
         command.append("--show")
     print("Running:", " ".join(command), flush=True)
-    subprocess.run(command, check=True)
+    env = dict(os.environ)
+    if not show:
+        env["MPLBACKEND"] = "Agg"
+    subprocess.run(command, check=True, env=env)
 
 
 def main():
@@ -195,7 +199,9 @@ def main():
     plot_dir = Path(__file__).resolve().parent
     base_dir = plot_dir.parent
     outdir = Path(args.outdir).resolve() if args.outdir else (base_dir / "output")
-    oks_file = base_dir / "run" / "oks.dat"
+    oks_file = outdir / "oks.dat"
+    if not oks_file.is_file():
+        oks_file = base_dir / "run" / "oks.dat"
 
     if not oks_file.is_file():
         raise SystemExit(f"Could not find {oks_file}")
@@ -203,6 +209,9 @@ def main():
         raise SystemExit(f"Could not find output directory {outdir}")
     if not (outdir / "scan_results.dat").is_file():
         raise SystemExit(f"Could not find {(outdir / 'scan_results.dat')}")
+
+    if (outdir / "results.json").is_file():
+        run_script(plot_dir / "plot_cmb.py", outdir, [], show=args.show)
 
     oks_rows = load_oks_rows(oks_file)
     varying_variables = infer_varying_variables(oks_rows)

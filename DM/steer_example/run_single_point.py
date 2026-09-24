@@ -1,34 +1,36 @@
 #!/usr/bin/env python3
+"""A standalone, inspectable front end to the production v2 DM assessment."""
 
 import argparse
+import csv
+import hashlib
+import json
 import math
+import os
+from pathlib import Path
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path
-
-
-RELIC_UPPER_LIMIT = 0.1224
-DEFAULT_LIMIT_MODEL = "legacy-output"
-
-CARD_FIELDS = [
-    ("LX", "lx"),
-    ("LHX", "lhx"),
-    ("LSX", "lsx"),
-    ("MX", "mx"),
-    ("vevs", "vevs"),
-    ("SinT", "sint"),
-    ("Mh2", "mh2"),
-]
-
-NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+import tempfile
+from dataclasses import asdict, dataclass
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT))
 
-from test_trsm_DM import assess_indirect_limit, parse_indirect_line_channels
+from test_trsm_DM import DMPoint, test_dm, write_micromegas_card
+from trsm_cmb import add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, load_si_limit_table
+from trsm_inputs import (ABUNDANCE_REFERENCE, PHYSICS_VERSION, RELIC_UPPER_LIMIT,
+                         json_safe, micromegas_sm_inputs, sm_inputs)
+from trsm_micromegas import (DEFAULT_MICROMEGAS_VERSION, default_micromegas_main,
+                            normalize_micromegas_version, require_v2_capability)
+
+CARD_FIELDS = (('LX', 'lx'), ('LHX', 'lhx'), ('LSX', 'lsx'), ('MX', 'mx'),
+               ('vevs', 'vevs'), ('SinT', 'sint'), ('Mh2', 'mh2'))
+LEGACY_COLUMNS = ('index', 'LX', 'LHX', 'LSX', 'MX', 'vevs', 'SinT', 'Mh2',
+                  'MDM', 'Omega', 'DirDet', 'DirDetLimit', 'DirDetBaseLimit',
+                  'IndirAvailable', 'IndirEnergy', 'IndirFlux', 'IndirLimit', 'IndirRatio')
+SCHEMA = 'trsm_steer_example_v2'
 
 
 @dataclass(frozen=True)
@@ -42,468 +44,290 @@ class PointInput:
     sint: float
     mh2: float
 
+    def __post_init__(self):
+        if not isinstance(self.index, int) or self.index < 0:
+            raise ValueError('Point index must be a nonnegative integer')
+        if not all(math.isfinite(getattr(self, key)) for _, key in CARD_FIELDS):
+            raise ValueError('All input parameters must be finite')
+        if self.mx <= 0 or self.mh2 <= 0 or self.vevs == 0 or abs(self.sint) >= 1:
+            raise ValueError('Require MX, Mh2 > 0, vevs != 0 and |SinT| < 1')
 
-@dataclass(frozen=True)
-class MicromegasResult:
-    mdm: float
-    omega: float
-    dir_det: float
-    indirect_line_channels: tuple = ()
+    def dm_point(self):
+        return DMPoint(self.lx, self.lhx, self.lsx, self.mx, self.vevs,
+                       math.asin(self.sint), self.mh2)
 
-
-@dataclass(frozen=True)
-class PointSummary:
-    point: PointInput
-    result: MicromegasResult
-    dir_det_limit: float
-    lux_base_limit: float
-    indirect_limit: object
-    relic_excluded: bool
-    direct_detection_excluded: bool
-
-    @property
-    def dm_excluded(self):
-        return (
-            self.relic_excluded
-            or self.direct_detection_excluded
-            or self.indirect_limit.excluded
-        )
-
-
-def default_micromegas_main():
-    script_dir = Path(__file__).resolve().parent
-    return script_dir.parent / "micromegas_6.1.15" / "TRSM" / "main"
-
-
-def default_output_dir():
-    return Path(__file__).resolve().parent / "single_point_output"
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description=(
-            "Run or post-process one two-singlet DM micrOMEGAs point. "
-            "This is the single-point analogue of run/MOrun.sh plus "
-            "source/mO_excluder.cpp."
-        )
-    )
-    parser.add_argument(
-        "--card",
-        type=Path,
-        help="Existing single-point micrOMEGAs card, for example run/cards/MO_inp100.dat.",
-    )
-    parser.add_argument(
-        "--index",
-        type=int,
-        help="Point index. Defaults to the number in MO_inp<index>.dat, or 1 for explicit parameters.",
-    )
-    parser.add_argument(
-        "--micromegas-main",
-        type=Path,
-        default=default_micromegas_main(),
-        help="Path to the micrOMEGAs executable. Defaults to the TRSM/main executable in this tree.",
-    )
-    parser.add_argument(
-        "--micromegas-output",
-        type=Path,
-        help=(
-            "Read an existing micrOMEGAs text output instead of running the executable. "
-            "Useful for checking an existing OUT_mO_<index> file."
-        ),
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=default_output_dir(),
-        help="Directory for the single-point outputs. Defaults to steer_example/single_point_output.",
-    )
-    parser.add_argument(
-        "--no-rescale",
-        action="store_true",
-        help="Do not rescale the direct-detection limit by the relic-density fraction.",
-    )
-    parser.add_argument(
-        "--relic-upper-limit",
-        type=float,
-        default=RELIC_UPPER_LIMIT,
-        help=f"Upper relic-density limit. Defaults to {RELIC_UPPER_LIMIT}.",
-    )
-    parser.add_argument(
-        "--limit-model",
-        choices=["legacy-output", "lz2025-source"],
-        default=DEFAULT_LIMIT_MODEL,
-        help=(
-            "Direct-detection limit fit. 'legacy-output' reproduces the existing "
-            "steer_example/output files; 'lz2025-source' follows the active "
-            "DirDetexcl branch in source/mO_excluder.cpp."
-        ),
-    )
-
-    for card_key, attr_name in CARD_FIELDS:
-        parser.add_argument(
-            f"--{attr_name}",
-            type=float,
-            help=f"{card_key} value for an explicit single point when --card is not used.",
-        )
-
-    return parser.parse_args()
-
-
-def infer_index_from_card(card_path):
-    match = re.search(r"MO_inp(\d+)\.dat$", card_path.name)
-    return int(match.group(1)) if match else None
+    def columns(self):
+        return {'index': self.index, **{label: getattr(self, key) for label, key in CARD_FIELDS}}
 
 
 def read_card(card_path, index=None):
+    card_path = Path(card_path)
+    if index is None:
+        match = re.fullmatch(r'MO_inp(\d+)\.dat', card_path.name)
+        if not match:
+            raise ValueError('Use --index with a card not named MO_inp<index>.dat')
+        index = int(match[1])
     values = {}
-    with card_path.open("r", encoding="ascii") as stream:
-        for line in stream:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            parts = stripped.split()
-            if len(parts) >= 2:
-                values[parts[0]] = float(parts[1])
-
-    missing = [card_key for card_key, _ in CARD_FIELDS if card_key not in values]
+    for line in card_path.read_text().splitlines():
+        fields = line.split('#', 1)[0].split()
+        if not fields:
+            continue
+        if len(fields) != 2 or fields[0] in values:
+            raise ValueError(f'Malformed or duplicate card entry: {line}')
+        values[fields[0]] = float(fields[1])
+    allowed = {name for name, _ in CARD_FIELDS} | set(micromegas_sm_inputs())
+    if set(values) - allowed:
+        raise ValueError(f'Unsupported card overrides: {sorted(set(values) - allowed)}')
+    for name, value in micromegas_sm_inputs().items():
+        if name in values and not math.isclose(values[name], value, rel_tol=2e-14):
+            raise ValueError(f'{name} conflicts with the shared v2 SM inputs ({value:.17g})')
+    missing = [name for name, _ in CARD_FIELDS if name not in values]
     if missing:
-        raise ValueError(f"{card_path} is missing required card fields: {', '.join(missing)}")
-
-    resolved_index = index if index is not None else infer_index_from_card(card_path)
-    if resolved_index is None:
-        raise ValueError(f"Could not infer an index from {card_path}; pass --index.")
-
-    return PointInput(
-        index=resolved_index,
-        lx=values["LX"],
-        lhx=values["LHX"],
-        lsx=values["LSX"],
-        mx=values["MX"],
-        vevs=values["vevs"],
-        sint=values["SinT"],
-        mh2=values["Mh2"],
-    )
+        raise ValueError(f'Missing card inputs: {missing}')
+    return PointInput(index, **{key: values[name] for name, key in CARD_FIELDS})
 
 
-def point_from_explicit_args(args):
-    missing = [
-        attr_name
-        for _, attr_name in CARD_FIELDS
-        if getattr(args, attr_name) is None
-    ]
-    if missing:
-        raise SystemExit(
-            "Pass --card, or provide all explicit point values: "
-            + ", ".join(f"--{name}" for name in missing)
-        )
-
-    return PointInput(
-        index=args.index if args.index is not None else 1,
-        lx=args.lx,
-        lhx=args.lhx,
-        lsx=args.lsx,
-        mx=args.mx,
-        vevs=args.vevs,
-        sint=args.sint,
-        mh2=args.mh2,
-    )
+def read_points(path):
+    points, seen = [], set()
+    for number, line in enumerate(Path(path).read_text().splitlines(), 1):
+        fields = line.split('#', 1)[0].split()
+        if not fields:
+            continue
+        if len(fields) != 8:
+            raise ValueError(f'{path}:{number}: expected index and seven parameters')
+        point = PointInput(int(fields[0]), *map(float, fields[1:]))
+        if point.index in seen:
+            raise ValueError(f'Duplicate point index {point.index}')
+        seen.add(point.index)
+        points.append(point)
+    if not points:
+        raise ValueError(f'No points in {path}')
+    return points
 
 
 def write_card(point, card_path):
-    lines = [
-        f"LX\t\t{format_value(point.lx)}",
-        f"LHX\t\t{format_value(point.lhx)}",
-        f"LSX\t\t{format_value(point.lsx)}",
-        f"MX\t\t{format_value(point.mx)}",
-        f"vevs\t{format_value(point.vevs)}",
-        f"SinT\t{format_value(point.sint)}",
-        f"Mh2\t\t{format_value(point.mh2)}",
-    ]
-    card_path.write_text("\n".join(lines) + "\n", encoding="ascii")
+    write_micromegas_card(point.dm_point(), Path(card_path))
 
 
-def find_number(pattern, text, label):
-    match = re.search(pattern, text, flags=re.MULTILINE)
-    if not match:
-        raise ValueError(f"Could not find {label} in micrOMEGAs output")
-    return float(match.group(1))
+def add_physics_arguments(parser):
+    parser.add_argument('--micromegas-version', choices=('6', '7', '6.1.15', '7.1.4'),
+                        default=DEFAULT_MICROMEGAS_VERSION)
+    parser.add_argument('--micromegas-main', type=Path, help='Path to the rebuilt v2 TRSM/main')
+    add_cmb_arguments(parser)
+    parser.add_argument('--no-rescale', action='store_true', help='Use unit DM abundance for all signals')
+    parser.add_argument('--limit-model', default=DEFAULT_LIMIT_MODEL,
+                        choices=(DEFAULT_LIMIT_MODEL, 'legacy-output', 'lz2025-source'))
+    parser.add_argument('--limit-table', type=Path, help='Explicit normalized SI table (default: LZ WS2024)')
+    parser.add_argument('--timeout', type=float, default=600, help='Seconds allowed per native point')
 
 
-def parse_micromegas_output(text):
-    # These regexes mirror the awk snippets in run/MOrun.sh.
-    mdm = find_number(
-        rf"(?:^|\s)(?:MHX|MX)\s*=\s*({NUMBER_PATTERN})",
-        text,
-        "dark matter mass",
-    )
-    omega = find_number(rf"Omega=({NUMBER_PATTERN})", text, "Omega")
-
-    neutron_match = re.search(
-        rf"^[ \t]*neutron[ \t]+SI[ \t]+({NUMBER_PATTERN})\b",
-        text,
-        flags=re.MULTILINE,
-    )
-    if not neutron_match:
-        raise ValueError("Could not find neutron SI direct-detection cross section")
-
-    return MicromegasResult(
-        mdm=mdm,
-        omega=omega,
-        dir_det=float(neutron_match.group(1)),
-        indirect_line_channels=parse_indirect_line_channels(text),
-    )
+def configure(args, *, replay=False):
+    args.micromegas_version = normalize_micromegas_version(args.micromegas_version)
+    if args.planck_cmb is None:
+        args.planck_cmb = args.micromegas_version == '7.1.4'
+    if args.timeout <= 0 or not math.isfinite(args.timeout):
+        raise ValueError('--timeout must be finite and positive')
+    if args.limit_table and args.limit_model != DEFAULT_LIMIT_MODEL:
+        raise ValueError('Use either --limit-table or a historical --limit-model')
+    args.si_table = (load_si_limit_table(args.limit_table or DEFAULT_LIMIT_TABLE)
+                     if args.limit_model == DEFAULT_LIMIT_MODEL else None)
+    args.micromegas_main = (args.micromegas_main or default_micromegas_main(args.micromegas_version)).expanduser().resolve()
+    args.capabilities = None
+    if not replay:
+        args.capabilities = require_v2_capability(args.micromegas_main)
+        if args.planck_cmb:
+            args._cmb_driver = require_cmb_capability(args.micromegas_main)
+    return args
 
 
-def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL):
-    if mdm <= 0.0:
-        raise ValueError("Dark matter mass must be positive")
-
-    if model == "legacy-output":
-        return legacy_output_direct_detection_base_limit(mdm)
-    if model == "lz2025-source":
-        return lz2025_source_direct_detection_base_limit(mdm)
-    raise ValueError(f"Unknown direct-detection limit model: {model}")
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def legacy_output_direct_detection_base_limit(mdm):
-    """Older DirDetexcl fit used by the checked-in steer_example/output files."""
-    if mdm < 10.0:
-        result = math.exp(-23.2949 + 2.2493 * (-3.60228 + math.log(mdm)) ** 2)
-        return result * (1.0 - 0.465188 + 1.64349 * (-2.3605 + math.log(mdm)) ** 2)
-    if mdm < 11.0:
-        return 8.75459e-9 - 6.96272e-10 * mdm
-    if mdm < 18.0:
-        result = math.exp(-23.2938 + 0.0135204 * (-24.8742 + mdm) ** 2)
-        return result * (1.0 - 0.0826054 + 0.0110134 * (-13.3867 + mdm) ** 2)
-    if mdm < 20.0:
-        return 5.0606e-10 - 1.91361e-11 * mdm
-    if mdm < 38.0:
-        return 7.64124e-11 + 1.34496e-13 * (-36.6817 + mdm) ** 2
-    if mdm < 60.0:
-        result = 4.84775e-11 + 7.28365e-13 * mdm
-    elif mdm < 100.0:
-        result = math.exp(0.671326 * math.log(mdm) - 25.8196)
-    else:
-        result = 1.49167e-12 * math.exp(0.977674 * math.log(mdm))
-
-    if 40.0 < mdm < 100.0:
-        result = (0.0774 * mdm + 1.382) * 1.0e-11
-    if 50.0 < mdm < 70.0:
-        result = (0.0767 * mdm + 1.423) * 1.0e-11
-    elif 100.0 < mdm < 200.0:
-        result = (0.0805 * mdm + 1.235) * 1.0e-11
-    elif 200.0 < mdm < 400.0:
-        result = 8.135e-13 * mdm + 8.8e-12
-    elif mdm > 400.0:
-        result = 8.168e-13 * mdm + 7.5e-12
-
-    return result
+def metadata(args, *, replay=False):
+    revision = subprocess.run(['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'],
+                              capture_output=True, text=True)
+    sources = ['test_trsm_DM.py', 'trsm_cmb.py', 'trsm_direct_detection.py',
+               'trsm_inputs.py', 'trsm_micromegas.py', 'config/sm-inputs-v2.json',
+               'DM/steer_example/run_single_point.py', 'DM/steer_example/run_scan.py']
+    return {
+        'schema': SCHEMA, 'physics_version': PHYSICS_VERSION,
+        'source_commit': revision.stdout.strip() if revision.returncode == 0 else None,
+        'source_sha256': {name: sha256(REPO_ROOT / name) for name in sources},
+        'mode': 'raw_output_replay' if replay else 'native',
+        'backend_version_requested': args.micromegas_version,
+        'executable': None if replay else str(args.micromegas_main),
+        'executable_sha256': None if replay else sha256(args.micromegas_main),
+        'driver_capabilities': args.capabilities, 'sm_inputs': sm_inputs(),
+        'relic_upper_limit': RELIC_UPPER_LIMIT, 'abundance_reference': ABUNDANCE_REFERENCE,
+        'rescale': not args.no_rescale, 'planck_cmb': {
+            **cmb_configuration(args), 'rescale': not args.no_rescale,
+            'abundance_rescaling': '1' if args.no_rescale else 'min(1, Omega_h2 / 0.12)^2'},
+        'direct_detection': args.si_table.metadata() if args.si_table else {'model': args.limit_model},
+        'legacy_columns': list(LEGACY_COLUMNS), 'timeout_seconds': args.timeout,
+    }
 
 
-def lz2025_source_direct_detection_base_limit(mdm):
-    """Active DirDetexcl branch in the checked-in source/mO_excluder.cpp."""
-    if mdm < 10.0:
-        result = math.exp(-23.2949 + 2.2493 * (-3.60228 + math.log(mdm)) ** 2)
-        return result * (1.0 - 0.465188 + 1.64349 * (-2.3605 + math.log(mdm)) ** 2)
-    if mdm < 40.0:
-        exponent = (
-            1.65
-            / (1.0 - math.log10(40.0)) ** 2
-            * (math.log10(mdm) - math.log10(40.0)) ** 2
-        )
-        return 2.45e-12 * 10.0 ** exponent
-    if mdm < 60.0:
-        return 2.32775e-12 + 2.28365e-15 * mdm
-    if mdm < 80.0:
-        return 1.68775e-12 + 1.28365e-14 * mdm
-    if mdm < 100.0:
-        return math.exp(0.671326 * math.log(mdm) - 29.5696)
-    return 3.49167e-14 * math.exp(0.977674 * math.log(mdm))
+def write_json(path, value):
+    Path(path).write_text(json.dumps(json_safe(value), indent=2, allow_nan=False) + '\n')
 
 
-def build_summary(
-    point,
-    result,
-    relic_upper_limit=RELIC_UPPER_LIMIT,
-    rescale=True,
-    limit_model=DEFAULT_LIMIT_MODEL,
-):
-    lux_base_limit = direct_detection_base_limit(result.mdm, model=limit_model)
-    if rescale:
-        if result.omega > 0.0:
-            dir_det_limit = lux_base_limit * relic_upper_limit / result.omega
-        else:
-            dir_det_limit = math.inf
-    else:
-        dir_det_limit = lux_base_limit
-
-    indirect_limit = assess_indirect_limit(result.indirect_line_channels)
-
-    return PointSummary(
-        point=point,
-        result=result,
-        dir_det_limit=dir_det_limit,
-        lux_base_limit=lux_base_limit,
-        indirect_limit=indirect_limit,
-        relic_excluded=result.omega > relic_upper_limit,
-        direct_detection_excluded=result.dir_det > dir_det_limit,
-    )
+def tsv_value(value):
+    if value is None:
+        return 'nan'
+    if isinstance(value, bool):
+        return '1' if value else '0'
+    if isinstance(value, float):
+        return format(value, '.17g')
+    return str(value)
 
 
-def run_micromegas(micromegas_main, card_path):
-    if not micromegas_main.is_file():
-        raise FileNotFoundError(f"micrOMEGAs executable not found: {micromegas_main}")
-    if not micromegas_main.exists():
-        raise FileNotFoundError(f"micrOMEGAs executable not found: {micromegas_main}")
-
-    completed = subprocess.run(
-        [str(micromegas_main), str(card_path)],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return completed.stdout
+def write_tsv(path, rows):
+    columns = list(dict.fromkeys(key for row in rows for key in row))
+    with Path(path).open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, columns, delimiter='\t')
+        writer.writeheader()
+        writer.writerows({key: tsv_value(row.get(key)) for key in columns} for row in rows)
 
 
-def format_value(value):
-    if math.isinf(value):
-        return "inf"
-    return f"{value:.6g}"
+def legacy_values(row):
+    keys = ('dm_mdm', 'dm_omega', 'dm_dir_det', 'dm_dir_det_limit', 'dm_lux_base_limit',
+            'dm_indirect_available', 'dm_indirect_energy', 'dm_indirect_flux',
+            'dm_indirect_limit', 'dm_indirect_ratio')
+    return [row[key] for key in LEGACY_COLUMNS[:8]] + [row.get(key) for key in keys]
 
 
-def summary_line(summary):
-    point = summary.point
-    result = summary.result
-    values = [
-        point.index,
-        point.lx,
-        point.lhx,
-        point.lsx,
-        point.mx,
-        point.vevs,
-        point.sint,
-        point.mh2,
-        result.mdm,
-        result.omega,
-        result.dir_det,
-        summary.dir_det_limit,
-        summary.lux_base_limit,
-        1 if summary.indirect_limit.available else 0,
-        summary.indirect_limit.energy_gev,
-        summary.indirect_limit.flux_cm2_s,
-        summary.indirect_limit.limit_cm2_s,
-        summary.indirect_limit.max_ratio,
-    ]
-    return "\t".join(format_value(value) if isinstance(value, float) else str(value) for value in values)
+def legacy_line(row, *, scan=False):
+    values = legacy_values(row)
+    return '\t'.join(map(tsv_value, values[:11] if scan else values)) + '\n'
 
 
-def scan_result_line(point, result):
-    values = [
-        point.index,
-        point.lx,
-        point.lhx,
-        point.lsx,
-        point.mx,
-        point.vevs,
-        point.sint,
-        point.mh2,
-        result.mdm,
-        result.omega,
-        result.dir_det,
-    ]
-    return "\t".join(format_value(value) if isinstance(value, float) else str(value) for value in values)
+class NativeRunner:
+    """One isolated writable CalcHEP cache per process/runner, reused across points."""
+    def __init__(self, args):
+        self.args = args
+        self.directory = tempfile.TemporaryDirectory(prefix='trsm_example_')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.directory.cleanup()
+
+    def run(self, card):
+        command = [str(self.args.micromegas_main), str(Path(card).resolve())]
+        if self.args.planck_cmb:
+            command.append('--planck-cmb')
+        invocation = {'command': command, 'returncode': None, 'error': None,
+                      'runtime_directory': self.directory.name}
+        try:
+            done = subprocess.run(command, cwd=self.directory.name,
+                                  env=dict(os.environ, TRSM_RUNTIME_DIR=self.directory.name),
+                                  capture_output=True, text=True, timeout=self.args.timeout)
+            invocation['returncode'] = done.returncode
+            if done.returncode:
+                invocation['error'] = f'micrOMEGAs exited with status {done.returncode}'
+            return done.stdout, done.stderr, invocation
+        except subprocess.TimeoutExpired as error:
+            invocation['error'] = f'micrOMEGAs exceeded {self.args.timeout:g} seconds'
+            def decode(text):
+                return text.decode(errors='replace') if isinstance(text, bytes) else text or ''
+            return decode(error.stdout), decode(error.stderr), invocation
+        except OSError as error:
+            invocation['error'] = str(error)
+            return '', '', invocation
 
 
-def write_marker(marker_path):
-    marker_path.write_text("", encoding="ascii")
-
-
-def write_outputs(output_dir, raw_output, summary):
+def evaluate_point(point, args, output_dir, *, runner=None, raw_output=None, raw_source=None):
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    index = summary.point.index
-
-    raw_path = output_dir / f"OUT_mO_{index}"
-    dm_data_path = output_dir / f"DM_data_{index}"
-    scan_result_path = output_dir / f"scan_result_{index}.dat"
-
-    raw_path.write_text(raw_output, encoding="ascii")
-    dm_data_path.write_text(summary_line(summary) + "\n", encoding="ascii")
-    scan_result_path.write_text(scan_result_line(summary.point, summary.result) + "\n", encoding="ascii")
-
-    # Refresh only this point's markers so re-running the same point cannot leave
-    # stale exclusion flags from a previous single-point attempt.
-    markers = [
-        output_dir / f"DM_EXCLUDED_{index}",
-        output_dir / f"RelDens_EXCLUDED_{index}",
-        output_dir / f"DirDet_EXCLUDED_{index}",
-        output_dir / f"IndirDet_EXCLUDED_{index}",
-    ]
-    for marker in markers:
-        marker.unlink(missing_ok=True)
-
-    if summary.dm_excluded:
-        write_marker(output_dir / f"DM_EXCLUDED_{index}")
-    if summary.relic_excluded:
-        write_marker(output_dir / f"RelDens_EXCLUDED_{index}")
-    if summary.direct_detection_excluded:
-        write_marker(output_dir / f"DirDet_EXCLUDED_{index}")
-    if summary.indirect_limit.excluded:
-        write_marker(output_dir / f"IndirDet_EXCLUDED_{index}")
-
-    return raw_path, dm_data_path, scan_result_path
-
-
-def print_summary(summary, paths):
-    raw_path, dm_data_path, scan_result_path = paths
-    status = "excluded" if summary.dm_excluded else "accepted"
-    print(f"Point {summary.point.index}: {status}")
-    print(f"  Omega: {format_value(summary.result.omega)}")
-    print(f"  DirDet: {format_value(summary.result.dir_det)}")
-    print(f"  DirDetLimit: {format_value(summary.dir_det_limit)}")
-    print(f"  LUXBaseLimit: {format_value(summary.lux_base_limit)}")
-    print(f"  IndirAvailable: {summary.indirect_limit.available}")
-    print(f"  IndirEnergy: {format_value(summary.indirect_limit.energy_gev)}")
-    print(f"  IndirFlux: {format_value(summary.indirect_limit.flux_cm2_s)}")
-    print(f"  IndirLimit: {format_value(summary.indirect_limit.limit_cm2_s)}")
-    print(f"  IndirRatio: {format_value(summary.indirect_limit.max_ratio)}")
-    print(f"  Raw output: {raw_path}")
-    print(f"  DM summary: {dm_data_path}")
-    print(f"  Scan-style summary: {scan_result_path}")
-
-
-def main():
-    args = parse_args()
-
-    if args.card is not None:
-        point = read_card(args.card, index=args.index)
-        card_path = args.card
+    stem = str(point.index)
+    card = output_dir / f'MO_inp{stem}.dat'
+    result_path = output_dir / f'result_{stem}.json'
+    if result_path.exists() or (output_dir / f'OUT_mO_{stem}').exists() or card.exists():
+        raise ValueError(f'Output for point {stem} already exists in {output_dir}; use a new directory')
+    write_card(point, card)
+    if raw_output is None:
+        raw_output, stderr, invocation = runner.run(card)
     else:
-        point = point_from_explicit_args(args)
-        args.output_dir.mkdir(parents=True, exist_ok=True)
-        card_path = args.output_dir / f"MO_inp{point.index}.dat"
-        write_card(point, card_path)
+        stderr = ''
+        invocation = {'mode': 'raw_output_replay', 'source': str(raw_source) if raw_source else None,
+                      'returncode': None, 'error': None}
+    invocation['card_sha256'] = sha256(card)
+    (output_dir / f'OUT_mO_{stem}').write_text(raw_output)
+    (output_dir / f'ERR_mO_{stem}').write_text(stderr)
+    passed, _info, diagnostics = test_dm(**asdict(point.dm_point()), raw_output=raw_output,
+                                      limit_model=args.limit_model, limit_table=args.si_table,
+                                      rescale=not args.no_rescale, planck_cmb=args.planck_cmb)
+    if not args.planck_cmb:
+        diagnostics.update(cmb_diagnostics(enabled=False))
+    if invocation['error']:
+        passed = None
+        diagnostics.update(dm_calculation_status='execution_error',
+                           dm_assessment_reason=invocation['error'], dm_xf=None,
+                           dm_freezeout_temperature_GeV=None, dm_direct_detection_available=False,
+                           dm_indirect_available=False)
+        for name in ('relic', 'direct_detection', 'indirect_detection'):
+            diagnostics[f'dm_{name}_excluded'] = None
+        diagnostics.update(cmb_diagnostics(enabled=args.planck_cmb, reason=invocation['error']))
+    # Keep a failed/missing CMB diagnosis visible even when another constraint excludes.
+    row = json_safe({**point.columns(), 'dm_passed': passed, **diagnostics})
+    write_json(result_path, {'schema': SCHEMA, 'point': row, 'invocation': invocation,
+                             'raw_output_sha256': hashlib.sha256(raw_output.encode()).hexdigest()})
+    write_tsv(output_dir / f'result_{stem}.tsv', [row])
+    (output_dir / f'DM_data_{stem}').write_text(legacy_line(row))
+    (output_dir / f'scan_result_{stem}.dat').write_text(legacy_line(row, scan=True))
+    return row
 
-    if args.micromegas_output is not None:
-        raw_output = args.micromegas_output.read_text(encoding="ascii")
-    else:
-        raw_output = run_micromegas(args.micromegas_main, card_path)
 
-    result = parse_micromegas_output(raw_output)
-    summary = build_summary(
-        point,
-        result,
-        relic_upper_limit=args.relic_upper_limit,
-        rescale=not args.no_rescale,
-        limit_model=args.limit_model,
-    )
-    paths = write_outputs(args.output_dir, raw_output, summary)
-    print_summary(summary, paths)
+def print_summary(row):
+    def verdict(value):
+        return 'unassessed' if value is None else 'excluded' if value else 'pass'
+    print(f"Point {row['index']}: Omega={row.get('dm_omega')}  Xf={row.get('dm_xf')}  Tf={row.get('dm_freezeout_temperature_GeV')} GeV")
+    print(f"  Planck CMB: raw={row.get('dm_cmb_ratio_raw')}  xi={row.get('dm_cmb_abundance_fraction')}  rescaled={row.get('dm_cmb_ratio')}  {verdict(row.get('dm_cmb_excluded')) if row.get('dm_cmb_enabled') else 'disabled'} ({row['dm_cmb_status']})")
+    print('  DM:', 'unassessed' if row['dm_passed'] is None else 'pass' if row['dm_passed'] else 'excluded',
+          '|', row.get('dm_assessment_reason', ''))
 
 
-if __name__ == "__main__":
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--card', type=Path)
+    parser.add_argument('--index', type=int)
+    for _, key in CARD_FIELDS:
+        parser.add_argument('--' + key, type=float)
+    parser.add_argument('--micromegas-output', type=Path, help='Reassess a saved raw log without running a backend')
+    parser.add_argument('--output-dir', type=Path, default=Path(__file__).resolve().parent / 'single_point_output')
+    add_physics_arguments(parser)
+    args = parser.parse_args(argv)
+    if args.card and any(getattr(args, key) is not None for _, key in CARD_FIELDS):
+        parser.error('Use --card or explicit point parameters, not both')
+    if not args.card and any(getattr(args, key) is None for _, key in CARD_FIELDS):
+        parser.error('Provide --card or all seven point parameters')
+    return args
+
+
+def main(argv=None):
     try:
-        main()
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        print(f"run_single_point.py: {exc}", file=sys.stderr)
-        sys.exit(1)
+        args = parse_args(argv)
+        replay = args.micromegas_output is not None
+        configure(args, replay=replay)
+        point = (read_card(args.card, args.index) if args.card else
+                 PointInput(1 if args.index is None else args.index,
+                            **{key: getattr(args, key) for _, key in CARD_FIELDS}))
+        if replay:
+            row = evaluate_point(point, args, args.output_dir,
+                                 raw_output=args.micromegas_output.read_text(), raw_source=args.micromegas_output)
+        else:
+            with NativeRunner(args) as runner:
+                row = evaluate_point(point, args, args.output_dir, runner=runner)
+        write_json(args.output_dir / f'metadata_{point.index}.json', metadata(args, replay=replay))
+        print_summary(row)
+        print('Saved:', args.output_dir.resolve() / f'result_{point.index}.json')
+        return 1 if row.get('dm_calculation_status') != 'success' or (args.planck_cmb and not row['dm_cmb_available']) else 0
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

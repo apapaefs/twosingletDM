@@ -1,0 +1,78 @@
+PROCESS: h1->2*x
+PROCESS: W+->2*x
+PROCESS: Z->2*x
+PROCESS: h1->W+,e,Ne
+Delete diagrams with W+<1
+PROCESS: h1->Z,ne,Ne
+Delete diagrams with Z<1
+PROCESS: h2->2*x
+PROCESS: ~X,~X->AllEven,1*x{A,Z,G,W+,W-,ne,Ne,e,E,nm,Nm,m,M,nl,Nl,l,L,u,U,d,D,c,C,s,S,t,T,b,B,h1,h2
+PROCESS: ~X,~X->Z,ne,Ne
+Delete diagrams with %Z+W<1
+PROCESS: ~X,~X->W-,E,ne
+Delete diagrams with %Z+W<1
+PROCESS: QUARKS,~X->QUARKS,~X{u,U,d,D,c,C,s,S,t,T,b,B
+Delete diagrams with _S0_!=1,_V5_,A
+PROCESS: NUCLEUS,~X -> NUCLEUS,~X
+TRSM_inputs_v2 {"Mh":125.09,"Mh2":380,"MX":500,"EE":0.30827238978402111,"SW":0.47211992387942947,"MW":80.385000000000005,"GF":1.1663787000000003e-05,"Mtp":172.5,"MbMb":4.25,"McMc":1.23,"alphaSMZ":0.11840000000000001,"width_h1":0.0038776383785610021,"width_h2":0.62959915507720066,"VWdecay":1,"VZdecay":1}
+
+Dark matter candidate is '~X' with spin=0/2 mass=5.00000000000000000E+02
+
+=== MASSES OF HIGGS AND ODD PARTICLES: ===
+Higgs masses and widths
+     h1   125.09 3.88E-03
+     h2   380.00 6.30E-01
+
+Masses of odd sector Particles:
+~X       : MX      = 500.000 || 
+
+==== Calculation of relic density =====
+Xf=23.669875171673219 Omega=0.26620352364344768 darkOmega_error=0
+# Channels which contribute to 1/(omega) more than 1%.
+# Relative contributions in % are displayed
+   74% ~X ~X ->h2 h2 
+   11% ~X ~X ->W+ W- 
+    6% ~X ~X ->h1 h1 
+    5% ~X ~X ->Z Z 
+    2% ~X ~X ->t T 
+    2% ~X ~X ->h1 h2 
+
+==== Indirect detection =======
+    Channel          vcs[cm^3/s]
+==================================
+ annihilation cross section 9.46E-27 cm^3/s
+ contribution of processes
+  ~X,~X -> h2 h2                  7.41E-01
+  ~X,~X -> W+ W-                  1.10E-01
+  ~X,~X -> h1 h1                  6.29E-02
+  ~X,~X -> Z Z                    5.43E-02
+  ~X,~X -> t T                    1.68E-02
+  ~X,~X -> h1 h2                  1.52E-02
+  ~X,~X -> G G                    1.44E-05
+  ~X,~X -> b B                    4.70E-06
+  ~X,~X -> l L                    7.21E-07
+  ~X,~X -> c C                    1.98E-07
+  ~X,~X -> A A                    7.54E-08
+  ~X,~X -> m M                    2.55E-09
+  ~X,~X -> s S                    1.69E-09
+  ~X,~X -> u U                    6.85E-11
+  ~X,~X -> d D                    6.85E-11
+TRSM_PlanckCMB_v1 {"status":"ok","ratio_raw":0.010548156530358498,"sigma_v_cm3_s":9.4626095572349521e-27}
+Photon continuum flux diagnostic for angle of sight f=0.10[rad]
+and spherical region described by cone with angle 0.10[rad]
+Photon continuum differential flux = 1.75345120395627052E-16[cm^-2 s^-1 GeV^-1] for E=250.0[GeV]
+This differential continuum value is not used for Fermi-LAT line limits.
+
+Fermi-LAT gamma-line flux estimate using R16 ROI approximation
+ROI: sqrt(l^2+b^2)<16 deg, excluding |b|<5 deg and |l|>6 deg
+Photon-line channel A A has E_gamma=5.00000000000000000E+02 GeV, outside Fermi-LAT table range 0.214-462 GeV. Flux not printed for limits.
+FermiLAT_line_flux_R16 could not be calculated properly: line channels were found, but none were inside the usable Fermi-LAT 0.214-462 GeV energy range or passed validity checks.
+
+==== Calculation of CDM-nucleons amplitudes  =====
+~X[~X]-nucleon micrOMEGAs amplitudes
+proton:  SI  5.83461149893377995E-10 [5.83461149893377995E-10]  SD  0.00000000000000000E+00 [0.00000000000000000E+00]
+neutron: SI  5.89256978365059817E-10 [5.89256978365059817E-10]  SD  0.00000000000000000E+00 [0.00000000000000000E+00]
+~X[~X]-nucleon cross sections[pb]:
+ proton  SI 1.48254802847558490E-10 [1.48254802847558490E-10] SD 0.00000000000000000E+00 [0.00000000000000000E+00]
+ neutron SI 1.51214818769260925E-10 [1.51214818769260925E-10] SD 0.00000000000000000E+00 [0.00000000000000000E+00]
+TRSM_loop_hook_v2 relic_calls=80 indirect_calls=2

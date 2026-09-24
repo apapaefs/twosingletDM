@@ -18,7 +18,7 @@ PARAMETERS = [
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate oks.dat for the updated write_mo.cpp layout."
+        description="Generate oks.dat for the index LX LHX LSX MX vevs SinT Mh2 layout."
     )
     parser.add_argument(
         "--output",
@@ -165,7 +165,7 @@ def main():
 
             values = [point[name] for name, _ in PARAMETERS]
             stream.write(
-                "{} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g} {:.10g}\n".format(
+                "{} {:.17g} {:.17g} {:.17g} {:.17g} {:.17g} {:.17g} {:.17g}\n".format(
                     index, *values
                 )
             )

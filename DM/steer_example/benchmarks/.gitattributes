@@ -1,0 +1,2 @@
+# Native stdout fixtures retain their exact bytes for the recorded SHA256 hashes.
+raw-*/OUT_mO_* -text -whitespace

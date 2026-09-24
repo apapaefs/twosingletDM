@@ -1,8 +1,8 @@
 # Planck CMB constraint
 
 New scans with `--micromegas-version 7` enable the Planck 2018 annihilation
-constraint. `--no-planck-cmb` disables it. The default backend remains
-6.1.15, with CMB disabled. `--planck-cmb` explicitly enables it with either
+constraint. `--no-planck-cmb` disables it. The v2 default backend is **7.1.4**, with CMB enabled. Explicit
+6.1.15 runs default to CMB disabled. `--planck-cmb` explicitly enables it with either
 backend, provided the TRSM driver has been rebuilt from `DM/main.c`.
 
 ## Physics prescription
@@ -32,9 +32,13 @@ As with the existing wrapper, the abundance uses the driver's printed relic
 density. The low-level Python API's existing `rescale=False` option instead
 uses a unit abundance fraction; scan and reevaluation commands use rescaling.
 
+Reproducible standalone commands, current v2 reference values and raw logs
+are in [steer_example/README.md](steer_example/README.md).
+
 The method is `micromegas_planck2018_swave_v1`: the built-in low-velocity,
 s-wave approximation. Production settings remain spectrum key 7,
-`SpectraFlag=0`, `vRot=220 km/s`, and `VZdecay=VWdecay=0`. The library's
+`SpectraFlag=0`, `vRot=220 km/s`, and `VZdecay=VWdecay=1` in v2.
+The explicitly selected historical `TRSM_LEGACY_VIRTUAL_OFF=1` setting uses zero. The library's
 default two-body annihilation velocity is `sqrt(3)*vRot/c`. This is not a
 recombination-era velocity evolution calculation. Rapid velocity dependence,
 resonances and final-state thresholds require care when interpreting the
@@ -81,7 +85,11 @@ original backend, CMB disabled and the original default SI fit. Adoption
 records that configuration for subsequent resumes. Existing CMB fields are
 refreshed or cleared and marked disabled. Completed inputs are never changed.
 
-## Validation on manto, 2026-09-22
+## Historical validation on manto, 2026-09-22
+
+The results below predate the v2 SM-input, loop and virtual-W/Z corrections.
+They document the original CMB implementation and are **not** the reference
+values for the current example. Use its committed v2 benchmarks for reruns.
 
 The version 7 driver was built as a separate executable before deployment.
 The affected DM, SI-table, scan, resume, reevaluation, output, EWPT integration,
