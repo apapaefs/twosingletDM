@@ -60,6 +60,57 @@ explicitly: setting `OMP_NUM_THREADS` alone does not control it. Standalone
 `generate_trsm_points.py` retains its default BSMPT multithreading and accepts
 `--ewpt-multithreading` / `--no-ewpt-multithreading` to select it.
 
+## MadGraph cross sections
+
+Both launchers accept `--run-mg5`. By default this evaluates `gg_heta0` and
+`pp_eta0Z` at 13.6 TeV for points passing full viability, including flavour.
+Repeat `--mg5-process NAME` to choose from `hh`, `hhh`, `gg_heta0`, and `pp_eta0Z`.
+`--mg5-without-dm` drops only the DM requirement; all non-DM constraints,
+including flavour, still apply. These options do not change EWPT eligibility.
+
+For ten scans of 100 evo/thc-passing points using the sampling of the historical
+Manto seed-17999 scan:
+
+```bash
+source ../runtime-v2-new/activate.sh
+python run_trsm_seed_campaign.py \
+  --campaign-dir output/odysseus-smoke-10x100-mg5 \
+  --seed-start 17999 --nseeds 10 --nrandom 100 \
+  --nrandom-count-evo-thc --jobs 10 \
+  --run-ewpt --ewpt-thigh 1000 --run-mg5 \
+  --generator-extra-arg=--independent-m3 \
+  --generator-extra-arg=--scan-k133-k233-log \
+  --generator-extra-arg=--m3-max=65 \
+  --generator-extra-arg=--no-print-info
+```
+
+The current v2 physics and flavour prescriptions apply. All raw draws remain in
+the ledger; the target counts evo/thc passes. A scan can finish without finding
+an MG5-eligible point. Cross sections appear in `mg5_xsec_<process>_pb` columns
+in each scan and `combined_points.tsv`.
+
+Activate the runtime before launching so `TRSM_MG5_LOCATION` selects the compiled
+processes. Preflight checks the selected launchers and compiled subprocesses and
+records stable process/model files in the campaign receipt. Missing installations
+stop the campaign before workers start. Actual run cards and helicity-optimized
+binaries are mutable and are not included in this receipt's source hashes.
+
+MG5 updates cards and event files inside each generated process directory.
+An exclusive file lock covers each invocation: workers using the same process
+take turns, while different processes and other scan calculations can proceed
+concurrently. Campaign workers set `TRSM_MG5_CORES=1`, so each invocation uses one
+core. `--jobs` controls concurrent scans, not independent copies of MG5.
+
+The `tools/run_next_scan.py` wrapper exposes the same options. Its configuration
+also accepts `run_mg5` and `mg5_without_dm` booleans and an `mg5_processes` list;
+CLI values override them. MG5 is disabled by default. Supply MG5 options directly
+to the launcher, not through `--generator-extra-arg`.
+
+MG5 enablement, its DM selection, and its process list are saved with the
+campaign and cannot change on resume. Use a fresh campaign directory to enable
+MG5 for a previous scan that did not run it. Existing native installations can
+be reused; this feature does not require a rebuild.
+
 ## Files, progress and interruption
 
 ```text
@@ -80,8 +131,9 @@ best_points.tsv                     historical EW-jump ranking
 `--run-cwd` on the lower-level launcher optionally selects a different **parent**
 for private `seed_<seed>` working directories. It no longer shares one working
 directory between seeds. Phase-plot basenames must be relative to each point's
-EWPT directory. Compiled installations and datasets are shared read-only; the
-existing micrOMEGAs/CalcHEP temporary workspaces remain private to each worker.
+EWPT directory. The DM/EWPT installations and datasets are shared read-only;
+micrOMEGAs/CalcHEP temporary workspaces remain private to each worker. MG5 uses
+the locked, writable process directories described above.
 
 Heartbeats distinguish queued, running, complete, failed and interrupted scans,
 and report raw draws and evo/thc passes from checkpoints. Use

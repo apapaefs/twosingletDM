@@ -1236,6 +1236,9 @@ python3 test_trsm_ewpt_runner.py
 
 For configurable concurrency, evo/thc targets, automatic campaign resume and
 Odysseus launch/pilot commands, use the [parallel campaign guide](docs/parallel-campaigns.md).
+Both campaign launchers support `--run-mg5`, repeated `--mg5-process` selections,
+and `--mg5-without-dm`. MG5 runs use one core and an exclusive lock per shared
+process directory. Use a fresh campaign to change its MG5 settings.
 The examples below retain the older basic CLI; `--run-cwd` now selects a parent
 for isolated per-seed directories.
 

@@ -3040,6 +3040,11 @@ def main():
         receipt = {"physics_manifest": scan_physics_manifest(cli_args),
                    "thread_environment": {key: os.environ.get(key) for key in THREAD_ENVIRONMENT},
                    "ewpt_multithreading": cli_args.ewpt_multithreading}
+        if cli_args.run_mg5:
+            try:
+                receipt["mg5_runtime"] = mg5_runtime_receipt(MG5ProcessesToRun)
+            except (OSError, ValueError) as error:
+                raise CampaignStateError(f"MG5 preflight failed: {error}") from error
         print("TRSM_PREFLIGHT " + json.dumps(receipt, sort_keys=True))
         return
     if cli_args.resume_from is not None:

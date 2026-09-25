@@ -1,5 +1,6 @@
 import fcntl
 import gzip
+import hashlib
 import math
 import os
 import subprocess
@@ -52,6 +53,41 @@ def _process_directory(process, mgloc):
             "TRSM_MG5_LOCATION to the MG5 installation containing it."
         )
     return process_dir, madevent
+
+
+def mg5_runtime_receipt(processes, mgloc=None):
+    """Check selected installations without changing their mutable run cards."""
+    root = Path(MGLocation if mgloc is None else mgloc).expanduser().resolve()
+    selected = list(dict.fromkeys(processes))
+    if not selected:
+        raise ValueError("Select at least one MG5 process")
+    files = [root / "VERSION"]
+    installations = {}
+    for process in selected:
+        directory, madevent = _process_directory(process, root)
+        if not os.access(madevent, os.X_OK):
+            raise ValueError(f"MG5 launcher is not executable: {madevent}")
+        listing = directory / "SubProcesses/subproc.mg"
+        names = listing.read_text().split()
+        if not names:
+            raise ValueError(f"MG5 process has no generated subprocesses: {directory}")
+        for name in names:
+            subprocess_dir = directory / "SubProcesses" / name
+            binary = subprocess_dir / "madevent"
+            if (subprocess_dir.resolve().parent != (directory / "SubProcesses").resolve()
+                    or not binary.is_file() or not os.access(binary, os.X_OK)):
+                raise ValueError(f"Missing or invalid compiled MG5 subprocess: {binary}")
+        installations[process] = {"directory": str(directory), "subprocesses": names}
+        files += [madevent, listing, directory / "Cards/proc_card_mg5.dat"]
+        # UFO Python sources and process cards are stable during event generation.
+        # Actual run/parameter cards and helicity-optimized binaries are mutable.
+        files += sorted((directory / "bin/internal/ufomodel").rglob("*.py"))
+    hashes = {}
+    for path in files:
+        with path.open("rb") as stream:
+            hashes[str(path.relative_to(root))] = hashlib.file_digest(stream, "sha256").hexdigest()
+    return {"location": str(root), "processes": installations, "sources_sha256": hashes,
+            "cores": os.environ.get("TRSM_MG5_CORES"), "locking": "exclusive_per_process_directory"}
 
 
 def _run_name(runnum, m2, w2, m3, w3, lambdas):
@@ -140,7 +176,14 @@ def drive_mg(
                 counter += 1
                 continue
 
-            commands = [
+            commands = []
+            cores = os.environ.get("TRSM_MG5_CORES")
+            if cores is not None:
+                cores = int(cores)
+                if cores < 1:
+                    raise ValueError("TRSM_MG5_CORES must be positive")
+                commands += [f"set nb_core {cores}", f"set run_mode {0 if cores == 1 else 2}"]
+            commands += [
                 f"generate_events {run_name} --accuracy=0.25 --points=300 "
                 f"--iterations={survey_iterations}",
                 f"set ebeam1 {ebeam}",

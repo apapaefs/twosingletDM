@@ -17,6 +17,7 @@ from datetime import date
 from pathlib import Path
 
 from trsm_inputs import json_safe
+from generate_mg5_trsm_xsecs import ProcLocation
 from trsm_parallel import (THREAD_ENVIRONMENT, available_cpus, cancellation_signals,
                            effective_jobs, group_alive, job_limit, signal_group,
                            stop_processes, worker_environment)
@@ -30,6 +31,7 @@ OPERATIONAL_OPTIONS = {"jobs", "heartbeat_seconds", "checkpoint_every", "shutdow
 EXECUTION_OPTIONS = OPERATIONAL_OPTIONS - {"resume", "aggregate_only", "campaign_dir"}
 PATH_OPTIONS = {"generator_script", "run_cwd", "python_executable", "ewpt_plot_output",
                 "ewpt_executable", "ewpt_minima_executable"}
+MG5_DEFAULTS = {"run_mg5": False, "mg5_without_dm": False, "mg5_processes": None}
 
 
 RUN_TAG_PREFIX = "13.6"
@@ -115,6 +117,12 @@ def parse_args(argv=None):
         help="Forward --write-dm-failed to generate_trsm_points.py for each seed.",
     )
     parser.add_argument("--run-ewpt", action="store_true")
+    parser.add_argument("--run-mg5", action=argparse.BooleanOptionalAction, default=False,
+                        help="Run MG5 for eligible points; workers sharing a process directory take turns.")
+    parser.add_argument("--mg5-without-dm", action=argparse.BooleanOptionalAction, default=False,
+                        help="With --run-mg5, require all non-DM constraints, including flavour.")
+    parser.add_argument("--mg5-process", dest="mg5_processes", action="append", choices=tuple(ProcLocation),
+                        help="Repeat to select processes; defaults to gg_heta0 and pp_eta0Z.")
     parser.add_argument("--run-ewpt-on-dm-failed", action="store_true")
     parser.add_argument("--ewpt-require-eq418", action="store_true")
     parser.add_argument("--ewpt-thigh", type=float, default=300.0)
@@ -163,7 +171,8 @@ def parse_args(argv=None):
                 args.nrandom_count_evo_thc = True
         elif option in {"--nrandom", "--resume-from", "--output-manifest", "--preflight",
                         "--ewpt-workdir", "--ewpt-multithreading", "--no-ewpt-multithreading",
-                        "--run-mg5", "--ewpt-plot-output"}:
+                        "--run-mg5", "--no-run-mg5", "--mg5-without-dm", "--no-mg5-without-dm",
+                        "--mg5-process", "--ewpt-plot-output"}:
             parser.error(f"{option} must not be supplied through --generator-extra-arg in a campaign")
         else:
             cleaned.append(extra[index])
@@ -173,7 +182,19 @@ def parse_args(argv=None):
         parser.error("--checkpoint-every must be positive")
     if args.ewpt_plot_output is not None and (args.ewpt_plot_output.is_absolute() or ".." in args.ewpt_plot_output.parts):
         parser.error("--ewpt-plot-output must be relative to each point directory")
+    if args.mg5_processes is not None:
+        args.mg5_processes = list(dict.fromkeys(args.mg5_processes))
+    if not (args.resume or args.aggregate_only):
+        try:
+            validate_mg5_options(args)
+        except CampaignStateError as error:
+            parser.error(str(error))
     return args
+
+
+def validate_mg5_options(args):
+    if not args.run_mg5 and (args.mg5_without_dm or args.mg5_processes):
+        raise CampaignStateError("--mg5-without-dm and --mg5-process require --run-mg5")
 
 
 def default_python_executable(environ=None):
@@ -216,6 +237,12 @@ def build_generator_command(args, seed, generator_script, ewpt_workdir):
     ]
     if args.write_dm_failed:
         command.append("--write-dm-failed")
+    if args.run_mg5:
+        command.append("--run-mg5")
+        if args.mg5_without_dm:
+            command.append("--mg5-without-dm")
+        for process in args.mg5_processes or []:
+            command.extend(["--mg5-process", process])
     if args.run_ewpt_on_dm_failed:
         command.append("--run-ewpt-on-dm-failed")
     if args.run_ewpt:
@@ -389,7 +416,9 @@ def hydrate_configuration(args, state):
     for key, value in state.get("execution", {}).items():
         if key in EXECUTION_OPTIONS and key not in args._provided:
             setattr(args, key, value)
-    saved = state["configuration"]
+    # Older campaigns implicitly had MG5 disabled. Do not permit enabling it
+    # while resuming or aggregating an existing scan.
+    saved = MG5_DEFAULTS | state["configuration"]
     for key, value in saved.items():
         current = getattr(args, key)
         if isinstance(current, Path):
@@ -397,6 +426,7 @@ def hydrate_configuration(args, state):
         if key in args._provided and current != value:
             raise CampaignStateError(f"Cannot change saved campaign option {key!r} during resume/aggregation")
         setattr(args, key, Path(value) if key in PATH_OPTIONS and value is not None else value)
+    validate_mg5_options(args)
 
 
 def run_preflight(args):
@@ -921,6 +951,8 @@ def run_campaign(args):
         print(f"Starting TRSM seed campaign: nseeds={args.nseeds} requested_jobs={args.jobs} "
               f"available_cpus={available_cpus()} effective_jobs={state['effective_jobs']} "
               f"target={args.nrandom} count={'evo/thc' if args.nrandom_count_evo_thc else 'draws'}", flush=True)
+        if args.run_mg5:
+            print("MG5 enabled: one core per invocation; runs sharing a process directory are serialized.", flush=True)
         if remaining:
             supervise(args, state)
         return aggregate(args, state)

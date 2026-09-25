@@ -42,9 +42,16 @@ p.add_argument('--child', action='store_true')
 p.add_argument('--fail-seed', type=int)
 p.add_argument('--run-ewpt', action='store_true')
 p.add_argument('--ewpt-workdir')
+p.add_argument('--run-mg5', action='store_true')
+p.add_argument('--mg5-without-dm', action='store_true')
+p.add_argument('--mg5-process', dest='mg5_processes', action='append')
 a, unused = p.parse_known_args()
 if a.preflight:
-    print('TRSM_PREFLIGHT {"fixture": "deterministic"}')
+    receipt = {'fixture': 'deterministic'}
+    if a.run_mg5:
+        from generate_mg5_trsm_xsecs import mg5_runtime_receipt
+        receipt['mg5_runtime'] = mg5_runtime_receipt(a.mg5_processes or ['gg_heta0', 'pp_eta0Z'])
+    print('TRSM_PREFLIGHT ' + json.dumps(receipt))
     sys.exit(0)
 start = time.time()
 if a.resume_from:
@@ -57,6 +64,9 @@ if a.resume_from:
     a.child = saved['child']
     a.fail_seed = saved['fail_seed']
     a.no_ewpt_multithreading = saved['single_thread']
+    a.run_mg5 = saved.get('run_mg5', False)
+    a.mg5_without_dm = saved.get('mg5_without_dm', False)
+    a.mg5_processes = saved.get('mg5_processes')
 else:
     output = Path.cwd() / 'output' / 'fixture.dat'
 output.parent.mkdir(exist_ok=True)
@@ -71,13 +81,14 @@ with CampaignLock(output, sys.argv):
         reconcile_outputs({'main': output}, cp['outputs'])
         rng.setstate(decode_rng_state(cp['rng_state']))
     else:
-        output.write_text('point_index\tcoordinate\tevo\tthc\ttheory_strict_subset\tdm_subset\n')
+        output.write_text('point_index\tcoordinate\tevo\tthc\ttheory_strict_subset\tdm_subset\tmg5_xsec_pp_eta0Z_pb\n')
         cp = dict(seed=a.seed, scan_path=str(output), draw_count=0, evo_thc_count=0,
                   viable_count=0, count_evo_thc=a.nrandom_count_evo_thc, target=a.nrandom)
         atomic_write_json(output.with_suffix('.metadata.json'), dict(seed=a.seed,
             count_evo_thc=a.nrandom_count_evo_thc, manifest=str(a.output_manifest),
             sleep=a.sleep, child=a.child, fail_seed=a.fail_seed,
-            single_thread=a.no_ewpt_multithreading))
+            single_thread=a.no_ewpt_multithreading, run_mg5=a.run_mg5,
+            mg5_without_dm=a.mg5_without_dm, mg5_processes=a.mg5_processes))
     def save(status):
         cp.update(status=status, outputs={'main': inspect_tsv(output)}, rng_state=encode_rng_state(rng.getstate()))
         atomic_write_json(checkpoint_path, cp)
@@ -85,7 +96,7 @@ with CampaignLock(output, sys.argv):
     save('running')
     Path('environment.json').write_text(json.dumps({key: os.environ[key] for key in
         ('OMP_NUM_THREADS', 'OMP_THREAD_LIMIT', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
-         'BLIS_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS', 'TRSM_HIGHS_THREADS')}))
+         'BLIS_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS', 'NUMEXPR_NUM_THREADS', 'TRSM_HIGHS_THREADS', 'TRSM_MG5_CORES')}))
     assert a.no_ewpt_multithreading
     if a.child:
         child = subprocess.Popen([sys.executable, '-c',
@@ -100,7 +111,7 @@ with CampaignLock(output, sys.argv):
             evo, thc = index % 2 == 0, index % 3 != 0
             with output.open('a', newline='') as stream:
                 csv.writer(stream, delimiter='\t', lineterminator='\n').writerow(
-                    [index, rng.random(), evo, thc, False, False])
+                    [index, rng.random(), evo, thc, False, False, a.seed + index / 1000 if a.run_mg5 else 'nan'])
             cp['draw_count'] = index
             cp['evo_thc_count'] += evo and thc
             save('running')
@@ -146,6 +157,66 @@ class ParallelCampaignTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             for value in ('0', '-2', 'invalid'):
                 with self.assertRaises(SystemExit): self.args('bad', '--jobs', value)
+
+    def mg5_installation(self):
+        root = self.root / 'mg5'
+        files = {'VERSION': '3.5.15', 'pp_eta0Z/bin/madevent': '#!/bin/sh\n',
+                 'pp_eta0Z/Cards/proc_card_mg5.dat': 'generate p p > eta0 z\n',
+                 'pp_eta0Z/SubProcesses/subproc.mg': 'P0_test\n',
+                 'pp_eta0Z/SubProcesses/P0_test/madevent': '#!/bin/sh\n'}
+        for name, text in files.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+            if path.name == 'madevent': path.chmod(0o755)
+        return root
+
+    def test_mg5_campaign_preserves_selection_columns_and_resume(self):
+        with mock.patch.dict(os.environ, {'TRSM_MG5_LOCATION': str(self.mg5_installation())}):
+            result = self.run_campaign(self.args('mg5', '--run-mg5', '--mg5-without-dm',
+                                                '--mg5-process', 'pp_eta0Z'))
+            rows = list(result.combined_points)
+            self.assertTrue(all(float(row['mg5_xsec_pp_eta0Z_pb']) > 0 for row in rows))
+            state = json.loads((self.root / 'mg5/campaign_state.json').read_text())
+            self.assertTrue(state['configuration']['run_mg5'])
+            self.assertTrue(state['configuration']['mg5_without_dm'])
+            self.assertEqual(state['configuration']['mg5_processes'], ['pp_eta0Z'])
+            self.assertEqual(state['runtime_receipt']['mg5_runtime']['cores'], '1')
+            for seed in state['seeds']:
+                self.assertIn('--run-mg5', seed['command'])
+                self.assertIn('--mg5-without-dm', seed['command'])
+                self.assertIn('pp_eta0Z', seed['command'])
+            self.assertEqual(rows, list(self.resume('mg5').combined_points))
+            for options in (['--no-run-mg5'], ['--mg5-process', 'hh'], ['--no-mg5-without-dm']):
+                with self.assertRaisesRegex(CampaignStateError, 'Cannot change saved campaign option'):
+                    self.resume('mg5', *options)
+            card = self.root / 'mg5/pp_eta0Z/Cards/proc_card_mg5.dat'
+            card.write_text('changed process')
+            with self.assertRaisesRegex(CampaignStateError, 'Runtime/source fingerprint changed'):
+                self.resume('mg5')
+
+    def test_missing_mg5_fails_before_starting_workers(self):
+        with mock.patch.dict(os.environ, {'TRSM_MG5_LOCATION': str(self.root / 'missing')}):
+            with self.assertRaisesRegex(CampaignStateError, 'Runtime preflight failed'):
+                self.run_campaign(self.args('missing', '--run-mg5'))
+        state = json.loads((self.root / 'missing/campaign_state.json').read_text())
+        self.assertTrue(all(seed['attempts'] == 0 for seed in state['seeds']))
+        self.assertFalse((self.root / 'missing/seeds').exists())
+
+    def test_mg5_flags_require_enablement_and_cannot_bypass_campaign_options(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            for options in (['--mg5-without-dm'], ['--mg5-process', 'pp_eta0Z'],
+                            ['--generator-extra-arg=--run-mg5'],
+                            ['--generator-extra-arg=--mg5-without-dm']):
+                with self.assertRaises(SystemExit): self.args('bad', *options)
+
+    def test_legacy_campaign_cannot_enable_mg5_on_resume(self):
+        args = self.args()
+        saved = campaign.configuration(args)
+        for key in campaign.MG5_DEFAULTS: saved.pop(key)
+        resumed = campaign.parse_args(['--campaign-dir', str(self.root), '--resume', '--run-mg5'])
+        with self.assertRaisesRegex(CampaignStateError, 'Cannot change saved campaign option'):
+            campaign.hydrate_configuration(resumed, {'configuration': saved})
 
     def test_parallel_matches_serial_and_counts_only_evo_thc(self):
         serial = self.run_campaign(self.args('serial', '--jobs', '1'))
@@ -341,6 +412,25 @@ class ParallelCampaignTests(unittest.TestCase):
 
 
 class WrapperTests(unittest.TestCase):
+    def test_mg5_flags_and_config_reach_campaign(self):
+        args = run_next_scan.parse_args(['--campaign-dir', '/tmp/example', '--run-mg5',
+            '--mg5-without-dm', '--mg5-process', 'hh', '--mg5-process', 'pp_eta0Z'])
+        parsed = campaign.parse_args(run_next_scan.build_command(args)[2:])
+        self.assertTrue(parsed.run_mg5)
+        self.assertTrue(parsed.mg5_without_dm)
+        self.assertEqual(parsed.mg5_processes, ['hh', 'pp_eta0Z'])
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / 'profile.json'
+            data = json.loads((ROOT / 'config/next-scan-v2.json').read_text())
+            data.update(run_mg5=True, mg5_without_dm=True, mg5_processes=['pp_eta0Z'])
+            config.write_text(json.dumps(data))
+            options = ['--config', str(config), '--campaign-dir', '/tmp/example']
+            parsed = campaign.parse_args(run_next_scan.build_command(run_next_scan.parse_args(options))[2:])
+            self.assertEqual(parsed.mg5_processes, ['pp_eta0Z'])
+            self.assertTrue(parsed.mg5_without_dm)
+            disabled = run_next_scan.parse_args(options + ['--no-run-mg5'])
+            self.assertFalse(campaign.parse_args(run_next_scan.build_command(disabled)[2:]).run_mg5)
+
     def test_cli_overrides_config_and_evo_is_explicit(self):
         args = run_next_scan.parse_args(['--campaign-dir', '/tmp/example', '--seed-start', '19',
             '--nseeds', '7', '--nrandom', '13', '--nrandom-count-evo-thc', '--jobs', 'auto', '--checkpoint-every', '5'])

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from trsm_inputs import PHYSICS_VERSION
 from trsm_parallel import job_limit
+from generate_mg5_trsm_xsecs import ProcLocation
 
 
 def parse_args(argv=None):
@@ -28,6 +29,9 @@ def parse_args(argv=None):
     parser.add_argument('--python-executable', type=Path)
     parser.add_argument('--ewpt-executable', type=Path)
     parser.add_argument('--ewpt-minima-executable', type=Path)
+    parser.add_argument('--run-mg5', action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument('--mg5-without-dm', action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument('--mg5-process', dest='mg5_processes', action='append', choices=tuple(ProcLocation))
     parser.add_argument('--pilot', action='store_true', help='Default to two scans and two targets each; explicit values override these.')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--resume', action='store_true')
@@ -54,6 +58,7 @@ def build_command(args):
                 command += ['--' + name.replace('_', '-'), str(value)]
         if args.nrandom_count_evo_thc is not None:
             command.append('--nrandom-count-evo-thc' if args.nrandom_count_evo_thc else '--no-nrandom-count-evo-thc')
+        append_mg5_options(command, args)
         return command
     config = json.loads(args.config.read_text())
     if config.get('constraint_version') != PHYSICS_VERSION:
@@ -83,8 +88,30 @@ def build_command(args):
         raise ValueError('nrandom_count_evo_thc must be a JSON boolean')
     command.append('--nrandom-count-evo-thc' if count else '--no-nrandom-count-evo-thc')
     command += ['--run-ewpt', '--ewpt-thigh', str(config['ewpt_thigh_GeV'])]
+    append_mg5_options(command, args, config)
     command += ['--generator-extra-arg=' + str(arg) for arg in config.get('generator_arguments', [])]
     return command
+
+
+def append_mg5_options(command, args, config=None):
+    config = config or {}
+    if args.run_mg5 is False:
+        config = {key: value for key, value in config.items()
+                  if key not in ('mg5_without_dm', 'mg5_processes')}
+    for name in ('run_mg5', 'mg5_without_dm'):
+        value = getattr(args, name)
+        if value is None:
+            value = config.get(name)
+        if value is not None:
+            if not isinstance(value, bool):
+                raise ValueError(f'{name} must be a JSON boolean')
+            command.append('--' + ('' if value else 'no-') + name.replace('_', '-'))
+    processes = args.mg5_processes if args.mg5_processes is not None else config.get('mg5_processes')
+    if processes is not None:
+        if not isinstance(processes, list) or not processes or any(p not in ProcLocation for p in processes):
+            raise ValueError('mg5_processes must be a nonempty list of supported process names')
+        for process in processes:
+            command += ['--mg5-process', process]
 
 
 def main(argv=None):
