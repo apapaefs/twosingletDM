@@ -114,6 +114,22 @@ CARD_DIR="$PWD/run/my-cards" OUTPUT_DIR="$PWD/output/my-card-scan" \
 by `MOrun.sh`. Additional runner options are forwarded. No scan or batch script
 submits a cluster job. Every native runner uses its own writable CalcHEP cache.
 
+`run/launch/exec.sh` delegates to `MOrun.sh` and needs the same prepared cards.
+Before submitting that script as a job, generate cards from the intended scan:
+
+```bash
+# Inside DM/steer_example; replace run/oks.dat if your scan is saved elsewhere
+python source/write_mo.py --input run/oks.dat --output-dir run/cards
+```
+
+The default card directory is `DM/steer_example/run/cards`, which is generated
+locally and is not included in a clone. It must be accessible on the worker.
+For a different directory, pass `--cards /absolute/path/to/cards` as job
+arguments or set `CARD_DIR` in the job environment. Ensure any custom `PYTHON`
+and `MICROMEGAS_MAIN` settings are also present in that environment. Choose a
+fresh output directory with `--output-dir /absolute/path/to/new-output` or
+`OUTPUT_DIR`. The launcher does not create cards from `oks.dat` automatically.
+
 Batch outputs retain all evaluated points, including exclusions and failures:
 
 | Output | Contents |
@@ -208,6 +224,13 @@ approximation and the rescaling `min(1, Omega/0.12)^2`.
 
 ## Troubleshooting
 
+- **`Require at least one point with unique indices`** (older runner): in card
+  mode this means no `MO_inp*.dat` cards were found, or card filenames have
+  duplicate numeric indices, such as `MO_inp1.dat` and `MO_inp01.dat`. Generate
+  the cards before running `MOrun.sh` or submitting `run/launch/exec.sh`, and
+  check that the worker can access `run/cards` (or the explicit `--cards` /
+  `CARD_DIR` directory). The current runner reports the resolved directory or
+  the conflicting filenames. Each numeric index must identify one card.
 - **`ModuleNotFoundError: test_trsm_DM`**: no pip installation of that module is
   needed. From `DM/steer_example`, run `python check_installation.py --no-native`.
   It prints the actual interpreter, repository and module paths. Verify that

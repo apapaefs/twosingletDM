@@ -199,6 +199,24 @@ class ExampleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Duplicate'):
             single.read_points(oks)
 
+    def test_duplicate_card_indices_identify_both_filenames(self):
+        alias = self.root / 'MO_inp01.dat'
+        alias.write_text(self.card.read_text())
+        with self.assertRaises(ValueError) as error:
+            run_scan.read_cards(self.root)
+        message = str(error.exception)
+        self.assertIn('Duplicate point index 1', message)
+        self.assertIn(str(self.card), message)
+        self.assertIn(str(alias), message)
+
+    def test_cards_are_sorted_numerically_and_backups_are_ignored(self):
+        for index in (10, 2):
+            (self.root / f'MO_inp{index}.dat').write_text(self.card.read_text())
+        backup = self.root / '.previous-cards-example'
+        backup.mkdir()
+        (backup / self.card.name).write_text(self.card.read_text())
+        self.assertEqual([point.index for point in run_scan.read_cards(self.root)], [1, 2, 10])
+
 
 if __name__ == '__main__':
     unittest.main()

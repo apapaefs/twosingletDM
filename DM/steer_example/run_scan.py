@@ -33,6 +33,26 @@ def raw_output_path(directory, index):
     raise ValueError(f'Missing raw output for point {index} in {directory}')
 
 
+def read_cards(directory):
+    directory = Path(directory).resolve()
+    hint = ('Check --cards (CARD_DIR for MOrun.sh/launch/exec.sh) and generate cards '
+            'with source/write_mo.py before running or submitting the job.')
+    if not directory.is_dir():
+        raise ValueError(f'Card directory does not exist or is not a directory: {directory}. {hint}')
+    paths = sorted(directory.glob('MO_inp*.dat'))
+    if not paths:
+        raise ValueError(f'No MO_inp*.dat cards found in {directory}. {hint}')
+    points, seen = [], {}
+    for path in paths:
+        point = read_card(path)
+        if point.index in seen:
+            raise ValueError(f'Duplicate point index {point.index} in cards '
+                             f'{seen[point.index]} and {path}; use one card per index')
+        seen[point.index] = path
+        points.append(point)
+    return sorted(points, key=lambda point: point.index)
+
+
 def aggregate(output, rows):
     """Rebuild tables from evaluated records; never append stale/duplicate rows."""
     output = Path(output)
@@ -89,12 +109,9 @@ def main(argv=None):
     add_physics_arguments(parser)
     args = parser.parse_args(argv)
     try:
+        points = read_points(args.input) if args.input else read_cards(args.cards)
         replay = args.raw_output_dir is not None
         configure(args, replay=replay)
-        points = (read_points(args.input) if args.input else
-                  sorted((read_card(p) for p in args.cards.glob('MO_inp*.dat')), key=lambda p: p.index))
-        if not points or len({p.index for p in points}) != len(points):
-            raise ValueError('Require at least one point with unique indices')
         if args.output_dir.exists() and any(args.output_dir.iterdir()):
             raise ValueError('Output directory is not empty; use a new directory')
         if replay:
