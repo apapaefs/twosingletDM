@@ -134,12 +134,13 @@ For the saved Odysseus campaign, activate its usual runtime and run these
 commands from the repository checkout containing the updated scripts:
 
 ```bash
-python tools/setup_mg5_process.py --mg5-process gg_eta0Z
+source ../runtime-v2-new/activate.sh &&
+python tools/setup_mg5_process.py --mg5-process gg_eta0Z &&
 
 python reprocess_trsm_mg5.py \
   output/odysseus-100x1000-66662/combined_points.tsv \
   --output output/odysseus-100x1000-66662/combined_points_mg5.tsv \
-  --energy 13.6
+  --energy 13.6 &&
 
 python plot_trsm_constraint_suite.py \
   output/odysseus-100x1000-66662/combined_points_mg5.tsv \
@@ -158,6 +159,9 @@ from its per-process SQLite checkpoint. The input, settings and runtime must
 still match. This augments saved points; it does not resume the original scan
 with a changed process list. If the source has no energy metadata, `--energy`
 is the explicit assumption for the existing rates as well as the new rates.
+The enriched TSV is published only after every requested rate finishes. The
+`&&` operators stop the sequence on an earlier error, so plotting starts only
+after its input exists. Use `--resume` only when a `.partial` checkpoint exists.
 
 `mg5_xsec_pp_eta0Z_pb` and `mono_z_xsec_pb` retain their tree-level meanings.
 The new columns are:

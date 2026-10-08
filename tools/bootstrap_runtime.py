@@ -162,7 +162,8 @@ def compile_mg5_process(target, python, run):
     runtime_config = target / "Cards/me5_configuration.txt"
     if runtime_config.is_file():
         with runtime_config.open("a") as stream:
-            stream.write("\nautomatic_html_opening = False\nauto_update = 0\n")
+            stream.write("\nautomatic_html_opening = False\nauto_update = 0\n"
+                         "notification_center = False\n")
     # MG5 links the integration binary with RPATH_LIBS but omits it from
     # MadLoop's initialization check. A shared COLLIER then compiles yet fails
     # to load (notably @rpath/libcollier.dylib on macOS). Only this fresh export
