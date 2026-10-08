@@ -144,7 +144,7 @@ end_if.
 
 %================== SU(2) and U(1) gauge couplings and VEV
 let g2=EE/SW, g1=EE/CW.
-let vevh=2*MW/EE*SW.      
+let vevh=2*MW*SW/EE.
 
 
 %================== Self-interaction of gauge bosons
@@ -198,14 +198,14 @@ scalar h2/h2:('Higgs-2', pdg 26, mass Mh2 = 500, width wh2 =auto).
 
 parameter  SinT     = 0.3 : 'Sine of the mixing angle between Higgs and phiS',
 		   vevs     = 500 : 'vev of Si',
-		   %note: (2*MW/EE*SW)		= vevh,
+		   %note: (2*MW*SW/EE)		= vevh,
 		   CosT     = sqrt(1-SinT**2): 'cosine of the mixing angle between Higgs and phiS',
 		   SinTT    = 2*SinT*CosT,
-		   LH       = (Mh**2 * CosT**2 + Mh2**2 * SinT**2)/(2 * (2*MW/EE*SW)**2): 'Higgs lagrangian self coupling',
+		   LH       = (Mh**2 * CosT**2 + Mh2**2 * SinT**2)/(2 * (2*MW*SW/EE)**2): 'Higgs lagrangian self coupling',
 		   LS       = (Mh2**2 * CosT**2 + Mh**2 * SinT**2)/(2 * vevs**2): 'SI lagrangian self coupling',
-		   LHS      = ((Mh2**2 - Mh**2) *SinTT) / (2 * (2*MW/EE*SW) * vevs): 'lagrangian Si and Higgs coupling',
-		   muH      = - (2*MW/EE*SW)**2 * LH - (vevs**2 * LHS / 2): 'square of the massive coupling for Higgs',
-		   muS      = - vevs**2 * LS - ((2*MW/EE*SW)**2 * LHS / 2): 'square of the massive coupling for Si'.
+		   LHS      = ((Mh2**2 - Mh**2) *SinTT) / (2 * (2*MW*SW/EE) * vevs): 'lagrangian Si and Higgs coupling',
+		   muH      = - (2*MW*SW/EE)**2 * LH - (vevs**2 * LHS / 2): 'square of the massive coupling for Higgs',
+		   muS      = - vevs**2 * LS - ((2*MW*SW/EE)**2 * LHS / 2): 'square of the massive coupling for Si'.
 
 let h = CosT * h1 + SinT * h2.
 let phiS = -SinT * h1 + CosT * h2.
@@ -247,14 +247,15 @@ scalar '~X'/'~X':('X-singlet', pdg 27, mass MX = 1000, width whX=auto).
 parameter  LX      = 0.2 : 'Strength of the X singlet self-interactions',
            LHX     = 0.1 : 'Strength of the unbroken X-Higgs interaction',
            LSX     = 0.1 : 'Strength of the unbroken S-X interaction (=LHX for decoup)',
-		   muX     = (MX**2 - LHX * (2*MW/EE*SW)**2/2 - LSX * vevs**2/2)/2: 'square of the massive coupling for X'.
+		   muX     = MX**2 - (LHX * (2*MW*SW/EE)**2 + LSX * vevs**2)/2: 'square of the massive coupling for X'.
 
 
+let Xi = '~X'/Sqrt2.
 %mass terms
-lterm (deriv^mu*'~X')*(deriv^mu*'~X')/2 - muX*('~X'**2) - LX/4*('~X'**4).
+lterm (deriv^mu*Xi)*(deriv^mu*Xi) - muX*(Xi**2) - LX*(Xi**4).
 
 %interactions
-lterm - LSX/2 * ('~X'**2) * Si**2 - LHX/2 * ('~X'**2) * shd*shD.
+lterm - LSX * (Xi**2) * Si**2 - LHX * (Xi**2) * shd*shD.
 
 
 
@@ -336,22 +337,24 @@ lterm (LGG1*h1+LGG2*h2)*F**2 where
 % coefficient prescription. In unitary gauge the subtracted bilinear is h^2/2;
 % it therefore adds no single-Higgs term and does not alter the v2 loop hook.
 % These are the legacy approximation, not a matched two-Higgs loop calculation.
-external_func(lAAhiggs,2).
-external_func(lGGhiggs,2).
-parameter LAAh=-cabs(lAAhiggs(Mh,str(h1))),
-          LGGh=-cabs(lGGhiggs(Mh,str(h1))),
-          aQCDh=alphaQCD(Mh)/acos(-1),
-          RQCDh=sqrt(1+149/12*aQCDh+68.6482*aQCDh**2-212.447*aQCDh**3).
-lterm LAAh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
-      F=deriv^mu*A^nu-deriv^nu*A^mu.
-lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
-      F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
+% correct an extra mixing factor (/CosT)
+% comment them out as they do not contribute to dark matter annihilation or any of the processes considered in our micromegas procedure.
+% external_func(lAAhiggs,2).
+% external_func(lGGhiggs,2).
+% parameter LAAh=-cabs(lAAhiggs(Mh,str(h1)))/CosT,
+%          LGGh=-cabs(lGGhiggs(Mh,str(h1)))/CosT,
+%          aQCDh=alphaQCD(Mh)/acos(-1),
+%          RQCDh=sqrt(1+149/12*aQCDh+68.6482*aQCDh**2-212.447*aQCDh**3).
+%lterm LAAh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
+%      F=deriv^mu*A^nu-deriv^nu*A^mu.
+%lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*F**2 where
+%      F=deriv^mu*G^nu^a-deriv^nu*G^mu^a.
 
 do_if h4G==On.
 parameter Maux=1.
 vector G1t/G1T: (G1T, mass Maux, color c8, aux ('!*')).
-vector G2t/G2T: (G2T, mass Maux, color c8, aux ('!*')).
-scalar x1/X1: (x1, mass Maux, aux ("!*")).
+% vector G2t/G2T: (G2T, mass Maux, color c8, aux ('!*')).
+% scalar x1/X1: (x1, mass Maux, aux ("!*")).
 lterm (LGG1*h1+LGG2*h2)*(F12*F11+F11*F12) where
       F11=deriv^mu*G^nu^a-deriv^nu*G^mu^a,
       F12=i*GG*f_SU3^a^b^c*G^mu^b*G^nu^c.
@@ -360,9 +363,10 @@ lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G1T.t'^m^n^c.
 
 % Historical two-Higgs/four-gluon contact, split into CalcHEP-sized vertices.
 % The x1/X1 and G2t/G2T propagators are constant, not physical resonances.
-lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*x1*Maux.
-lterm (GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2t.t'^m^n^c)*(X1*Maux).
-lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2T.t'^m^n^c.
+% comment them out as they do not contribute to dark matter annihilation or any of the processes considered in our micromegas procedure.
+%lterm LGGh*RQCDh*(shd*shD-vevh**2/2-vevh*h)/vevh*x1*Maux.
+%lterm (GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2t.t'^m^n^c)*(X1*Maux).
+%lterm GG/2*f_SU3^a^b^c*G^n^a*G^m^b*'G2T.t'^m^n^c.
 
 end_if. 
 

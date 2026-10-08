@@ -134,3 +134,15 @@ python tools/validate_dm_v2.py validation/my-dm-amplitude-check
 The native check needs both compiled backends and `mpmath`; it is optional for
 ordinary scans. Keep historical and current installations separate when
 comparing results, and retain their cards, executable identities and raw logs.
+
+
+
+
+
+
+## Updates from Osama:
+Since the two higgs legged vertices do not contribute to DM pheno, I removed them from the model by commenting them out in the lanhep file.
+Still in the commented out lines, I corrected a factor of CosT, but it does not matter now.
+I verified that the results are identical after this change.
+I also made small aesthetic edits to the model, including writing the dark sector in terms of Xi, making the expression for vevh in terms of EE, MW and SW more human-readable, and doing away with the B000xx placeholders.
+I changed the simpy tests to match my changes and not fail on the new models.

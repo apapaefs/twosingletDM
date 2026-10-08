@@ -6,7 +6,7 @@ Use [the setup script](../README.md) to install the model, `main.c` and
 is insufficient because their loop coefficients call the helper library.
 
 [The v2 change audit](changes-v2.md) explains the physics changes and the
-restoration of the historical two-Higgs operators. Both variants include
+restoration of the historical two-Higgs operators, and their subsequent removal. Both variants include
 `h_i h_j gamma gamma` and `h_i h_j gg`; `h4GOn` also includes the restored
 `x1/X1`, `G2t/G2T` auxiliary chain for `h_i h_j gggg`, alongside the retained
 single-Higgs `G1t/G1T` chain. The installer selects `h4GOn`; no extra option is
@@ -17,6 +17,8 @@ coefficients. The corrected single-Higgs coefficients and annihilation hook
 remain separate. This restores the previous effective approximation; it does
 not provide a new matched two-Higgs loop calculation. Rebuild in a fresh
 installation to use these tables; existing compiled installations are unchanged.
+
+After their restoration, the two-legged higgs vertices have been removed again as they do not affect the DM phenomenology. The models however must not be used outside of micromegas, as their limited scope does not cover collider pheno.
 
 To regenerate both variants, from the repository root:
 
