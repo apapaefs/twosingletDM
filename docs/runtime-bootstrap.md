@@ -35,7 +35,7 @@ The old runtime remains available for existing campaigns.
 | BSMPT 3.2.1 | Public upstream revision `431df3b6…`, the repository's TRSM model and precision helpers, shared SM inputs, Conan dependencies, and `CalcTemps`, `MinimaTracer`, `PhaseProbe`, `Test` |
 | MadGraph 3.5.15 | Pinned upstream revision, the tracked `MG5stuff/loop_sm_twoscalar_generic.tar.gz` UFO export, COLLIER 1.2.9 and bundled CutTools/IREGI, and generated/compiled process directories |
 
-The four generated processes match `generate_mg5_trsm_xsecs.ProcLocation`:
+The five generated processes match `generate_mg5_trsm_xsecs.ProcLocation`:
 
 | Scan key | MadGraph process | Directory |
 | --- | --- | --- |
@@ -43,6 +43,7 @@ The four generated processes match `generate_mg5_trsm_xsecs.ProcLocation`:
 | `hhh` | `g g > h h h [noborn=QCD]` | `gg_hhh_twoscalar` |
 | `gg_heta0` | `g g > h eta0 [noborn=QCD]` | `gg_heta0` |
 | `pp_eta0Z` | `p p > eta0 z` | `pp_eta0Z` |
+| `gg_eta0Z` | `g g > eta0 z [noborn=QCD]` | `gg_eta0Z` |
 
 Generation and compilation produce no event samples. Process cards retain the
 bundled `nn23lo1` central PDF prescription. The optional LHAPDF uncertainty pass
@@ -54,6 +55,111 @@ generated CalcHEP tables and UFO are already tracked, so a build does not requir
 LanHEP or Mathematica/FeynRules or regenerate physics model exports.
 The initial tree-process executable uses the original matrix elements;
 MadGraph can prepare its usual helicity optimization when a run is launched.
+For loop-induced processes the installer also compiles each MadLoop `check`
+executable and verifies its local Fortran modules. Building the integration
+executable alone is insufficient: the parent-directory `OLP_static` build can
+leave `polynomial.o` inside `PV*/` but its `.mod` file in `SubProcesses/`.
+The installer forces a local polynomial compilation when that module is missing,
+then records both the module and the `check` executable as installation artifacts.
+Fresh exports also retain MG5's reduction-library runtime paths in the MadLoop
+check link command, so a shared COLLIER library can be loaded at initialization.
+
+## Adding a process to an existing runtime
+
+After activating the existing runtime, add the loop-induced ZH2 process with:
+
+```bash
+python tools/setup_mg5_process.py --mg5-process gg_eta0Z
+```
+
+The command uses `TRSM_MG5_LOCATION` (or `--mg5-location PATH`), the installed
+UFO and COLLIER, and the same central-PDF compilation procedure as bootstrap.
+It records a process/model receipt and build logs, validates an existing
+matching process, and refuses to replace a conflicting process. It does not
+save changes to the global MG5 configuration. Bootstrap `--resume` cannot add
+a process because its original process list is part of the installation identity.
+See the [saved-campaign commands](../README.md#add-loop-induced-zh2-rates-to-a-saved-campaign)
+to augment existing points separately from their original scan checkpoints.
+
+## Repairing an existing MadLoop installation
+
+If a previous installation fails with `Cannot open module file
+'ml5_..._polynomial_constants.mod'`, keep its process directories and saved
+campaigns. From the repository root, after activating that runtime, check the
+selected processes without modifying them:
+
+```bash
+python tools/madloop_build.py \
+  "$TRSM_MG5_LOCATION/gg_heta0" \
+  "$TRSM_MG5_LOCATION/gg_hh_twoscalar" \
+  "$TRSM_MG5_LOCATION/gg_hhh_twoscalar"
+```
+
+With scans using those processes stopped, rebuild the missing artifacts:
+
+```bash
+python tools/madloop_build.py --repair \
+  "$TRSM_MG5_LOCATION/gg_heta0" \
+  "$TRSM_MG5_LOCATION/gg_hh_twoscalar" \
+  "$TRSM_MG5_LOCATION/gg_hhh_twoscalar"
+```
+
+Select only directories that exist in your installation. This command uses the
+same exclusive process lock as the scan interface and refuses an active writer.
+It runs serial `make` builds and keeps a new `madloop-build-*.log` for every
+repair attempt. It preserves source files, cards, saved events, and campaign
+checkpoints, and does not run `check`, generate events, or restart a campaign.
+Tree-level processes can be checked too; they need no MadLoop repair.
+
+After repair, resume a campaign with its original checkout, environment, and
+settings. The repair changes only compilation artifacts and therefore preserves
+its runtime receipt. Updating the scan's Python sources or Git revision can
+invalidate its fingerprint; do not edit the saved fingerprint to bypass this
+protection. The repair script uses only the Python standard library and can be
+run from a separate checkout while retaining the original campaign checkout.
+
+## Repairing an existing MG5 survey
+
+Older scan wrappers requested one survey iteration for loop-induced processes,
+but MG5 3.5.15's unsplit integration requires at least three. This can produce
+`Survey return zero cross section` even when individual integration channels
+have nonzero estimates. With three iterations, its adaptive helicity sampler
+can also fail with `DiscreteSampler:: Error, no point could be picked`.
+New wrappers request three iterations and explicitly sum loop helicities
+(`nhel=0`). This preserves the unpolarized process and physics parameters.
+
+To recover saved campaigns using their original checkout, run this maintenance
+tool from the updated checkout while all scans using these processes are stopped:
+
+```bash
+# Check first; --repair applies the changes.
+python tools/repair_mg5_survey.py \
+  "$TRSM_MG5_LOCATION/gg_heta0" \
+  "$TRSM_MG5_LOCATION/gg_hh_twoscalar" \
+  "$TRSM_MG5_LOCATION/gg_hhh_twoscalar"
+python tools/repair_mg5_survey.py --repair \
+  "$TRSM_MG5_LOCATION/gg_heta0" \
+  "$TRSM_MG5_LOCATION/gg_hh_twoscalar" \
+  "$TRSM_MG5_LOCATION/gg_hhh_twoscalar"
+```
+
+Select only installed directories. The tool uses the scan's process writer lock
+and refuses an active writer. In each generated process it guards the survey
+input writer against `maxiter < miniter`, logging when it raises that invalid
+request. Legitimate split-grid jobs with `maxiter=miniter=1` are preserved.
+For loop-induced processes it also sets `nhel=0` in the current and default run
+cards. All other card settings, parameter cards, matrix elements, UFO sources,
+events, and campaign files are preserved. Every changed file has a backup and
+SHA-256 receipt under the process's `.trsm-maintenance/survey-minimum-*/` directory.
+Repeated repair is a no-op unless the settings need repair again.
+
+This repair is deliberately limited to the generated runtime; it does not edit
+the original scan checkout or rewrite saved fingerprints. Existing receipts
+exclude these mutable integration files, so the original campaign can resume
+with its original checkout and options. Keep the maintenance receipts alongside
+the campaign's provenance. A future process regeneration needs the repair again
+if it is used with an old wrapper. The current wrapper supplies the corrected
+settings on every invocation. The repair command does not restart scans.
 
 ## Prerequisites
 
@@ -128,7 +234,8 @@ The installer does not claim byte-identical binaries across compilers or hosts.
 
 The final checks include Python dependency consistency, flavour-data validation,
 loading HiggsTools and both datasets, micrOMEGAs capability probes, BSMPT CLI
-startup, and existence of compiled MadGraph subprocesses. These are installation
+startup, and existence of compiled MadGraph subprocesses and local MadLoop
+initialization artifacts. These are installation
 checks, not a new physics-validation campaign.
 BSMPT 3.2.1's help command returns status 1 after its missing-argument message;
 the startup check accepts that specific response only when the expected help

@@ -226,6 +226,49 @@ class TestInstaller(unittest.TestCase):
             with self.assertRaisesRegex(SetupError, "Invalid generated subprocess"):
                 madgraph_subprocesses(root)
 
+    def test_process_prepares_and_records_local_madloop_artifacts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            installer = self.installer(Path(temporary) / "runtime")
+            (installer.prefix / "logs").mkdir(parents=True)
+            target = installer.prefix / "MG5_aMC_v3_5_15/gg_heta0"
+            pv = target / "SubProcesses/PV5_test"
+            module = pv / "ml5_5_constants.mod"
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append([str(part) for part in command])
+                if str(command[1]).endswith("bin/mg5_aMC"):
+                    for name, content in {
+                        "bin/madevent": "launcher", "Cards/proc_card_mg5.dat": "process",
+                        "SubProcesses/subproc.mg": "P0_test\n",
+                        "SubProcesses/P0_test/makefile": "integration makefile",
+                        "SubProcesses/PV5_test/makefile": "loop makefile",
+                        "SubProcesses/PV5_test/loop_matrix.f": "loop source",
+                        "SubProcesses/PV5_test/check_sa.f": "check source",
+                        "SubProcesses/PV5_test/polynomial.f": "      MODULE ML5_5_CONSTANTS\n",
+                    }.items():
+                        path = target / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(content)
+                elif command[-1] == "madevent":
+                    # Parent OLP build alone leaves the module in the wrong place.
+                    (pv / "polynomial.o").write_text("object")
+                    (pv.parent / module.name).write_text("parent module")
+                    (target / "SubProcesses/P0_test/madevent").write_text("binary")
+                elif command[-1] == "check":
+                    self.assertTrue((pv / "polynomial.o").exists())
+                    self.assertIn("-W", command)
+                    self.assertIn("polynomial.f", command)
+                    module.write_text("local module")
+                    (pv / "check").write_text("check binary")
+                    (pv / "check").chmod(0o755)
+
+            with patch.object(installer, "run", side_effect=run):
+                artifacts = installer.process("gg_heta0")
+            self.assertIn(module, artifacts)
+            self.assertIn(pv / "check", artifacts)
+            self.assertEqual(commands[-1], ["make", "-j1", "-C", str(pv), "-W", "polynomial.f", "check"])
+
     def test_collier_installation_has_madgraph_module_layout(self):
         with tempfile.TemporaryDirectory() as temporary:
             installer = self.installer(Path(temporary) / "runtime")

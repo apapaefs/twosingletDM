@@ -50,6 +50,11 @@ source ../runtime-v2-new/activate.sh
 The installer requires a fresh prefix and supports `--resume`. Existing
 runtimes and campaigns are preserved. See the linked guide for prerequisites,
 component selection, provenance, and the MadGraph central-PDF prescription.
+For an older MG5 installation with a missing `ml5_..._polynomial_constants.mod`
+file, use the [MadLoop repair command](docs/runtime-bootstrap.md#repairing-an-existing-madloop-installation)
+to rebuild the initialization artifacts while preserving saved campaigns.
+For an older campaign failing with a zero MG5 survey or a `DiscreteSampler`
+error, use the [survey repair instructions](docs/runtime-bootstrap.md#repairing-an-existing-mg5-survey).
 
 ## Download MG5_aMC and prepare generated processes
 
@@ -117,6 +122,56 @@ mono_z_xsec_pb     = sigma(pp -> eta0 Z) * BR(eta0 -> iota0 iota0)
 ```
 
 with `h=H1`, `eta0=H2`, and stable `iota0=H3`.
+
+### Add loop-induced ZH2 rates to a saved campaign
+
+The additional process `gg_eta0Z` evaluates `g g > eta0 z [noborn=QCD]`.
+For new scans, request it explicitly alongside the existing channels using
+`--mg5-process gg_heta0 --mg5-process pp_eta0Z --mg5-process gg_eta0Z`.
+The default two-process scan selection remains unchanged.
+
+For the saved Odysseus campaign, activate its usual runtime and run these
+commands from the repository checkout containing the updated scripts:
+
+```bash
+python tools/setup_mg5_process.py --mg5-process gg_eta0Z
+
+python reprocess_trsm_mg5.py \
+  output/odysseus-100x1000-66662/combined_points.tsv \
+  --output output/odysseus-100x1000-66662/combined_points_mg5.tsv \
+  --energy 13.6
+
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5.tsv \
+  --output-dir plots/odysseus-100x1000-66662-updated \
+  --format both
+```
+
+The setup command uses `TRSM_MG5_LOCATION` and adds only the requested process.
+It validates an existing matching installation and refuses a conflicting one.
+The reprocessor streams every stored row to a separate TSV, retains DM, BSMPT
+and other assessments, and calculates missing rates only for the existing
+version-aware full-viability selection. Finite existing production and signal
+rates are reused. Add `--dry-run` to inspect the number of missing rates; after
+an interruption, repeat the reprocessing command with `--resume` to continue
+from its per-process SQLite checkpoint. The input, settings and runtime must
+still match. This augments saved points; it does not resume the original scan
+with a changed process list. If the source has no energy metadata, `--energy`
+is the explicit assumption for the existing rates as well as the new rates.
+
+`mg5_xsec_pp_eta0Z_pb` and `mono_z_xsec_pb` retain their tree-level meanings.
+The new columns are:
+
+| Column | Meaning |
+| --- | --- |
+| `mg5_xsec_gg_eta0Z_pb` | Loop-induced gg production cross section |
+| `mg5_xsec_pp_eta0Z_total_pb` | Tree production + loop-induced gg production |
+| `mono_z_gg_xsec_pb` | gg production times stored `h2_h3h3_br` |
+| `mono_z_total_xsec_pb` | Total production times stored `h2_h3h3_br` |
+
+All rates are in pb. Both production components must be available for a total;
+missing rates are not replaced by zero. The sum is labelled “tree +
+loop-induced gg”, rather than being presented as a complete NLO prediction.
 
 ## Get HiggsTools: https://gitlab.com/higgsbounds/higgstools.git and compile it:
 in the HiggsTools directory:
@@ -878,6 +933,15 @@ apply EWPO and is therefore separate from the suite's `experimental` and
 `full_viability` definitions. The fourth dashboard collects all six plots, and
 `constraint_summary.tsv` records each cumulative count explicitly.
 
+A separate gradual-DM dashboard starts with the existing **non-DM viability**
+selection (version-aware theory, experimental and flavour passes), then applies
+relic density, direct detection, indirect detection and CMB in that order.
+It shows the `M2`–`M3`, `M3`–`K133` and `M3`–`K233` planes. Missing component
+assessments cannot pass; an assessed indirect-detection result outside coverage
+retains its non-veto meaning, and disabled CMB leaves the preceding population
+unchanged. Counts and discrepancies with stored full viability are reported in
+the summary. The original collaborator cumulative sequence remains separate.
+
 When the scan contains recorded BSMPT results, plots 30--36 and a fifth
 dashboard are added automatically. New scans add separate baryogenesis and
 gravitational-wave candidate maps and temperature diagnostics:
@@ -926,6 +990,20 @@ Detailed transition
 temperatures remain in the per-point `ewpt_result.json` files and are not
 reconstructed by the scan-table plot suite.
 
+Across BSMPT scatter plots, **stars identify strong critical EW entry**:
+successful assessment, `|vEW,false| < 5 GeV <= |vEW,true|`, and strictly
+`Delta vEW/Tc > 1`, using the stored EW-entry diagnostic. Neither completion
+nor percolation is an additional requirement. A large selected broken-to-broken
+transition, a GW-only candidate, or a multistep history does not by itself earn
+a star. Their other classifications and stored flags remain available. Legacy
+inputs without EW-entry diagnostics explicitly show the star classification
+as unavailable.
+
+All 19 BSMPT plots and their dashboard have additional `_full_viability`
+counterparts in the **BSMPT + DM full viability** section. Their points, counts,
+legends and denominators use full viability. Empty or unavailable selections
+are explained in the report instead of being filled with unselected points.
+
 Plots 37--42 show \(K_{133}\) and \(K_{233}\) separately versus \(M_3\), with
 the signed resonance displacement \(M_2-2M_3\) as a symmetric-log color scale
 centered on zero. Its dark neutral center makes resonant points visible, while
@@ -972,6 +1050,12 @@ The scalar-cascade and MadGraph results each have a dedicated four-panel
 dashboard for each selection. Zero kinematic rates are counted in the
 annotation but omitted from the logarithmic y axis; missing or all-`nan` MG
 results are reported as unavailable rather than being interpreted as zero.
+
+The full-viability mono-Higgs/Z plots appear under **Full-viability collider
+signal plots**, independently of YR4 signal availability. Additional figures
+show gg-only and total mono-Z rates versus both masses, and compare tree, gg
+and total raw ZH2 production. Aggregate-DM variants of the K133/K233-versus-M3
+resonance plots complement the existing experimental and relic-only variants.
 
 When the scan stores `k2`, `w2`, and `h2_h3h3_br` and contains at least one
 full-viable point with an open `h2 -> h3 h3` decay, plots 64--69 and a twelfth

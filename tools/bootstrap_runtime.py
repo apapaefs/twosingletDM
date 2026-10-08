@@ -24,8 +24,12 @@ import tempfile
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tools.madloop_build import build_madloop_checks
+
 COMPONENTS = ("python", "datasets", "higgstools", "micromegas", "bsmpt", "mg5")
-PROCESSES = ("hh", "hhh", "gg_heta0", "pp_eta0Z")
+PROCESSES = ("hh", "hhh", "gg_heta0", "pp_eta0Z", "gg_eta0Z")
 STATE_NAME = "bootstrap-state.json"
 
 
@@ -50,7 +54,7 @@ def write_json(path, value):
 
 
 def source_fingerprint():
-    files = [Path(__file__), ROOT / "tools/stage_bsmpt_v2.py",
+    files = [Path(__file__), ROOT / "tools/madloop_build.py", ROOT / "tools/stage_bsmpt_v2.py",
              ROOT / "tools/runtime_manifest.py", ROOT / "DM/setup_micromegas.sh",
              ROOT / "DM/main.c", ROOT / "DM/trsm_loop.c", ROOT / "DM/data.par",
              ROOT / "MG5stuff/loop_sm_twoscalar_generic.tar.gz"]
@@ -149,6 +153,63 @@ def madgraph_subprocesses(process):
     if not paths:
         raise SetupError(f"No generated subprocesses in {process}")
     return paths
+
+
+def compile_mg5_process(target, python, run):
+    """Compile a freshly generated process using the runtime central-PDF prescription."""
+    target = Path(target)
+    madevent = target / "bin/madevent"
+    runtime_config = target / "Cards/me5_configuration.txt"
+    if runtime_config.is_file():
+        with runtime_config.open("a") as stream:
+            stream.write("\nautomatic_html_opening = False\nauto_update = 0\n")
+    # MG5 links the integration binary with RPATH_LIBS but omits it from
+    # MadLoop's initialization check. A shared COLLIER then compiles yet fails
+    # to load (notably @rpath/libcollier.dylib on macOS). Only this fresh export
+    # is adjusted; installed templates and other processes stay untouched.
+    prepare_madloop_rpaths(target)
+    # These scans use central cross sections with MG5's bundled nn23lo1
+    # PDFs. Explicitly disable the optional LHAPDF uncertainty pass.
+    for name in ("run_card.dat", "run_card_default.dat"):
+        path = target / "Cards" / name
+        if path.is_file():
+            value = re.sub(r"(?m)^\s*True\s*=\s*use_syst\b", " False = use_syst", path.read_text())
+            value = re.sub(r"(?m)^\s*systematics\s*=\s*systematics_program\b", " none = systematics_program", value)
+            path.write_text(value)
+    run([python, madevent, "treatcards", "run"], cwd=target)
+    run([python, madevent, "treatcards", "param"], cwd=target)
+    run(["make", "-C", target / "Source"])
+    subprocesses = madgraph_subprocesses(target)
+    for path in subprocesses:
+        command = ["make", "-C", path, "madevent"]
+        originals = sorted(path.glob("matrix*_orig.f"))
+        if originals and not any(path.glob("matrix*_optim.f")):
+            # Tree exports prepare helicity recycling at the first run.
+            # Compile the original matrix elements now without generating
+            # events or changing MG5's runtime optimization settings.
+            command.append("MATRIX=" + " ".join(p.with_suffix(".o").name for p in originals))
+        run(command)
+    # OLP_static creates polynomial .mod files in SubProcesses/, whereas
+    # MadLoop initializes from PV*/. Prepare and verify that second build
+    # entry point too; compiling madevent alone does not exercise it.
+    madloop_artifacts = build_madloop_checks(target, run)
+    return [madevent, target / "Cards/proc_card_mg5.dat", target / "SubProcesses/subproc.mg",
+            *[p / "madevent" for p in subprocesses], *madloop_artifacts]
+
+
+def prepare_madloop_rpaths(target):
+    makefile = Path(target) / "SubProcesses/makefile_MadLoop"
+    if makefile.is_file():
+        original = makefile.read_text()
+        updated = re.sub(
+            r"(?m)^LINKLIBS\s*=.*$",
+            lambda match: match[0] if "$(RPATH_LIBS)" in match[0] else match[0] + " $(RPATH_LIBS)",
+            original,
+        )
+        if updated != original:
+            if makefile.is_symlink():
+                makefile.unlink()
+            makefile.write_text(updated)
 
 
 def check_bsmpt_startup(executable, env, log):
@@ -501,29 +562,7 @@ class Installer:
         madevent = target / "bin/madevent"
         if not madevent.is_file():
             raise SetupError(f"MG5 did not generate {key}; inspect the process log")
-        # These scans use central cross sections with MG5's bundled nn23lo1
-        # PDFs. Explicitly disable the optional LHAPDF uncertainty pass.
-        for name in ("run_card.dat", "run_card_default.dat"):
-            path = target / "Cards" / name
-            if path.is_file():
-                value = re.sub(r"(?m)^\s*True\s*=\s*use_syst\b", " False = use_syst", path.read_text())
-                value = re.sub(r"(?m)^\s*systematics\s*=\s*systematics_program\b", " none = systematics_program", value)
-                path.write_text(value)
-        self.run([self.python, madevent, "treatcards", "run"], cwd=target)
-        self.run([self.python, madevent, "treatcards", "param"], cwd=target)
-        self.run(["make", "-C", target / "Source"])
-        subprocesses = madgraph_subprocesses(target)
-        for path in subprocesses:
-            command = ["make", "-C", path, "madevent"]
-            originals = sorted(path.glob("matrix*_orig.f"))
-            if originals and not any(path.glob("matrix*_optim.f")):
-                # Tree exports prepare helicity recycling at the first run.
-                # Compile the original matrix elements now without generating
-                # events or changing MG5's runtime optimization settings.
-                command.append("MATRIX=" + " ".join(p.with_suffix(".o").name for p in originals))
-            self.run(command)
-        return [madevent, target / "Cards/proc_card_mg5.dat", target / "SubProcesses/subproc.mg",
-                *[p / "madevent" for p in subprocesses]]
+        return compile_mg5_process(target, self.python, self.run)
 
     def verify(self):
         self.run([self.python, "-m", "pip", "check"])
@@ -587,7 +626,7 @@ def parse_args(argv=None):
     parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
     parser.add_argument("--components", nargs="+", choices=COMPONENTS, default=list(COMPONENTS))
     parser.add_argument("--mg5-process", action="append", choices=PROCESSES,
-                        help="Repeat to select processes; default: all four supported processes")
+                        help="Repeat to select processes; default: all supported processes")
     parser.add_argument("--sources", type=Path, default=ROOT / "config/runtime-sources-v2.json")
     parser.add_argument("--download-cache", type=Path, help="Reusable directory of checksum-verified archives")
     parser.add_argument("--download-only", action="store_true")

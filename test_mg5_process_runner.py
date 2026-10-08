@@ -120,6 +120,9 @@ class TestMG5ProcessRunner(unittest.TestCase):
             madevent = process_dir / "bin" / "madevent"
             madevent.parent.mkdir(parents=True)
             madevent.write_text("", encoding="ascii")
+            characteristics = process_dir / "SubProcesses/proc_characteristics"
+            characteristics.parent.mkdir()
+            characteristics.write_text("loop_induced = True\n", encoding="ascii")
             captured = {}
 
             def fake_run(args, **kwargs):
@@ -164,6 +167,7 @@ class TestMG5ProcessRunner(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertTrue(captured["text"].startswith("set nb_core 1\nset run_mode 0\n"))
         self.assertIn("--iterations=3", captured["text"])
+        self.assertIn("set nhel 0\n", captured["text"])
         self.assertIn("set ebeam1 6800.0", captured["text"])
         self.assertIn("set Meta 300.0", captured["text"])
         self.assertIn("set Weta 1.2", captured["text"])
@@ -173,14 +177,47 @@ class TestMG5ProcessRunner(unittest.TestCase):
         self.assertIn("set kap133 9", captured["text"])
         self.assertIn("set kap233 25.0", captured["text"])
 
-    def test_loop_induced_process_keeps_single_fast_survey_iteration(self):
+    def test_tree_level_run_preserves_helicity_settings(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            process = root / "pp_eta0Z"
+            madevent = process / "bin/madevent"
+            madevent.parent.mkdir(parents=True)
+            madevent.touch()
+            characteristics = process / "SubProcesses/proc_characteristics"
+            characteristics.parent.mkdir()
+            characteristics.write_text("loop_induced = False\n")
+            with patch("generate_mg5_trsm_xsecs.subprocess.run", return_value=SimpleNamespace(
+                    returncode=1, stdout="stop after capturing commands")):
+                with self.assertRaises(RuntimeError):
+                    drive_mg("pp_eta0Z", "tree", root, .99, .1, 0.,
+                             [[str(i) for i in range(10)]], 300., 1., 50., 0., 1, 1)
+            command = (process / "mg5_pp_eta0Z_lambdavar_runtree.dcmd").read_text()
+            self.assertIn("--iterations=3", command)
+            self.assertNotIn("set nhel", command)
+
+    def test_survey_meets_madevent_minimum_for_all_process_types(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             process_dir = Path(tmpdir)
             characteristics = process_dir / "SubProcesses" / "proc_characteristics"
             characteristics.parent.mkdir(parents=True)
-            characteristics.write_text("loop_induced = True\n", encoding="ascii")
+            for content in (None, "loop_induced = True\n", "loop_induced = False\n", "unrelated = True\n"):
+                with self.subTest(characteristics=content):
+                    if content is not None:
+                        characteristics.write_text(content, encoding="ascii")
+                    self.assertGreaterEqual(_survey_iterations(process_dir), 3)
 
-            self.assertEqual(_survey_iterations(process_dir), 1)
+    def test_zero_survey_without_event_file_still_fails_instead_of_recording_zero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            madevent = root / "gg_heta0/bin/madevent"
+            madevent.parent.mkdir(parents=True)
+            madevent.touch()
+            with patch("generate_mg5_trsm_xsecs.subprocess.run", return_value=SimpleNamespace(
+                    returncode=0, stdout="Survey return zero cross section.")):
+                with self.assertRaisesRegex(RuntimeError, "Survey return zero cross section"):
+                    drive_mg("gg_heta0", "zero", root, .99, .1, 0.,
+                             [[str(i) for i in range(10)]], 300., 1., 50., 0., 1, 1)
 
     def test_preflight_checks_compiled_process_and_ignores_mutable_cards(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -207,6 +244,39 @@ class TestMG5ProcessRunner(unittest.TestCase):
                 mg5_runtime_receipt(['pp_eta0Z'], root)
             with self.assertRaises(FileNotFoundError):
                 mg5_runtime_receipt(['gg_heta0'], root)
+
+    def test_preflight_rejects_missing_madloop_module_and_ignores_rebuilds_in_receipt(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            process = root / "gg_heta0"
+            pv = process / "SubProcesses/PV5_test"
+            files = {
+                "VERSION": "3.5.15",
+                "gg_heta0/bin/madevent": "#!/bin/sh\n",
+                "gg_heta0/Cards/proc_card_mg5.dat": "generate g g > h eta0 [noborn=QCD]\n",
+                "gg_heta0/SubProcesses/subproc.mg": "P0_test\n",
+                "gg_heta0/SubProcesses/P0_test/madevent": "binary",
+                "gg_heta0/SubProcesses/PV5_test/makefile": "makefile",
+                "gg_heta0/SubProcesses/PV5_test/loop_matrix.f": "loop source",
+                "gg_heta0/SubProcesses/PV5_test/check_sa.f": "check source",
+                "gg_heta0/SubProcesses/PV5_test/polynomial.f": "      MODULE ML5_5_CONSTANTS\n",
+                "gg_heta0/SubProcesses/PV5_test/check": "check binary",
+                "gg_heta0/SubProcesses/ml5_5_constants.mod": "parent module",
+            }
+            for name, content in files.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+                path.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "Missing MadLoop.*ml5_5_constants.mod"):
+                mg5_runtime_receipt(["gg_heta0"], root)
+            module = pv / "ml5_5_constants.mod"
+            module.write_text("local module")
+            receipt = mg5_runtime_receipt(["gg_heta0"], root)
+            module.write_text("rebuilt module")
+            (pv / "check").write_text("rebuilt check binary")
+            self.assertEqual(receipt, mg5_runtime_receipt(["gg_heta0"], root))
+            self.assertNotIn("madloop_artifacts", receipt["processes"]["gg_heta0"])
 
     def test_concurrent_workers_serialize_cards_and_keep_their_cross_sections(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -64,7 +64,8 @@ explicitly: setting `OMP_NUM_THREADS` alone does not control it. Standalone
 
 Both launchers accept `--run-mg5`. By default this evaluates `gg_heta0` and
 `pp_eta0Z` at 13.6 TeV for points passing full viability, including flavour.
-Repeat `--mg5-process NAME` to choose from `hh`, `hhh`, `gg_heta0`, and `pp_eta0Z`.
+Repeat `--mg5-process NAME` to choose from `hh`, `hhh`, `gg_heta0`, `pp_eta0Z`,
+and loop-induced `gg_eta0Z`. The two associated-production defaults are unchanged.
 `--mg5-without-dm` drops only the DM requirement; all non-DM constraints,
 including flavour, still apply. These options do not change EWPT eligibility.
 
@@ -90,16 +91,37 @@ an MG5-eligible point. Cross sections appear in `mg5_xsec_<process>_pb` columns
 in each scan and `combined_points.tsv`.
 
 Activate the runtime before launching so `TRSM_MG5_LOCATION` selects the compiled
-processes. Preflight checks the selected launchers and compiled subprocesses and
-records stable process/model files in the campaign receipt. Missing installations
+processes. Preflight checks the selected launchers, compiled subprocesses, and
+MadLoop initialization executables and local Fortran modules, and records stable
+process/model files in the campaign receipt. Missing installations
 stop the campaign before workers start. Actual run cards and helicity-optimized
 binaries are mutable and are not included in this receipt's source hashes.
+An older loop-process installation may need the
+[MadLoop artifact repair](runtime-bootstrap.md#repairing-an-existing-madloop-installation)
+before use. This repair preserves the campaign and its physics inputs.
 
 MG5 updates cards and event files inside each generated process directory.
 An exclusive file lock covers each invocation: workers using the same process
 take turns, while different processes and other scan calculations can proceed
 concurrently. Campaign workers set `TRSM_MG5_CORES=1`, so each invocation uses one
 core. `--jobs` controls concurrent scans, not independent copies of MG5.
+
+Both tree-level and loop-induced MG5 processes use three survey iterations.
+The older one-iteration loop setting was invalid for MadEvent's unsplit survey:
+its input requested `maxiter=1` with `miniter=3`, causing zero result files even
+when individual channel estimates were nonzero. Do not reduce this setting to
+one to speed up a campaign. Loop-induced processes also set `nhel=0` to sum
+helicities explicitly. MG5 3.5.15's adaptive helicity sampler can otherwise
+abort after the first iteration with `DiscreteSampler:: Error, no point could
+be picked`. The exact sum evaluates the same unpolarized process; it does not
+change the model or its couplings. Tree-level helicity settings are preserved.
+A zero survey with no event file remains a reported failure; it is not recorded
+as an assessed zero cross section.
+
+For an existing campaign that must retain its original Python checkout, use
+the [survey runtime repair](runtime-bootstrap.md#repairing-an-existing-mg5-survey)
+before resuming. It records the integration-setting changes and backups without
+altering campaign checkpoints or their saved fingerprints.
 
 The `tools/run_next_scan.py` wrapper exposes the same options. Its configuration
 also accepts `run_mg5` and `mg5_without_dm` booleans and an `mg5_processes` list;
@@ -110,6 +132,10 @@ MG5 enablement, its DM selection, and its process list are saved with the
 campaign and cannot change on resume. Use a fresh campaign directory to enable
 MG5 for a previous scan that did not run it. Existing native installations can
 be reused; this feature does not require a rebuild.
+
+To calculate missing channels on the same stored points instead, use the
+[saved-point MG5 reprocessor](../README.md#add-loop-induced-zh2-rates-to-a-saved-campaign).
+It produces a separate enriched TSV and preserves the original campaign.
 
 ## Files, progress and interruption
 
