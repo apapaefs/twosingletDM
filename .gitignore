@@ -3,3 +3,44 @@ __pycache__/
 .pytest_cache/
 .venv*/
 runtime-v2/
+
+# Local scan products, plotting caches and native scratch output.
+.DS_Store
+/plots/
+/tmp/
+/ewpt_results/
+/python
+/test.output
+/test.output_new.csv
+/test_output_*.csv
+/DM/steer_example/plot/outplots/
+/DM/steer_example/single_point_output/
+/docs/*.aux
+/docs/*.log
+/docs/*.out
+/docs/*.synctex.gz
+
+# Publish the compact collaborator deliverables alongside their sources.
+/output/*
+!/output/pdf/
+/output/pdf/*
+!/output/pdf/applied-constraints.pdf
+!/output/pdf/applied-constraints.tex
+!/output/collaborator-66662/
+/output/collaborator-66662/*
+!/output/collaborator-66662/READ_ME.txt
+!/output/collaborator-66662/inspect_points.py
+!/output/collaborator-66662/applied-constraints.pdf
+!/output/collaborator-66662/applied-constraints.tex
+!/output/collaborator-66662/reference-seed-66662.metadata.json
+!/output/odysseus-66662-handover-kit.zip
+
+# Keep compact provenance and release checks; omit local native-run trees.
+/validation/v2/*
+!/validation/v2/release/
+!/validation/v2/mg5-survey-fix-20260925/
+/validation/collaborator-update-20261029/*
+!/validation/collaborator-update-20261029/*.json
+!/validation/collaborator-update-20261029/final-tests.log
+!/validation/collaborator-update-20261029/odysseus-profile-dry-run.log
+!/validation/collaborator-update-20261029/github-publish-tests.log

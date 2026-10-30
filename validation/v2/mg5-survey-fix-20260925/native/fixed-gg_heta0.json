@@ -1,0 +1,27 @@
+{
+  "process": "gg_heta0",
+  "case": "fixed",
+  "iterations": 3,
+  "status": "failed",
+  "error": "MG5 process 'gg_heta0' failed for run runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 (exit code 0); expected /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/Events/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046/unweighted_events.lhe.gz.\n\t         *                                         *        \n\t         *              version 1.2.9              *        \n\t         *                                         *        \n\t         *******************************************        \n\t                                                            \n\t RESET CUMULATIVE VARIABLE\n\t RESET CUMULATIVE VARIABLE\n\t Iteration  1   Mean: 0.7322E-06 Abs mean: 0.7322E-06   Fluctuation:  0.578E-07   0.616E-05     9.5%\n\t  1    0.7322E-06 0.7322E-06 +- 0.5784E-07      1.93\n\t Writing out events   4.3005804403880010E-009   1.9349370587899752     \n\t Relative summed weights:\n\t  0.1000E+01  0.0000E+00\n\t Relative number of events:\n\t  0.1000E+01  0.0000E+00\n\t Events:\n\t         600           0\n\t DiscreteSampler:: Error, no point could be picked with random variable 0.8181366920471191 using upper bound found of 0.0000000000000000.\n\tNote: The following floating-point exceptions are signalling: IEEE_INVALID_FLAG IEEE_UNDERFLOW_FLAG IEEE_DENORMAL\n\tSTOP 1\n\t\n\tls status:\n\tinput_app.txt\n\trun1_app.log\n\t\nPlease report this bug on https://bugs.launchpad.net/mg5amcnlo\nMore information is found in '/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046_tag_1_debug.log'.\nPlease attach this file to your report.\u001b[0m\nINFO:  \nquit\nINFO:  ",
+  "seconds": 16.438323497772217,
+  "log": "/tmp/trsm-mg5-survey-arlac7oh/fixed-gg_heta0.log",
+  "exit_code": 1,
+  "channels": [
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G3",
+      "input": "         600         3           3      !Number of events and max and min iterations",
+      "results": "end code not correct 1"
+    },
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G2",
+      "input": "         600         3           3      !Number of events and max and min iterations",
+      "results": " 0.35028E-05 0.70533E-07 0.00000E+00     4220      239    3      235 0.671E+08 0.23838E-09  0.35028E-05  0.14906E-07  0.14906E-07      235"
+    },
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G1",
+      "input": "         600         3           3      !Number of events and max and min iterations",
+      "results": " 0.62979E-04 0.55911E-06 0.00000E+00     4220      251    3      246 0.391E+07 0.43745E-08  0.62979E-04  0.25601E-06  0.25601E-06      246"
+    }
+  ]
+}

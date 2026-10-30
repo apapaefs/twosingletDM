@@ -137,6 +137,64 @@ To calculate missing channels on the same stored points instead, use the
 [saved-point MG5 reprocessor](../README.md#add-loop-induced-zh2-rates-to-a-saved-campaign).
 It produces a separate enriched TSV and preserves the original campaign.
 
+## Mass-range runs from the 66662 reference
+
+Two profiles reproduce the settings recorded in
+`odysseus-100x1000-66662/campaign_state.json` and its seed-66662 metadata,
+changing only the requested mass bounds:
+
+| Profile | M2 [GeV] | M3 [GeV] |
+| --- | --- | --- |
+| `config/odysseus-m2-m3-4-1000.json` | 4--1000 | 4--1000 |
+| `config/odysseus-m2-4-200-m3-4-65.json` | 4--200 | 4--65 |
+
+Both use independent uniform masses, logarithmic `K133`/`K233` magnitudes with
+independent signs, `vs = 50--500 GeV`, `k1 = 0.9--1`, and `lX = 0--10`.
+The base-10 trilinear exponent ranges are `[-4, 3]` and `[-3, 5]` in GeV.
+The micrOMEGAs 7.1.4, Planck CMB and LZ WS2024 prescriptions are unchanged.
+EWPT uses `thigh = 1000 GeV`; the optional Eq. (4.18) preselection is disabled.
+MG5 evaluates the original `gg_heta0` and `pp_eta0Z` channels for fully viable
+points. The later `hh`, loop-induced `gg_eta0Z` and CalcGW enrichments are
+separate operations, as in the reference campaign.
+
+Each profile uses the original seeds 66662--66761 in a **new directory**,
+100 single-thread workers, and 1,000 `evo & thc` passes per seed. Thus each
+targets 100,000 such passes; the number of raw draws can be larger. The
+reference needed 591,340 draws. Reusing seed numbers in separate campaigns
+preserves the random-number convention without overwriting the original run.
+
+On Odysseus, from the repository with these profiles installed:
+
+```bash
+source ../runtime-v2-new/activate.sh
+
+# A: M2 and M3 in [4, 1000] GeV
+python tools/run_next_scan.py \
+  --config config/odysseus-m2-m3-4-1000.json \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 --run
+
+# B: M2 in [4, 200] GeV; M3 in [4, 65] GeV
+python tools/run_next_scan.py \
+  --config config/odysseus-m2-4-200-m3-4-65.json \
+  --campaign-dir output/odysseus-100x1000-66662-m2-4-200-m3-4-65 --run
+```
+
+The commands run in the foreground, so executing the block sequentially uses
+100 workers at a time. Omit `--run` to validate and print either command.
+The launcher caps concurrency at the available CPUs. The profiles were checked
+through both command parsers and 1,000 mass draws each; this setup does not
+start a production scan or claim a new native-runtime validation.
+
+Resume either run with its own directory:
+
+```bash
+python tools/run_next_scan.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --resume --jobs 100 --run
+```
+
+For run B, substitute its directory. Resume reads the saved campaign settings.
+
 ## Files, progress and interruption
 
 ```text

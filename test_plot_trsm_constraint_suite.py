@@ -287,7 +287,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both", data=data)
-        self.assertEqual(len(paths), 156)
+        self.assertEqual(len(paths), 162)
         self.assertTrue(
             any(path.stem == "dashboard_scalar_cascade_rates" for path in paths)
         )
@@ -1381,11 +1381,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.plotter.plt.close(fig)
 
     def test_registry_and_expected_paths_are_unique(self):
-        self.assertEqual(len(self.plotter.PLOT_SPECS), 116)
-        self.assertEqual(len(self.plotter.DASHBOARDS), 17)
+        self.assertEqual(len(self.plotter.PLOT_SPECS), 139)
+        self.assertEqual(len(self.plotter.DASHBOARDS), 23)
         stems = self.plotter.all_figure_stems()
-        self.assertEqual(len(stems), 133)
-        self.assertEqual(len(set(stems)), 133)
+        self.assertEqual(len(stems), 162)
+        self.assertEqual(len(set(stems)), 162)
         self.assertTrue(any("bsmpt" in stem for stem in stems))
         self.assertTrue(any("signal" in stem for stem in stems))
         self.assertEqual(
@@ -1627,15 +1627,15 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertNotEqual(binary_styles["fail"].marker, binary_styles["pass"].marker)
 
         paths = self.plotter.expected_figure_paths(Path("plots"), "both")
-        self.assertEqual(len(paths), 266)
-        self.assertEqual(len(set(paths)), 266)
-        self.assertEqual(sum(path.suffix == ".png" for path in paths), 133)
-        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 133)
+        self.assertEqual(len(paths), 324)
+        self.assertEqual(len(set(paths)), 324)
+        self.assertEqual(sum(path.suffix == ".png" for path in paths), 162)
+        self.assertEqual(sum(path.suffix == ".pdf" for path in paths), 162)
 
         legacy_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=data
         )
-        self.assertEqual(len(legacy_paths), 110)
+        self.assertEqual(len(legacy_paths), 116)
         self.assertFalse(any("bsmpt" in path.stem for path in legacy_paths))
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1643,7 +1643,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         bsmpt_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=bsmpt_data
         )
-        self.assertEqual(len(bsmpt_paths), 146)
+        self.assertEqual(len(bsmpt_paths), 152)
         self.assertTrue(any(path.stem == "dashboard_bsmpt_summary" for path in bsmpt_paths))
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1651,7 +1651,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         signal_paths = self.plotter.expected_figure_paths(
             Path("plots"), "both", data=signal_data
         )
-        self.assertEqual(len(signal_paths), 124)
+        self.assertEqual(len(signal_paths), 130)
         self.assertTrue(
             any(path.stem == "dashboard_signal_summary" for path in signal_paths)
         )
@@ -1908,8 +1908,8 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(len(paths), 110)
-            self.assertEqual(len(set(paths)), 110)
+            self.assertEqual(len(paths), 116)
+            self.assertEqual(len(set(paths)), 116)
             self.assertTrue((output_dir / "constraint_summary.tsv").exists())
             index_path = output_dir / "index.html"
             self.assertTrue(index_path.exists())
@@ -1979,7 +1979,7 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(len(paths), 146)
+            self.assertEqual(len(paths), 152)
             self.assertTrue(
                 (output_dir / "dashboard_bsmpt_summary.png").exists()
             )

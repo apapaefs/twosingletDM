@@ -36,11 +36,14 @@ from matplotlib.colors import (
 )
 from matplotlib.lines import Line2D
 from plot_trsm_flavour import derive_flavour, render_flavour
+from trsm_inputs import M1 as INPUT_M1, VEV as INPUT_VEV
 
 
 NOMINAL_MASS_GAP_GEV = 125.0
 NOMINAL_M3_MAX_GEV = 1000.0
 SM_LIKE_HIGGS_MASS_GEV = 125.09
+# Same LO gg -> HH reference (MG5, nn23lo1) as generate_trsm_points.py.
+SM_HH_XSEC_13P6_PB = 0.01617
 BSMPT_STRONG_EWPT_THRESHOLD = 1.0
 M2_EQ_2M3_GUIDE_COLOR = "#CC79A7"
 M3_EQ_2M2_GUIDE_COLOR = "#0072B2"
@@ -106,6 +109,7 @@ OPTIONAL_NULLABLE_BOOLEAN_COLUMNS = (
 )
 
 OPTIONAL_TEXT_COLUMNS = (
+    "gw_status", "gw_transitions",
     "flavour_method", "flavour_status", "flavour_reason", "flavour_details",
     "constraint_version", "ewpt_constraint_version",
     "ewpt_x_broken_intervals_GeV",
@@ -186,6 +190,7 @@ OPTIONAL_NUMERIC_COLUMNS = (
     "xsec_h2_h1h1_one_h1_invisible_pb",
     "xsec_h1_h2h2_one_h2_invisible_pb",
     "mg5_xsec_gg_heta0_pb",
+    "mg5_xsec_hh_pb",
     "mg5_xsec_pp_eta0Z_pb",
     "mg5_xsec_gg_eta0Z_pb",
     "mg5_xsec_pp_eta0Z_total_pb",
@@ -230,6 +235,9 @@ class ScanData:
     metadata_source: Path | None = None
     metadata_error: str | None = None
     signal_error: str | None = None
+    hh_sm_xsec_pb: float = SM_HH_XSEC_13P6_PB
+    hh_error: str | None = None
+    gw: dict[str, np.ndarray] | None = None
 
     def __len__(self) -> int:
         return len(self.floats["M2"])
@@ -280,6 +288,7 @@ class PlotSpec:
     requires_bsmpt: bool = False
     required_columns: tuple[str, ...] = ()
     requires_signal: bool = False
+    y_limits: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -1442,6 +1451,67 @@ PLOT_SPECS += (
       )),
 )
 
+PLOT_SPECS += (
+    *(PlotSpec(
+        f"{number}_{coupling.lower()}_experimental_dm_m2_m3",
+        rf"$K_{{{coupling[1:]}}}$ with experiment + DM",
+        "selected_continuous_mass", value=coupling, norm_kind="signed",
+        cmap="coolwarm", colorbar_label=rf"$K_{{{coupling[1:]}}}$ [GeV]",
+        selection="experimental_dm",
+    ) for number, coupling in ((86, "K133"), (87, "K233"))),
+    PlotSpec(
+        "88_hh_enhancement_m2_m3", r"$HH$ production enhancement on the mass plane",
+        "hh_enhancement_mass", value="hh_enhancement", selection="full_viability",
+        required_columns=("mg5_xsec_hh_pb",),
+    ),
+    *(PlotSpec(
+        f"{number}_hh_enhancement_vs_{mass.lower()}",
+        rf"$HH$ production enhancement versus $M_{mass[1:]}$",
+        "hh_enhancement_xy", x=mass, y="hh_enhancement",
+        xlabel=rf"$M_{mass[1:]}$ [GeV]", selection="full_viability",
+        required_columns=("mg5_xsec_hh_pb",),
+    ) for number, mass in ((89, "M2"), (90, "M3"))),
+)
+
+DETERMINANT_SPECS = tuple(
+    PlotSpec(f"{number}_bsmpt_{name}_strength_vs_determinant",
+             title, "bsmpt_strength_xy", scheme=scheme, x="ewpt_determinant_D", y=column,
+             xlabel=r"$D$ [dimensionless; Eq. (4.18)]", ylabel=label, requires_bsmpt=True,
+             required_columns=("vs", "lX", "lPhiX", column, candidate))
+    for number, name, title, scheme, column, candidate, label in (
+        (91, "ew_entry", "EW-entry strength versus determinant", "bsmpt_ew_entry",
+         "ewpt_ew_entry_jump_over_T", "ewpt_baryo_candidate", r"$\Delta v_{\rm EW}(T_c)/T_c$"),
+        (92, "field", "Any-field strength versus determinant", "bsmpt_gw",
+         "ewpt_gw_max_field_jump_over_T", "ewpt_gw_candidate", r"$\max\,\Delta\phi/T$"),
+    )
+)
+CALCGW_SPECS = tuple(
+    PlotSpec(f"{number}_calcgw_{name}", title, "calcgw_xy", x=x, y=y,
+             xlabel=xlabel, ylabel=ylabel, requires_bsmpt=True)
+    for number, name, title, x, y, xlabel, ylabel in (
+        (93, "alpha_beta", "CalcGW: transition strength and duration", "alpha", "beta_over_H", r"$\alpha$", r"$\beta/H_*$"),
+        (94, "alpha_vs_m2", r"CalcGW: $\alpha$ versus $M_2$", "M2", "alpha", r"$M_2$ [GeV]", r"$\alpha$"),
+        (95, "beta_vs_m2", r"CalcGW: $\beta/H_*$ versus $M_2$", "M2", "beta_over_H", r"$M_2$ [GeV]", r"$\beta/H_*$"),
+        (96, "sound_wave_amplitude", "CalcGW: sound-wave characteristic amplitude", "f2_sw_Hz", "h2omega2_sw",
+         r"$f_{2,\rm sw}$ [Hz]", r"$h^2\Omega_{2,\rm sw}$"),
+        (97, "lisa_snr_vs_m2", "CalcGW: LISA signal-to-noise ratio (3 years)", "M2", "snr_lisa", r"$M_2$ [GeV]", r"${\rm SNR}_{\rm LISA}$"),
+        (98, "alpha_vs_temperature", "CalcGW: strength versus transition temperature", "T_star_GeV", "alpha", r"$T_*$ [GeV]", r"$\alpha$"),
+    )
+)
+CALCGW_SNR_ZOOM_SPECS = (
+    replace(next(spec for spec in CALCGW_SPECS if spec.y == "snr_lisa"),
+            stem="97b_calcgw_lisa_snr_vs_m2_1_to_100",
+            title="CalcGW: LISA signal-to-noise ratio (3 years), 1 to 100",
+            y_limits=(1.0, 100.0)),
+)
+NEW_THERMAL_SPECS = DETERMINANT_SPECS + CALCGW_SPECS + CALCGW_SNR_ZOOM_SPECS
+NEW_THERMAL_FULL_SPECS = tuple(
+    replace(spec, stem=spec.stem + "_full_viability", title=spec.title + ": full viability", selection="full_viability")
+    for spec in NEW_THERMAL_SPECS
+)
+PLOT_SPECS += NEW_THERMAL_SPECS + NEW_THERMAL_FULL_SPECS
+BSMPT_FULL_VIABILITY_STEMS += tuple(spec.stem for spec in NEW_THERMAL_FULL_SPECS)
+
 PLOT_BY_STEM = {spec.stem: spec for spec in PLOT_SPECS}
 
 DASHBOARDS = OrderedDict(
@@ -1574,6 +1644,12 @@ DASHBOARDS["dashboard_bsmpt_summary_full_viability"] = tuple(
 )
 
 DASHBOARDS.update({
+    "dashboard_portal_mass_plane_summary_experimental_dm": (
+        "86_k133_experimental_dm_m2_m3", "87_k233_experimental_dm_m2_m3",
+    ),
+    "dashboard_hh_enhancement": (
+        "88_hh_enhancement_m2_m3", "89_hh_enhancement_vs_m2", "90_hh_enhancement_vs_m3",
+    ),
     "dashboard_cumulative_dm": ("75_cumulative_dm_m2_m3", "76_cumulative_dm_m3_k133", "77_cumulative_dm_m3_k233"),
     "dashboard_portal_dm_resonance": ("78_k133_vs_m3_dm_resonance", "79_k233_vs_m3_dm_resonance"),
     "dashboard_zh2_production": ("80_zh2_production_vs_m2", "81_zh2_production_vs_m3"),
@@ -1584,6 +1660,8 @@ DASHBOARDS.update({
 })
 
 DASHBOARD_TITLES = {
+    "dashboard_portal_mass_plane_summary_experimental_dm": "TRSM portal trilinears: experiment + DM",
+    "dashboard_hh_enhancement": r"Full-viability $gg\to HH$ enhancement at 13.6 TeV (LO)",
     "dashboard_cumulative_dm": "TRSM cumulative dark-matter constraints after non-DM viability",
     "dashboard_portal_dm_resonance": "TRSM portal trilinears with aggregate DM constraints",
     "dashboard_zh2_production": "Full-viable ZH2 production at 13.6 TeV",
@@ -1619,9 +1697,21 @@ DASHBOARD_TITLES = {
     ),
 }
 
-BSMPT_DASHBOARDS = frozenset({"dashboard_bsmpt_summary", "dashboard_bsmpt_summary_full_viability"})
+for name, specs, title in (
+    ("dashboard_bsmpt_determinant", DETERMINANT_SPECS, "BSMPT transition strengths versus determinant D"),
+    ("dashboard_calcgw", CALCGW_SPECS, "BSMPT CalcGW: successful transitions"),
+):
+    DASHBOARDS[name] = tuple(spec.stem for spec in specs)
+    DASHBOARDS[name + "_full_viability"] = tuple(spec.stem + "_full_viability" for spec in specs)
+    DASHBOARD_TITLES[name] = title
+    DASHBOARD_TITLES[name + "_full_viability"] = title + ": full viability"
+
+BSMPT_DASHBOARDS = frozenset({"dashboard_bsmpt_summary", "dashboard_bsmpt_summary_full_viability",
+    "dashboard_bsmpt_determinant", "dashboard_bsmpt_determinant_full_viability",
+    "dashboard_calcgw", "dashboard_calcgw_full_viability"})
 SIGNAL_DASHBOARDS = frozenset({"dashboard_signal_summary"})
 COLLIDER_DASHBOARDS = SIGNAL_DASHBOARDS | {
+    "dashboard_hh_enhancement",
     "dashboard_scalar_cascade_rates", "dashboard_mg5_mono_rates",
     "dashboard_zh2_production", "dashboard_mono_z_components",
 }
@@ -2280,10 +2370,60 @@ def load_scan_metadata(
     return payload, candidate, None
 
 
+def derive_determinant(floats):
+    """Match check_eq_4_18: c_ii = lambda_i, c_ij = lambda_ij/2 for i != j."""
+    m2, a, vs = floats["M2"], floats["a12"], floats["vs"]
+    c, s = np.cos(a), np.sin(a)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        cphi = (INPUT_M1**2 * c**2 + m2**2 * s**2) / (2 * INPUT_VEV**2)
+        cs = (m2**2 * c**2 + INPUT_M1**2 * s**2) / (2 * vs**2)
+        cphis = (m2**2 - INPUT_M1**2) * c * s / (2 * INPUT_VEV * vs)
+        cx = floats["lX"]
+        cphix, cxs = (floats[key] / 2 for key in ("lPhiX", "lSX"))
+        determinant = cphi * cx * cs + 2 * cphix * cphis * cxs - cphis**2 * cx - cphi * cxs**2 - cphix**2 * cs
+    return np.where(np.isfinite(determinant), determinant, np.nan)
+
+
+def load_gw_transitions(strings):
+    """Flatten successful pairs once; row indices preserve the scan selections."""
+    from trsm_gw import GW_FIELDS, finite
+    buffers = {key: [] for key in ("row_index", "temperature_kind", *GW_FIELDS)}
+    for index, text in enumerate(strings.get("gw_transitions", ())):
+        if text in ("", "nan", "None", "null"):
+            continue
+        try:
+            transitions = json.loads(text)
+            if not isinstance(transitions, list):
+                raise ValueError("expected a list")
+            for transition in transitions:
+                if not isinstance(transition, dict):
+                    raise ValueError("expected transition objects")
+                if transition.get("valid") is not True or transition.get("status") != "success":
+                    continue
+                values = {key: finite(transition.get(key)) for key in GW_FIELDS}
+                if any(values[key] is None or values[key] <= 0 for key in ("alpha", "beta_over_H", "T_star_GeV")):
+                    continue
+                if values["beta_over_H"] < 1 or transition.get("temperature_status") != "success":
+                    continue
+                buffers["row_index"].append(index)
+                buffers["temperature_kind"].append(transition.get("temperature_kind", "unknown"))
+                for key, value in values.items():
+                    buffers[key].append(value if value is not None else np.nan)
+        except (ValueError, TypeError) as error:
+            raise ValueError(f"invalid gw_transitions on data row {index + 1}: {error}") from error
+    return {key: np.asarray(value, dtype=int if key == "row_index" else str if key == "temperature_kind" else float)
+            for key, value in buffers.items()}
+
+
 def load_scan(
     path: Path | str,
     metadata_path: Path | str | None = None,
+    *,
+    hh_sm_xsec_pb: float = SM_HH_XSEC_13P6_PB,
 ) -> ScanData:
+    if not math.isfinite(hh_sm_xsec_pb) or hh_sm_xsec_pb <= 0:
+        raise ValueError("HH SM reference cross section must be finite and positive")
+    csv.field_size_limit(max(csv.field_size_limit(), 64 * 1024 * 1024))
     path = Path(path)
     with path.open(encoding="ascii", newline="") as stream:
         reader = csv.reader(stream, delimiter="\t")
@@ -2461,6 +2601,7 @@ def load_scan(
     derived = {
         "theory": theory,
         "experimental": experimental,
+        "experimental_dm": experimental & bools["dm"],
         "non_dm_viability": non_dm_viability,
         "full_viability": full_viability,
         "pre_flavour_non_dm_viability": pre_flavour_non_dm_viability,
@@ -2505,6 +2646,8 @@ def load_scan(
         "m2_minus_2m3": floats["M2"] - 2.0 * floats["M3"],
     }
     derived.update(derive_associated_rates(floats))
+    if all(key in floats for key in ("vs", "lX", "lPhiX")):
+        derived["ewpt_determinant_D"] = derive_determinant(floats)
     if (
         "xsec_h2_h1h1_one_h1_invisible_pb" not in floats
         and all(
@@ -2571,6 +2714,25 @@ def load_scan(
     )
     if metadata_path is not None and metadata_error is not None:
         raise ValueError(metadata_error)
+    # Enriched legacy scans can have an energy receipt without the range schema
+    # used by the plot index. Read that receipt for the HH normalization too.
+    hh_metadata = metadata
+    hh_metadata_error = None
+    if metadata is None and metadata_source is not None and "mg5_xsec_hh_pb" in floats:
+        try:
+            hh_metadata = json.loads(metadata_source.read_text())
+            if not isinstance(hh_metadata, dict):
+                raise ValueError("expected a metadata object")
+        except (OSError, ValueError) as exc:
+            hh_metadata_error = f"cannot validate HH source energy: {exc}"
+    hh_error = hh_metadata_error or hh_availability_reason(floats, hh_metadata)
+    if hh_error is None:
+        rates = floats["mg5_xsec_hh_pb"]
+        with np.errstate(over="ignore", invalid="ignore"):
+            enhancement = rates / hh_sm_xsec_pb
+        derived["hh_enhancement"] = np.where(
+            np.isfinite(enhancement) & (rates >= 0), enhancement, np.nan
+        )
 
     return ScanData(
         source=path,
@@ -2583,7 +2745,37 @@ def load_scan(
         metadata_source=metadata_source,
         metadata_error=metadata_error,
         signal_error=signal_error,
+        hh_sm_xsec_pb=hh_sm_xsec_pb,
+        hh_error=hh_error,
+        gw=load_gw_transitions(strings),
     )
+
+
+def hh_availability_reason(floats, metadata) -> str | None:
+    """Require a full MG5 HH rate; a factorized resonance is not a substitute."""
+    if "mg5_xsec_hh_pb" not in floats:
+        return "missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh"
+    metadata = metadata or {}
+    energies = [
+        (entry.get("value"), entry.get("unit", "TeV"))
+        for entry in metadata.get("fixed_parameters", [])
+        if isinstance(entry, dict) and entry.get("variable") == "sqrt(s)"
+    ]
+    for container in (metadata, metadata.get("configuration", {}), metadata.get("config", {})):
+        fixed = container.get("fixed", {}) if isinstance(container, dict) else {}
+        if isinstance(fixed, dict) and "Energy" in fixed:
+            energies.append((fixed["Energy"], "TeV"))
+    enrichment = metadata.get("mg5_enrichment", {}).get("configuration", {})
+    if "energy_TeV" in enrichment:
+        energies.append((enrichment["energy_TeV"], "TeV"))
+    for value, unit in energies:
+        try:
+            energy = float(value) / (1000.0 if unit == "GeV" else 1.0)
+        except (TypeError, ValueError):
+            return "invalid source collider energy for HH normalization"
+        if unit not in ("GeV", "TeV") or not math.isclose(energy, 13.6, rel_tol=0, abs_tol=1e-9):
+            return "HH plots require 13.6 TeV rates to match the SM reference"
+    return None
 
 
 def robust_threshold_norm(
@@ -2721,6 +2913,7 @@ SELECTION_LABELS = {
     ),
     "relic_pass": "Relic-density pass",
     "dm": "Aggregate DM pass",
+    "experimental_dm": r"Experimental pass $\wedge$ aggregate DM pass",
     "non_dm_viability": (
         r"All non-DM constraints: theory $\wedge$ experimental $\wedge$ flavour"
     ),
@@ -3117,16 +3310,24 @@ def render_categorical_mass(
         include_empty=not str(spec.scheme).startswith("bsmpt"),
     )
     handles.extend(bsmpt_marker_legend(ax, data, spec, valid))
-    ax.legend(
+    # Dense GW categories and EW-entry stars sit above the default legend
+    # z-order. Give their key its own space below the axes, also in dashboards.
+    legend_layout = (
+        dict(loc="upper left", bbox_to_anchor=(0.0, -0.16),
+             ncol=1 if compact else 2, borderaxespad=0.0, frameon=False)
+        if spec.scheme == "bsmpt_gw" else dict(loc="best", frameon=True)
+    )
+    legend = ax.legend(
         handles=handles,
-        loc="best",
-        frameon=True,
+        **legend_layout,
         framealpha=0.82,
         edgecolor="none",
         fontsize=6.7 if compact else 8.0,
         handletextpad=0.5,
         borderpad=0.45,
     )
+    if spec.scheme == "bsmpt_gw":
+        legend.set_zorder(20)
 
 
 def render_continuous_mass(
@@ -3539,6 +3740,59 @@ def render_rate_xy(
     )
 
 
+def render_hh_enhancement(fig, ax, data: ScanData, spec: PlotSpec, compact=False) -> None:
+    if data.hh_error:
+        raise PlotUnavailable(data.hh_error)
+    ratio = data.f("hh_enhancement")
+    selected = selection_mask(data, spec.selection)
+    valid = selected & np.isfinite(ratio) & (ratio > 0)
+    if not np.any(valid):
+        raise PlotUnavailable("no finite positive HH enhancement ratios")
+    indices = np.flatnonzero(valid)[np.argsort(ratio[valid], kind="stable")]
+    vmin, vmax = min(1.0, float(np.min(ratio[valid]))), max(1.0, float(np.max(ratio[valid])))
+    if vmin == vmax:
+        vmin, vmax = 0.5 * vmin, 2.0 * vmax
+    label = r"$R_{HH}=\sigma/\sigma_{\rm SM}$"
+    if spec.kind == "hh_enhancement_mass":
+        points = ax.scatter(
+            data.f("M2")[indices], data.f("M3")[indices], c=ratio[indices],
+            norm=LogNorm(vmin=vmin, vmax=vmax), cmap="viridis",
+            s=15 if compact else 24, edgecolors="#303030", linewidths=0.15,
+            rasterized=True,
+        )
+        style_mass_axis(ax, data, mask=valid)
+        colorbar = fig.colorbar(points, ax=ax, fraction=0.048, pad=0.025)
+        colorbar.set_label(label, fontsize=8 if compact else 10)
+        colorbar.ax.tick_params(labelsize=7 if compact else 9)
+        colorbar.ax.axhline(1.0, color="#222222", linestyle="--", linewidth=0.8)
+    else:
+        ax.scatter(
+            data.f(spec.x)[indices], ratio[indices], c="#009E73",
+            s=15 if compact else 24, alpha=0.8, edgecolors="#303030",
+            linewidths=0.15, rasterized=True,
+        )
+        ax.set_xlabel(spec.xlabel)
+        ax.set_ylabel(label)
+        ax.set_yscale("log")
+        ax.set_ylim(vmin / 1.35, vmax * 1.35)
+        ax.axhline(1.0, color="#333333", linestyle="--", linewidth=1, label="SM")
+        ax.legend(loc="upper right", fontsize=8 if compact else 10)
+        ax.grid(True, which="both", alpha=0.18)
+    ax.set_title(
+        spec.title + "\n" + selection_label(spec.selection)
+        + f"\nLO, 13.6 TeV; SM reference = {1000 * data.hh_sm_xsec_pb:g} fb",
+        fontsize=8.4 if compact else 11.2,
+    )
+    zero_count = int(np.count_nonzero(selected & (ratio == 0)))
+    missing_count = int(np.count_nonzero(selected & ~np.isfinite(ratio)))
+    ax.text(
+        0.985, 0.018,
+        f"plotted N = {len(indices):,}; zero = {zero_count:,}; unavailable = {missing_count:,}",
+        transform=ax.transAxes, ha="right", va="bottom", fontsize=6.7 if compact else 7.6,
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.8, "pad": 1.5},
+    )
+
+
 ZH2_PRODUCTION_SERIES = (
     ("mg5_xsec_pp_eta0Z_pb", "Tree", "#0072B2", "o"),
     ("mg5_xsec_gg_eta0Z_pb", "Loop-induced gg", "#D55E00", "^"),
@@ -3703,6 +3957,8 @@ def render_cumulative_xy(
 def render_bsmpt_strength_xy(
     ax, data: ScanData, spec: PlotSpec, compact: bool = False
 ) -> None:
+    if not has_observable(data, spec.x):
+        raise PlotUnavailable(f"missing inputs for {spec.x}")
     x = data.f(spec.x)
     strength = data.f(spec.y)
     valid = finite_mask(x, strength) & (strength >= 0.0) & selection_mask(data, spec.selection)
@@ -3757,6 +4013,9 @@ def render_bsmpt_strength_xy(
     )
     ax.set_xlabel(spec.xlabel)
     ax.set_ylabel(spec.ylabel)
+    if spec.x == "ewpt_determinant_D":
+        ax.set_xscale("symlog", linthresh=1e-5)
+        ax.axvline(0, color="#555555", linestyle=":", linewidth=1)
     if spec.y == "ewpt_ew_entry_jump_over_T":
         subtitle = r"EW entry at $T_c$; completion not required"
     elif spec.y == "ewpt_gw_max_field_jump_over_T":
@@ -4697,8 +4956,84 @@ def render_signal_dm_complementarity(
     )
 
 
+def gw_plot_values(data, spec):
+    if not data.gw or not len(data.gw["row_index"]):
+        raise PlotUnavailable("no successful CalcGW transitions; run reprocess_trsm_gw.py")
+    gw = data.gw
+    indices = gw["row_index"]
+    selected = selection_mask(data, spec.selection)[indices]
+    x = data.f(spec.x)[indices] if spec.x in ("M2", "M3") else gw[spec.x]
+    y = gw[spec.y]
+    valid = selected & finite_mask(x, y) & (x > 0) & (y > 0)
+    if not np.any(valid):
+        raise PlotUnavailable("no finite positive CalcGW values for this selection")
+    return x, y, selected, valid
+
+
+def render_calcgw(fig, ax, data, spec, compact=False):
+    x, y, selected, valid = gw_plot_values(data, spec)
+    gw = data.gw
+    color_key = "beta_over_H" if spec.x == "T_star_GeV" else "T_star_GeV"
+    color = gw[color_key]
+    low, high = float(np.min(color[selected])), float(np.max(color[selected]))
+    if high == low:
+        low, high = low * .9, high * 1.1
+    norm = LogNorm(low, high) if color_key == "beta_over_H" else Normalize(low, high)
+    # Several transitions can belong to one scan point. Match stars to the
+    # parent row's stored EW-entry diagnostic, exactly as in plot 34b.
+    indices = gw["row_index"]
+    bsmpt_scatter(ax, data, spec, indices[valid], x[valid], y[valid],
+                  c=color[valid], norm=norm, cmap="viridis",
+                  s=15 if compact else 23, alpha=.85, linewidths=0, rasterized=True)
+    if spec.x not in ("M2", "M3", "T_star_GeV"):
+        ax.set_xscale("log")
+    ax.set_yscale("log")
+    if spec.y_limits is not None:
+        ax.set_ylim(spec.y_limits)
+    ax.set_xlabel(spec.xlabel)
+    ax.set_ylabel(spec.ylabel)
+    temperature_labels = {"perc": r"$T_*=T_p$", "nucl": r"$T_*=T_n$",
+                          "nucl_approx": r"$T_*=T_{n,\mathrm{approx}}$", "compl": r"$T_*=T_f$"}
+    kinds = ", ".join(temperature_labels.get(kind, kind) for kind in sorted(set(gw["temperature_kind"][selected])))
+    ax.set_title(spec.title + f"\nOne marker per transition; {kinds}", fontsize=8.8 if compact else 11)
+    colorbar = fig.colorbar(ScalarMappable(norm=norm, cmap="viridis"), ax=ax, pad=.02)
+    colorbar.set_label(r"$\beta/H_*$" if color_key == "beta_over_H" else r"$T_*$ [GeV]")
+    ax.grid(True, which="both", alpha=.18)
+    omitted = int(np.count_nonzero(selected & ~valid))
+    points = np.unique(gw["row_index"][valid]).size
+    assumptions = []
+    for key, label in (("v_wall", r"v_w"), ("eps_turb", r"\epsilon_{\rm turb}")):
+        values = gw[key][selected]
+        if np.all(np.isfinite(values)) and np.allclose(values, values[0], rtol=1e-8, atol=0):
+            assumptions.append(rf"${label}={values[0]:g}$")
+    note = f"{np.count_nonzero(valid):,} transitions / {points:,} points; omitted: {omitted:,}"
+    displayed = valid.copy()
+    if spec.y_limits is not None:
+        displayed &= (y >= spec.y_limits[0]) & (y <= spec.y_limits[1])
+        note += f"\nIn view: transitions = {np.count_nonzero(displayed):,}; points = {np.unique(indices[displayed]).size:,}"
+    handles = []
+    if "ewpt_ew_entry_jump_over_T" in data.columns:
+        star_points = np.unique(indices[displayed & data.b("bsmpt_strong_ew_entry")[indices]]).size
+        handles.append(Line2D([0], [0], marker="*", linestyle="none", color="#202020",
+                              markersize=9, label=rf"Strong EW entry: $\Delta v_{{\rm EW}}/T_c>1$ (points: {star_points:,})"))
+    else:
+        note += "\nStrong EW-entry classification unavailable"
+    if spec.y == "snr_lisa":
+        handles.append(ax.axhline(5.0, color="#D55E00", linestyle="--", linewidth=1.2,
+                                  zorder=11, label="LISA reference threshold: SNR = 5"))
+    if handles:
+        legend = ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.0, -0.17),
+                           frameon=False, borderaxespad=0.0, fontsize=6.7 if compact else 8)
+        legend.set_zorder(20)
+    if assumptions:
+        note += "\n" + "; ".join(assumptions)
+    ax.text(.02, .02, note,
+            transform=ax.transAxes, fontsize=6.7 if compact else 8,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=.8))
+
+
 def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) -> None:
-    if spec.requires_bsmpt and not np.any(
+    if spec.requires_bsmpt and spec.kind != "calcgw_xy" and not np.any(
         selection_mask(data, spec.selection) & data.b("bsmpt_attempted")
     ):
         raise PlotUnavailable("BSMPT was not run for any selected scan row")
@@ -4718,6 +5053,8 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         render_categorical_xy(ax, data, spec, compact=compact)
     elif spec.kind == "rate_xy":
         render_rate_xy(ax, data, spec, compact=compact)
+    elif spec.kind.startswith("hh_enhancement_"):
+        render_hh_enhancement(fig, ax, data, spec, compact=compact)
     elif spec.kind == "zh2_rates_xy":
         render_zh2_rates_xy(ax, data, spec, compact=compact)
     elif spec.kind == "cumulative_dm_xy":
@@ -4726,6 +5063,8 @@ def render_spec(fig, ax, data: ScanData, spec: PlotSpec, compact: bool = False) 
         render_cumulative_xy(ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_strength_xy":
         render_bsmpt_strength_xy(ax, data, spec, compact=compact)
+    elif spec.kind == "calcgw_xy":
+        render_calcgw(fig, ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_entry_comparison_xy":
         render_bsmpt_entry_comparison_xy(ax, data, spec, compact=compact)
     elif spec.kind == "bsmpt_temperature_comparison_xy":
@@ -4775,6 +5114,19 @@ def has_observable(data: ScanData, name: str) -> bool:
 
 def spec_unavailable_reason(data: ScanData, spec: PlotSpec) -> str | None:
     selected = selection_mask(data, spec.selection)
+    if spec.kind == "calcgw_xy":
+        try:
+            gw_plot_values(data, spec)
+        except PlotUnavailable as error:
+            return str(error)
+        return None
+    if spec.kind.startswith("hh_enhancement_"):
+        if data.hh_error:
+            return data.hh_error
+        ratio = data.f("hh_enhancement")
+        if not np.any(selected & np.isfinite(ratio) & (ratio > 0)):
+            return "no finite positive full-viability HH enhancement ratios"
+        return None
     if spec.kind == "cumulative_dm_xy" and not np.any(data.b("non_dm_viability")):
         return "no non-DM-viable points"
     if spec.kind == "zh2_rates_xy" and not any(
@@ -5579,6 +5931,40 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
                     f"Standalone {name} plot omitted: flag is uniform {bool(values[0])}",
                 )
             )
+    rows.append(SummaryRow(
+        "experimental_and_dm_pass", int(np.count_nonzero(data.b("experimental_dm"))), n,
+        "Intersection of the stored experimental and aggregate DM selections.",
+    ))
+    if data.hh_error is None:
+        ratio = data.f("hh_enhancement")
+        available = data.b("full_viability") & np.isfinite(ratio)
+        count = int(np.count_nonzero(available))
+        note = f"LO gg->HH at 13.6 TeV; SM reference {data.hh_sm_xsec_pb:g} pb."
+        if count:
+            note += f" R_HH range {np.min(ratio[available]):.8g} to {np.max(ratio[available]):.8g}."
+        rows.extend((
+            SummaryRow("hh_full_viability_rate_available", count, n_full_viable, note),
+            SummaryRow("hh_enhanced_above_sm", int(np.count_nonzero(available & (ratio > 1))), count,
+                       "R_HH > 1; full MG5 gg->H1H1 rate divided by the SM reference."),
+        ))
+    else:
+        rows.append(SummaryRow("hh_full_viability_rate_available", 0, n_full_viable, data.hh_error))
+    if "gw_status" in data.columns:
+        status = data.s("gw_status")
+        attempted = ~np.isin(status, ("", "nan", "not_selected"))
+        count = int(np.count_nonzero(attempted))
+        rows.append(SummaryRow("calcgw_attempted", count, n, "Native CalcGW evaluations on saved EWPT-eligible points."))
+        for key in sorted(set(status[attempted])):
+            rows.append(SummaryRow("calcgw_status_" + key, int(np.count_nonzero(status == key)), count,
+                                   "Native failures/timeouts are not GW exclusions or zero signals."))
+        successful = len(data.gw["row_index"]) if data.gw else 0
+        rows.append(SummaryRow("calcgw_successful_transitions", successful, successful,
+                               "Successful native pairs with finite alpha > 0, beta/H >= 1, and T* > 0; multiple pairs per point possible."))
+        if successful:
+            for key in ("alpha", "beta_over_H"):
+                values = data.gw[key]
+                rows.append(SummaryRow("calcgw_" + key, successful, successful,
+                                       f"Range {np.min(values):.8g} to {np.max(values):.8g}; transition-level quantities."))
     for stem, reason in skipped_figures:
         rows.append(SummaryRow(f"skipped_figure_{stem}", 0, n, reason))
     return rows
@@ -5813,6 +6199,8 @@ def write_plot_index(
     def plot_card(stem: str, title: str) -> str:
         files = files_by_stem.get(stem, {})
         reason = skipped.get(stem)
+        if reason == "not requested by --plots":
+            return ""
         classes = "plot-card unavailable" if reason else "plot-card"
         parts = [
             f'<article class="{classes}" id="{escaped(stem)}">',
@@ -5861,7 +6249,7 @@ def write_plot_index(
         and spec.stem not in COLLIDER_PLOT_STEMS
     )
     bsmpt_attempted = int(np.count_nonzero(data.b("bsmpt_attempted")))
-    if bsmpt_attempted:
+    if bsmpt_attempted or "gw_status" in data.columns:
         bsmpt_cards = [
             plot_card(stem, DASHBOARD_TITLES[stem])
             for stem in DASHBOARDS
@@ -5895,6 +6283,19 @@ def write_plot_index(
             f"The suite records {bsmpt_attempted:,} attempted BSMPT evaluations; "
             r"the legacy selected $v_{\rm EW,true}(T_*)/T_*$ remains a separate "
             "diagnostic.</p>"
+            "<p>The determinant plots use the Eq. (4.18) matrix with "
+            r"$c_{ii}=\lambda_i$ and $c_{ij}=\lambda_{ij}/2$ for $i\ne j$, "
+            "with a signed logarithmic x axis; no D cut is applied. "
+            "CalcGW panels use native successful transitions, with alpha and beta/H from the same pair at the same temperature. "
+            "They include all successful coexisting-phase pairs, without selecting a cosmological transition history. "
+            "Every CalcGW star identifies the same parent scan point as a star in plot 34b; "
+            "it does not identify that particular GW transition as EW entry. "
+            "Plot 97 shows a reference SNR = 5 line for three years of LISA data, "
+            "and plot 97b displays the same data with the SNR axis limited to 1--100. "
+            "This threshold is a sensitivity criterion, not an additional viability cut or a five-sigma claim. "
+            "The sound-wave panel shows the native second characteristic frequency and amplitude, not a total spectrum. "
+            "Zero/nonfinite values are omitted on logarithmic axes and counted. "
+            "Wall speed and turbulence settings are recorded in the output metadata; defaults are 0.95 and 0.1.</p>"
             f'<div class="grid">{"".join(bsmpt_cards)}</div>'
             '<section id="bsmpt-full-viability"><h3>BSMPT + DM: full viability</h3>'
             "<p>These panels require theory, experimental, flavour, and stored aggregate DM passes. "
@@ -5953,6 +6354,14 @@ def write_plot_index(
         )
     signal_section = (
         '<section id="signal"><h2>Full-viability collider signal plots</h2>'
+        '<p>HH enhancement is <code>mg5_xsec_hh_pb / sigma_SM</code> for the full '
+        'LO <code>gg -&gt; H1 H1</code> process at 13.6 TeV, before Higgs decays. '
+        f'The SM reference is {1000 * data.hh_sm_xsec_pb:g} fb '
+        '(default: the project MG5 nn23lo1 reference). '
+        'A source without collider-energy metadata is assumed to be at 13.6 TeV. '
+        'A factorized <code>sigma(gg -&gt; H2) * BR(H2 -&gt; H1 H1)</code> rate '
+        'does not supply the continuum or its interference and is not used as the total. '
+        'Missing HH rates are reported as unavailable.</p>'
         '<p>MadGraph mono-Higgs, mono-Z, and ZH2 production rates use the full-viability selection. '
         'The ZH2 total is the tree contribution plus the loop-induced gg contribution; '
         'a missing component is not treated as zero. Legacy mono-Z plots retain the tree contribution. '
@@ -6089,9 +6498,19 @@ def parse_args(argv: Sequence[str] | None = None):
         "--format", choices=("png", "pdf", "both"), default="both"
     )
     parser.add_argument("--dpi", type=int, default=200)
+    parser.add_argument(
+        "--plots", nargs="+", choices=all_figure_stems(), metavar="STEM",
+        help="Generate only these plot/dashboard stems; dashboards include their individual panels.",
+    )
+    parser.add_argument(
+        "--hh-sm-xsec-pb", type=float, default=SM_HH_XSEC_13P6_PB,
+        help="SM gg->HH reference in pb at 13.6 TeV (default: 0.01617, LO MG5 nn23lo1).",
+    )
     args = parser.parse_args(argv)
     if args.dpi <= 0:
         parser.error("--dpi must be positive")
+    if not math.isfinite(args.hh_sm_xsec_pb) or args.hh_sm_xsec_pb <= 0:
+        parser.error("--hh-sm-xsec-pb must be finite and positive")
     if args.output_dir is None:
         args.output_dir = default_output_dir(args.input)
     return args
@@ -6100,7 +6519,7 @@ def parse_args(argv: Sequence[str] | None = None):
 def run(argv: Sequence[str] | None = None) -> list[Path]:
     args = parse_args(argv)
     configure_style()
-    data = load_scan(args.input, args.scan_metadata)
+    data = load_scan(args.input, args.scan_metadata, hh_sm_xsec_pb=args.hh_sm_xsec_pb)
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -6124,7 +6543,14 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
 
     paths: list[Path] = []
     skipped: list[tuple[str, str]] = []
+    requested = set(args.plots) if args.plots else None
+    requested_panels = set(requested or ())
+    for stem in requested or ():
+        requested_panels.update(DASHBOARDS.get(stem, ()))
     for spec in PLOT_SPECS:
+        if requested is not None and spec.stem not in requested_panels:
+            skipped.append((spec.stem, "not requested by --plots"))
+            continue
         reason = spec_unavailable_reason(data, spec)
         if reason is not None:
             skipped.append((spec.stem, reason))
@@ -6145,6 +6571,9 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             print(f"Skipped {spec.stem}: {reason}")
 
     for dashboard_stem, plot_stems in DASHBOARDS.items():
+        if requested is not None and dashboard_stem not in requested:
+            skipped.append((dashboard_stem, "not requested by --plots"))
+            continue
         if not dashboard_available(data, plot_stems):
             reason = "none of the dashboard observables are available"
             skipped.append((dashboard_stem, reason))
@@ -6166,9 +6595,10 @@ def run(argv: Sequence[str] | None = None) -> list[Path]:
             )
         )
 
-    from plot_trsm_v2 import render_suite
-    ewpt_root = ((data.metadata or {}).get("options") or {}).get("ewpt_workdir")
-    paths.extend(render_suite(args.input, output_dir, args.format, args.dpi, ewpt_root))
+    if requested is None:
+        from plot_trsm_v2 import render_suite
+        ewpt_root = ((data.metadata or {}).get("options") or {}).get("ewpt_workdir")
+        paths.extend(render_suite(args.input, output_dir, args.format, args.dpi, ewpt_root))
     summary_rows = build_summary(data, skipped)
     summary_path = output_dir / "constraint_summary.tsv"
     write_summary(summary_path, summary_rows)

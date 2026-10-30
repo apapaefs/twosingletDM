@@ -177,6 +177,301 @@ All rates are in pb. Both production components must be available for a total;
 missing rates are not replaced by zero. The sum is labelled “tree +
 loop-induced gg”, rather than being presented as a complete NLO prediction.
 
+### Combined experiment + DM portal plot and HH enhancement
+
+The additional dashboard
+`dashboard_portal_mass_plane_summary_experimental_dm.png` shows `K133` and
+`K233` for the intersection of the existing experimental and aggregate DM
+selections. The original dashboard with separate selections remains available.
+The new panels use the same coupling colour scales and gray background points
+as the original portal maps.
+
+`dashboard_hh_enhancement.png` shows the full-viability points on the mass
+plane and versus `M2` and `M3`, with
+
+```text
+R_HH = mg5_xsec_hh_pb / 0.01617
+```
+
+This is the full LO `gg -> H1 H1` production rate before Higgs decays, divided
+by the project's existing 13.6 TeV SM reference of 16.17 fb (MG5, `nn23lo1`).
+The unit line denotes the SM rate. Use `--hh-sm-xsec-pb VALUE` to supply a
+different matched SM reference at 13.6 TeV. An explicit incompatible energy
+in the source metadata makes the HH plots unavailable; an input without
+energy metadata is assumed to be at 13.6 TeV. Negative or nonfinite rates are
+unavailable, and zero rates are counted but omitted from logarithmic axes.
+The index and summary record the normalization, coverage, enhancement range
+and number of points above the SM rate.
+
+Both Odysseus files `combined_points.tsv` and `combined_points_mg5.tsv` were
+checked on 21 October 2026: neither contains `mg5_xsec_hh_pb`. They contain
+`xs136_lo_h2_pb` and `h2_h1h1_br`, which supply the factorized resonant
+contribution. That contribution alone does not include the continuum or its
+interference with the resonance and cannot give the full HH enhancement.
+The enriched file has 591,340 stored rows, 835 passing experiment + DM, and
+571 full-viability points requiring HH calculations.
+
+From the updated repository checkout on Odysseus, run:
+
+```bash
+source ../runtime-v2-new/activate.sh &&
+python tools/setup_mg5_process.py --mg5-process hh &&
+python reprocess_trsm_mg5.py \
+  output/odysseus-100x1000-66662/combined_points_mg5.tsv \
+  --output output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv \
+  --mg5-process hh --energy 13.6 &&
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv \
+  --output-dir plots/odysseus-100x1000-66662-portal-hh \
+  --format both \
+  --plots dashboard_portal_mass_plane_summary_experimental_dm dashboard_hh_enhancement
+```
+
+The reprocessor calculates only missing HH rates for full-viability points
+and writes a separate TSV. Existing rates and constraint assessments are
+preserved. After an interruption, repeat its command with `--resume`; completed
+HH calculations are read from the checkpoint. To inspect the workload first,
+add `--dry-run` to the reprocessing command. Its default process list remains
+the three associated-production channels; HH must be requested explicitly.
+
+The `--plots` option generates only the named dashboards and their individual
+panels, together with an index and summary. Omit it to generate the full
+suite. To make the combined portal plot immediately, use the existing
+`combined_points_mg5.tsv` with just
+`--plots dashboard_portal_mass_plane_summary_experimental_dm`.
+PDF versions of both dashboards are also produced with `--format both`.
+
+### Determinant versus transition strength and CalcGW
+
+`dashboard_bsmpt_determinant` adds two plots with dimensionless `D` on the
+x axis: the EW-entry jump `Delta v_EW(Tc)/Tc`, and the maximum any-field jump
+`Delta phi/T` over the stored critical, nucleation and percolation diagnostics.
+The first is the requested EWPT strength plot. Completion is not required for
+this critical-temperature diagnostic. The `_full_viability` dashboard applies
+the existing theory, experiment, flavour and aggregate DM selection as well.
+Both signs of D and zero are displayed using a signed logarithmic axis with
+linear threshold `1e-5`; no determinant cut is added.
+
+D is calculated from the saved parameters using the
+`test_trsm_ewpt.check_eq_4_18` convention, matching the quartic matrix in
+[the analytic EWPT treatment](https://arxiv.org/html/2404.12425v2):
+
+```text
+D = c_phi c_X c_S + 2 c_phiX c_phiS c_XS
+    - c_phiS^2 c_X - c_phi c_XS^2 - c_phiX^2 c_S
+c_ii = lambda_i
+c_ij = lambda_ij / 2   (i != j)
+lambda_phi = (M1^2 cos(a12)^2 + M2^2 sin(a12)^2) / (2 v^2)
+lambda_S   = (M2^2 cos(a12)^2 + M1^2 sin(a12)^2) / (2 vs^2)
+lambda_phiS = (M2^2 - M1^2) cos(a12) sin(a12) / (v vs)
+```
+
+The other three quartics are stored as `lX`, `lPhiX`, `lSX`; `M1` and `v`
+come from the shared SM inputs. This is the named Eq. (4.18) diagnostic, not
+the determinant of the scalar mass matrix.
+
+The normalization was corrected on 29 October 2026: earlier code also halved
+the diagonal entries. The correction applies to both plotters and the optional
+`--ewpt-require-eq418` check, including its principal minors. It can change the
+sign of D and the prefilter decision. Regenerate D plots from the saved scan
+parameters; existing images and saved prefilter outcomes are not rewritten.
+Points previously skipped by that optional filter need reassessment if its
+updated selection is required. With both X portals zero, the corrected
+determinant satisfies `D = lX * M1^2 * M2^2 / (4 v^2 vs^2)` for any `a12`.
+
+The portal dashboard was checked against all 835 experiment + DM points in
+the Odysseus campaign on 22 October 2026: its left panel uses `K133`, and its
+right panel uses `K233`, with no interchange. The columns exactly reproduce
+`K133 = (lPhiX*v*cos(a12) - lSX*vs*sin(a12))/2` and
+`K233 = (lPhiX*v*sin(a12) + lSX*vs*cos(a12))/2`. These are potential
+coefficients in GeV for `h1*h3^2` and `h2*h3^2`, respectively; the vertices
+are `-2i K133` and `-2i K233`. Both dashboard axes are masses, not couplings.
+
+The HH-enriched campaign now exists as `combined_points_mg5_hh.tsv`. It has
+591,340 stored rows and 31,204 points with `ewpt_eligible=True`, but no native
+CalcGW output columns. `reprocess_trsm_gw.py` runs BSMPT **3.2.1 CalcGW** on
+those saved eligible points, including points without a prior strong-transition
+flag. It uses the same upper tracing temperature, 1000 GeV. CalcGW recomputes
+the thermal and bounce calculation from the parameters; it cannot consume the
+saved CalcTemps results as a bounce cache. No new random scan is generated.
+
+The defaults are the native percolation choice `T*=Tp`, wall speed `vwall=0.95`
+and turbulence parameter `epsturb=0.1`. These can be changed with `--trans-temp`,
+`--vwall` and `--epsturb` for a separate output. Native percolation/completion
+probabilities, minimizers and other numerical settings keep the installed
+BSMPT defaults. Alpha and beta/H are the native quantities:
+
+```text
+alpha = [Delta V - (T*/4) Delta(dV/dT)] / rho_radiation(T*)
+beta/H* = T* d(S3/T)/dT evaluated at T*
+Delta = false vacuum minus true vacuum
+```
+
+Each transition has its own `gw_transitions` JSON entry, including native
+status, temperature, alpha, beta/H, efficiency factors, characteristic
+frequencies/amplitudes and LISA SNR (three years). Raw TSVs, logs and commands
+are saved in `<output>.work/row-*`. `gw_native_summary` also records the
+thermal statuses and transition history. A plotted transition must have
+successful native GW and requested-temperature statuses, successful NLO,
+tracing and coexistence assessments, finite positive alpha and T*, and
+beta/H >= 1. Failed/time-out calculations are recorded as such, not zero
+signals or physical exclusions. All old scan cells and metadata are copied
+into a separate output, with the new configuration and executable/source
+hashes recorded in its metadata.
+
+`dashboard_calcgw` shows alpha versus beta/H, each versus M2, the sound-wave
+second characteristic frequency versus amplitude, LISA SNR versus M2, and
+alpha versus T*. Each marker represents one successful coexisting-phase
+transition; multiple markers can belong to a point. No selection of a
+cosmological transition history is imposed. The sound-wave panel is a
+component diagnostic, not a total GW spectrum. The `_full_viability` version
+applies the stored full-viability selection. Nonpositive/nonfinite values
+are omitted from logarithmic panels and counted. The original `ewpt_gw_candidate`
+strength screen remains separate from these native predictions. See the
+[BSMPT v3 paper](https://arxiv.org/abs/2404.19037) for the thermal/GW framework;
+the adapter uses the installed 3.2.1 output schema and defaults.
+
+All CalcGW panels now use stars for the same parent scan points as plot 34b:
+successful stored critical EW entry with `ewpt_ew_entry_jump_over_T > 1`.
+Every plotted transition from such a point gets a star; that particular GW
+transition need not itself be EW entry. Missing diagnostics do not create stars.
+The marker colours continue to show temperature (or beta/H), including in
+the full-viability panels and dashboards.
+
+Plot 97 includes a horizontal **SNR = 5** reference for the native three-year
+LISA prediction. This is a sensitivity threshold, not a new viability cut or
+a five-sigma discovery claim. New plot
+`97b_calcgw_lisa_snr_vs_m2_1_to_100` displays the same data with the SNR axis
+limited to 1--100; it also has a `_full_viability` version. Values outside
+the window are not moved to its edges. The annotation counts the transitions
+and distinct points in view.
+
+For the saved `odysseus-100x1000-66662` GW enrichment, **plot 97 without full
+viability already includes the experimental constraints**: all 20,763 points
+with successful CalcGW results explicitly pass tree theory, HiggsBounds,
+HiggsSignals, EWPO, the applicable W-mass comparison and flavour. The general
+EWPT gate permits unknown experimental assessments, but this campaign has none
+among its eligible points. The full-viability selection leaves 431 successful
+GW points (647 transitions), by additionally requiring an aggregate DM pass.
+No saved transition reaches SNR = 5. The largest SNR is 1.5344, at
+`M2 = 401.3081 GeV`, `M3 = 62.5575 GeV`, on a starred point that fails DM.
+It is the only transition in the 1--100 window; the full-viability window is
+empty, with a maximum SNR of `4.4912e-11`.
+
+Regenerate the six CalcGW panels, both dashboards and the two zooms from the
+complete saved ledger with:
+
+```bash
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --output-dir plots/odysseus-100x1000-66662-calcgw-20261029 --format both \
+  --plots dashboard_calcgw dashboard_calcgw_full_viability \
+  97b_calcgw_lisa_snr_vs_m2_1_to_100 \
+  97b_calcgw_lisa_snr_vs_m2_1_to_100_full_viability
+```
+
+The collaborator constraint checklist is [applied-constraints.tex](docs/applied-constraints.tex).
+Its included [HiggsTools tables](docs/higgstools-analyses.tex) list the 31
+HiggsBounds IDs with nonzero selection counts and all 22 HiggsSignals measurement files, with
+scope, process, coverage and references. The selected-point counts use all
+591,340 reference-campaign rows; 31 different HB IDs were selected somewhere
+in that sample. Rows with zero selection counts are omitted from the tables;
+the JSON inventory includes all 310 installed HiggsBounds IDs. The tables do
+not treat all observed bounds as simultaneous cuts. To rebuild the tables and PDF:
+
+```bash
+python tools/export_higgstools_tables.py \
+  --inventory validation/collaborator-update-20261029/higgstools-inventory.json \
+  --selected-counts validation/collaborator-update-20261029/higgs-selected-counts.json \
+  --selected-only
+cd docs
+pdflatex applied-constraints.tex
+pdflatex applied-constraints.tex
+```
+
+Omit `--selected-only` to include zero-count rows; omit both `--selected-only`
+and `--selected-counts` to export the installed catalogue without historical
+selection counts. The two new mass-range profiles and their 100-worker launch
+commands are documented in [the parallel campaign guide](docs/parallel-campaigns.md#mass-range-runs-from-the-66662-reference).
+
+The checked [PDF](output/pdf/applied-constraints.pdf) and
+[standalone LaTeX](output/pdf/applied-constraints.tex) are available directly.
+The [collaborator handover kit](output/odysseus-66662-handover-kit.zip) includes
+these documents, detailed scan metadata, a Python reader and
+[reading instructions](output/collaborator-66662/READ_ME.txt). Send it with the
+final `combined_points_mg5_hh_gw.tsv`, its metadata sidecar and
+`campaign_state.json`. The reader uses only the Python standard library and
+exports a small overview CSV plus complete rows for the fully viable points:
+
+```bash
+python output/collaborator-66662/inspect_points.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --out output/quicklook-66662
+```
+
+Raw campaign files, local plot directories and native scratch output are
+ignored by Git. The repository includes the compact handover documents and
+validation records needed to interpret the published changes.
+
+After updating this checkout on Odysseus, make the determinant and portal
+figures immediately:
+
+```bash
+cd /home/apapaefs/Projects/TwoSingletDM/twosingletDM
+source ../runtime-v2-new/activate.sh &&
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv \
+  --output-dir plots/odysseus-100x1000-66662-determinant \
+  --format both --plots dashboard_bsmpt_determinant \
+  dashboard_bsmpt_determinant_full_viability \
+  dashboard_portal_mass_plane_summary_experimental_dm
+```
+
+Build the missing CalcGW target in the existing runtime, run a three-point
+pilot, then resume across the eligible campaign points:
+
+```bash
+cmake --build ../runtime-v2-new/BSMPT-3.2.1/build --target CalcGW -j 8 &&
+python reprocess_trsm_gw.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv \
+  --output output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --thigh 1000 --jobs 1 --max-points 3 &&
+python reprocess_trsm_gw.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv \
+  --output output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --thigh 1000 --jobs 8 --resume &&
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --output-dir plots/odysseus-100x1000-66662-with-gw --format both
+```
+
+Each CalcGW process is single threaded; `--jobs` bounds concurrent processes.
+`--timeout` defaults to 3600 seconds per point. `--dry-run` only counts the
+workload. `--max-points` limits new calculations for a pilot; an incomplete
+pilot writes a checkpoint, without publishing a partial final TSV. Repeat
+with `--resume` and without the limit to finish. Each result, including
+native failures and timeouts, is checkpointed; resume does not retry completed
+attempts. A changed timeout or physics configuration requires a new output.
+Existing input, output and checkpoint identities are checked before reuse.
+The final command generates the entire suite, including HH and the new
+figures. To plot only the additions, append `--plots dashboard_bsmpt_determinant
+dashboard_bsmpt_determinant_full_viability dashboard_calcgw
+dashboard_calcgw_full_viability dashboard_portal_mass_plane_summary_experimental_dm`.
+
+The gravitational-wave FOPT candidate-status legend sits below the plotting
+area, including in the BSMPT dashboards and full-viability versions. To
+regenerate these figures from the saved GW-enriched results, run:
+
+```bash
+python plot_trsm_constraint_suite.py \
+  output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv \
+  --output-dir plots/odysseus-100x1000-66662-bsmpt-layout-fixed \
+  --format both --plots dashboard_bsmpt_summary dashboard_bsmpt_summary_full_viability
+```
+
+This also regenerates the individual panels. The separate output directory
+keeps the existing full-suite index available. No CalcGW rerun is needed.
+
 ## Get HiggsTools: https://gitlab.com/higgsbounds/higgstools.git and compile it:
 in the HiggsTools directory:
 ```

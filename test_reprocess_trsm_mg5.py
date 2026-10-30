@@ -140,6 +140,35 @@ class TestEnrichment(unittest.TestCase):
         self.assertEqual(len(self.calls), 3)
         self.assertFalse(Path(str(self.output) + ".partial").exists())
 
+    def test_hh_only_enrichment_preserves_other_rates_and_resumes(self):
+        for row in self.rows:
+            row["mg5_xsec_hh_pb"] = "nan"
+        self.rows[0]["mg5_xsec_hh_pb"] = "0.016170"
+        self.rows.append(self.row(point_index="2", mg5_xsec_hh_pb="nan"))
+        self.write_source()
+        original = self.source.read_bytes()
+
+        def interrupted(process, *args, **kwargs):
+            if len(self.calls) == 1:
+                raise RuntimeError("test interruption")
+            return self.rate(process, *args, **kwargs)
+
+        with self.assertRaisesRegex(RuntimeError, "process hh"):
+            self.run_enrichment(processes=("hh",), get_xsec=interrupted)
+        self.assertFalse(self.output.exists())
+        counts = self.run_enrichment(processes=("hh",), resume=True)
+        self.assertEqual(counts["requested_missing_rates"], 2)
+        self.assertEqual([call[0] for call in self.calls], ["hh", "hh"])
+        self.assertEqual(self.source.read_bytes(), original)
+        result = self.read_output()
+        self.assertEqual([r["mg5_xsec_hh_pb"] for r in result], ["0.016170", "nan", "0.5", "0.5"])
+        for before, after in zip(self.rows, result):
+            for key in before.keys() - {"mg5_xsec_hh_pb"}:
+                self.assertEqual(after[key], before[key])
+        with mock.patch.object(mg, "reprocess", return_value=counts) as reprocess:
+            self.assertEqual(mg.main([str(self.source), "--output", str(self.output), "--mg5-process", "hh"]), 0)
+            self.assertEqual(reprocess.call_args.kwargs["processes"], ["hh"])
+
     def test_dry_run_and_invalid_native_result(self):
         counts = self.run_enrichment(dry_run=True)
         self.assertEqual(counts["requested_missing_rates"], 2)

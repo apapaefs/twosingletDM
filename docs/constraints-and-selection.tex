@@ -1,0 +1,901 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=24mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,longtable,array,enumitem,microtype}
+\usepackage{xcolor,xurl}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
+\newcommand{\code}[1]{\ifmmode\mbox{\ttfamily\detokenize{#1}}\else\nolinkurl{#1}\fi}
+\newcommand{\src}[1]{\hyperlink{src:#1}{\textsf{[#1]}}}
+\newcommand{\GeV}{\,\mathrm{GeV}}
+\newcommand{\True}{\mathsf{True}}
+\newcommand{\False}{\mathsf{False}}
+\newcommand{\Unknown}{\mathsf{None}}
+\newcommand{\BR}{\operatorname{BR}}
+\newcommand{\dd}{\mathrm{d}}
+\setlist{itemsep=3pt,topsep=5pt}
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+\renewcommand{\arraystretch}{1.14}
+\title{Constraints and selection logic\\for the two-singlet dark-matter scan}
+\author{Repository implementation note}
+\date{1 October 2026}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+We document the constraints implemented in the active $v_x=0$ scan and their
+use in the comprehensive plotting suite. We distinguish the order of numerical
+evaluation, the logical definition of viability, and the cumulative sequence
+shown in the plots. We also specify the independent vacuum, running-coupling
+and finite-temperature assessments, together with the treatment of missing
+results and the additional restrictions used to display particular observables.
+The definitions below describe the checked-out source, rather than a new
+choice of physics cuts.
+\end{abstract}
+
+\textbf{Scope and provenance.}
+The repository is \code{twosingletDM}, inside the parent
+\code{TwoSingletDM} directory. The active prescription is
+\code{trsm_constraints_v2}, schema 2. This note was prepared from the working
+tree on the date above, whose base Git commit was
+\code{c29d1c28d4d39f84168499c8feaadc7a0cd75511}; local modifications were present,
+so the commit alone does not identify every inspected file. Source references
+such as \src{P} resolve to the file/function index in
+Section~\ref{sec:sources}. The main reference for plot selections is
+\code{plot_trsm_constraint_suite.py}, including its companion
+\code{plot_trsm_v2.py}. The general $v_x\ne0$ model and historical plotters
+remain in the repository, but do not define the active dark-matter selection.
+No particular scan file was selected for this note; survival counts therefore
+depend on the input dataset and are not quoted.
+
+\tableofcontents
+
+\section{The three meanings of constraint order}
+\label{sec:order}
+
+\subsection{Numerical evaluation in the current generator}
+For a normally evaluated point,
+\code{_evaluate_trsm_point_vxzero} performs the following operations.
+The calculations are recorded independently: an early exclusion does not
+normally prevent the remaining zero-temperature checks from being evaluated.
+\src{G}
+\begin{enumerate}
+\item Construct masses, mixing factors, scalar couplings, partial widths,
+branching fractions and the physical invisible widths.
+\item Evaluate the correlated $S,T,U$ test, then the tabulated $W$-mass test.
+\item Evaluate HiggsBounds and HiggsSignals through HiggsTools.
+\item Evaluate the tree-level boundedness and unitarity test
+(\code{thc}), then the tree-vacuum and RG diagnostics.
+An explicitly unbounded vacuum status also sets \code{thc=False}.
+The stored \code{evo} value is the RG integration-success flag.
+\item Run the dark-matter calculation and assess relic density, direct
+detection, gamma-ray lines and, when enabled, CMB energy injection.
+\item Evaluate the independent flavour constraint. Construct the experimental,
+DM and EWPT-eligibility subsets, and determine non-DM and full viability.
+\item If requested and eligible, calculate the selected MadGraph rates.
+\item If requested and EWPT-eligible, run BSMPT and append its candidate,
+phase-history and freeze-out diagnostics.
+\item Write the point to the main scan ledger, including excluded and
+unassessed points. An optional DM-failed sidecar contains points with
+\code{dm=False} that pass all non-DM constraints.
+\end{enumerate}
+An input/calculation exception can instead produce an unassessed row with
+its reason. The complete-ledger policy does not mean that every calculation
+succeeded or that every written point is viable. The historical
+\code{--nrandom-count-evo-thc} option changes the stopping counter to
+\code{evo=True} and \code{thc=True}; it does not redefine full viability.
+
+\subsection{Logical selections: what actually has to pass}
+\label{sec:logical}
+Define $T$ to mean an explicit tree-theory pass, $E$ the assessed experimental
+pass, $F$ the flavour pass and $D$ the aggregate DM pass. In v2,
+\begin{align}
+ T &\equiv (\code{thc}\text{ is }\True),\\
+ E &\equiv (\code{experimental_subset}\text{ is }\True),\\
+ N &\equiv T\land E\land F,
+ & V &\equiv T\land E\land F\land D.
+ \label{eq:viability}
+\end{align}
+Here $N$ is \code{non_dm_viability} and $V$ is \code{full_viability} in the
+plotting suite. The experimental subset combines HiggsBounds, HiggsSignals
+and $S,T,U$, with the $W$-mass comparison added where its table covers $M_2$.
+Flavour is a separate factor; it is not part of
+\code{experimental_subset}. \code{dm_subset} copies the aggregate
+\code{dm} verdict. \src{G}\src{R}\src{P}
+
+The separate EWPT entry gate is
+\begin{equation}
+ \code{ewpt_eligible}
+ = (\code{thc}\text{ is }\True)
+ \land (\code{experimental_subset}\text{ is not }\False).
+ \label{eq:ewptgate}
+\end{equation}
+Thus an incomplete experimental assessment is allowed into EWPT exploration.
+DM, flavour, a nonglobal tree vacuum, RG failure and the strict-theory subset
+do not veto that exploration. Actual execution also requires the relevant
+EWPT run option. Full viability requires an explicit experimental pass,
+whereas EWPT eligibility admits an unassessed experimental result.
+
+\begin{longtable}{@{}p{0.25\textwidth}p{0.36\textwidth}p{0.33\textwidth}@{}}
+\toprule
+Assessment & Definition or role & Required for current full viability?\\
+\midrule\endhead
+Tree theory & BFB and perturbative unitarity; explicitly unbounded directions fail & Yes\\
+Experimental & HB, HS, STU, and covered $W$ mass & Yes\\
+Flavour & Covered $\Upsilon$ lepton-product limits & Yes; non-veto outside coverage\\
+Dark matter & Relic, DD, line and enabled CMB prescription & Yes\\
+Global tree vacuum & Desired vacuum globally minimal & Separate subset\\
+Running couplings & Integration, BFB and unitarity up to $1$ TeV & Separate subset\\
+EWPT candidates & Qualitative baryogenesis/GW criteria & Separate flags\\
+Thermal DM checks & Equilibrium $Z_2$ compatibility and VEV/coupling variation & Diagnostics\\
+Widths and lifetimes & Physical $\Gamma_i/M_i$ and $c\tau_i$ & Diagnostics\\
+\bottomrule
+\end{longtable}
+
+MadGraph is run, when requested, on $V$ by default. The
+\code{--mg5-without-dm} option replaces this by $N$, dropping only DM.
+The active v2 call site implements this directly; the older helper
+\code{mg5_point_eligible} still has an \code{evo} argument and is not the
+definition used by that call site. \src{G}
+
+\subsection{The cumulative order displayed in the plotting suite}
+\label{sec:cumulative}
+The cumulative mass/parameter plots deliberately use the following sequence:
+\begin{align}
+ C_0 &= \{\text{all stored rows}\},\nonumber\\
+ C_1 &= C_0\cap\{\code{hb=True}\},\nonumber\\
+ C_2 &= C_1\cap\{\code{hs=True}\},\nonumber\\
+ C_3 &= C_2\cap\{\code{wmass=True}\},\nonumber\\
+ C_4 &= C_3\cap\{\code{dm=True}\}.
+ \label{eq:plotcutflow}
+\end{align}
+This is implemented in \code{cumulative_constraint_masks}. It supplies plots
+24--29, \code{dashboard_cumulative_constraint_summary}, and the
+\code{cumulative_selection_*} rows in \code{constraint_summary.tsv}.
+\textbf{The cumulative sequence omits EWPO, tree theory and flavour.}
+Consequently, $C_4$ is not the full-viability set $V$. It also does not
+represent the generator's execution order. Plot 22,
+\code{22_constraint_counts}, reports independent totals, rather than a
+sequential cutflow. \src{P}
+
+\subsection{Pass, exclusion and unavailable results}
+\label{sec:nullable}
+The assessment layer uses three values: \code{True}, \code{False}, and
+\code{None} (\code{null} in JSON and usually \code{nan} in TSV).
+Its nullable conjunction returns false if any input is explicitly false,
+true if every input is explicitly true, and unavailable otherwise.
+Thus a known exclusion survives another component's missing assessment.
+\src{I}
+
+The main plotter converts explicit true values into pass masks. It keeps
+availability masks for detailed nullable columns, but its simple binary
+status views can group unassessed results with nonpassing results. A
+nonpass count therefore need not be an exclusion count. The dedicated v2
+candidate panels retain true/false/unknown distinctions. Missing flavour
+results cannot satisfy $N$ or $V$; the separate
+\code{pre_flavour_full_viability} mask is $T\land E\land D$ and only
+reproduces the selection before flavour was added. \src{P}\src{V}
+
+\section{Model conventions and scan restrictions}
+\label{sec:model}
+We consider the $v_x=0$ branch with $a_{13}=a_{23}=0$.
+The stable scalar is $h_3=X$, with mass $M_3$ and vanishing doublet projection.
+For $\theta=a_{12}$, $c=\cos\theta$ and $s=\sin\theta$,
+\begin{equation}
+ h_1=c\,\phi-s\,s_0,\qquad h_2=s\,\phi+c\,s_0,
+ \qquad k_1=c,\quad k_2=s,\quad k_3=0,
+\end{equation}
+where $\phi,s_0$ denote fluctuations about $v,v_s$.
+The shared inputs are
+\begin{equation}
+ M_1=125.09\GeV,\quad
+ G_F=1.1663787\times10^{-5}\GeV^{-2},\quad
+ M_W=80.385\GeV,\quad M_Z=91.1876\GeV,
+\end{equation}
+with $v=(\sqrt{2}G_F)^{-1/2}=246.2196508\GeV$.
+These are the repository's fixed inputs, not a claim about the most recent
+experimental averages. \src{I}\src{W}
+
+The unshifted real-field potential convention, with $\varphi=(h,s,x)$, is
+\begin{equation}
+ V(\varphi)=\frac12\sum_i\mu_i^2\varphi_i^2
+ +\frac14\sum_i\lambda_i\varphi_i^4
+ +\frac14\sum_{i<j}\lambda_{ij}\varphi_i^2\varphi_j^2.
+ \label{eq:potential}
+\end{equation}
+The reconstructed quartics are
+\begin{align}
+ \lambda_\Phi&=\frac{M_1^2c^2+M_2^2s^2}{2v^2},&
+ \lambda_S&=\frac{M_1^2s^2+M_2^2c^2}{2v_s^2},&
+ \lambda_{\Phi S}&=\frac{(M_2^2-M_1^2)sc}{vv_s}.
+\end{align}
+The independent inputs are $M_2,M_3,v_s,\theta,\lambda_X,
+\lambda_{\Phi X},\lambda_{SX}$. In particular,
+\begin{align}
+ \mu_\Phi^2&=-\lambda_\Phi v^2-\tfrac12\lambda_{\Phi S}v_s^2,\nonumber\\
+ \mu_S^2&=-\lambda_S v_s^2-\tfrac12\lambda_{\Phi S}v^2,\nonumber\\
+ \mu_X^2&=M_3^2-\tfrac12\lambda_{\Phi X}v^2-\tfrac12\lambda_{SX}v_s^2.
+\end{align}
+\src{T}\src{Q}
+
+\subsection{Sampling priors are separate from exclusions}
+The random-scan defaults are $M_2,M_3\in[4,1000]\GeV$,
+$v_s\in[50,500]\GeV$, $k_1\in[0.90,1]$ and
+$\lambda_X\in[0,10]$. Both signs of
+$\theta=\pm\arccos k_1$ are sampled. Each default portal is drawn as
+$u\,z$, with $u$ uniform on $[0,0.002]$ and $z$ uniform on $[-1,1]$.
+Its support is consequently $[-0.002,0.002]$, with a nonuniform density;
+the configured positive magnitude interval does not prohibit negative portals.
+\src{G}
+
+The generator's ordinary mass mode draws
+\begin{align}
+ M_2&\in[m_{2,\min},\min(m_{2,\max},m_{3,\max}-M_1)],\nonumber\\
+ M_3&\in[\max(m_{3,\min},M_2+M_1),m_{3,\max}],
+\end{align}
+so that $M_3\ge M_2+M_1$. This is a sampling condition.
+The following alternatives replace it:
+\begin{itemize}
+\item \code{--independent-m3}: independent rectangular mass sampling.
+\item \code{--resonantDM1} or \code{--resonantDM2}: respectively
+$2M_3=M_1$ or $2M_3=M_2$, subject to the configured ranges.
+\item \code{--approximate-resonantDM}: sample one of the available
+$|2M_3-M_1|\le\delta_{\rm res}$ and
+$|2M_3-M_2|\le\delta_{\rm res}$ branches, with equal branch probability
+when both exist and with range-compatible conditional sampling.
+\item \code{--mass-ratio-m3-2m2}: $|M_3-2M_2|\le\delta_{\rm res}$.
+This is a separate mass-ratio study, not the annihilation-pole relation.
+\end{itemize}
+All mass and coupling ranges can be overridden. The supplied
+\code{config/next-scan-v2.json} chooses approximate annihilation resonance
+sampling with $\delta_{\rm res}=2\GeV$, the ranges above,
+micrOMEGAs 7.1.4 with CMB enabled, and an EWPT upper temperature of
+$1000\GeV$. The generic EWPT command-line default is instead $300\GeV$.
+\src{G}\src{C}
+
+The optional \code{--scan-k133-k233} mode samples each $K$ as a uniform
+positive magnitude times a uniform number in $[-1,1]$, with magnitude
+intervals $[10^{-6},8]\GeV$ and $[10^{-4},8]\GeV$.
+\code{--scan-k133-k233-log} uses independent random signs and uniform
+$\log_{10}(|K|/\mathrm{GeV})$ in $[-4,3]$ and $[-3,5]$.
+Both modes convert to portal inputs using the inverse of
+Eq.~\eqref{eq:portals}; they are alternative sampling priors.
+
+\section{Tree theory, global vacuum and running couplings}
+\subsection{Boundedness from below and tree-level unitarity}
+Introduce the symmetric matrix $A$, with diagonal
+$(\lambda_\Phi,\lambda_S,\lambda_X)$ and off-diagonal entries
+$A_{ij}=\lambda_{ij}/2$, and
+$\overline A_{ij}=A_{ij}+\sqrt{A_{ii}A_{jj}}$.
+The quartic boundedness test imposes copositivity:
+\begin{gather}
+ A_{ii}\ge0,\qquad \overline A_{12},\overline A_{13},\overline A_{23}\ge0,\\
+ \sqrt{A_{11}A_{22}A_{33}}
+ +A_{12}\sqrt{A_{33}}+A_{13}\sqrt{A_{22}}+A_{23}\sqrt{A_{11}}
+ +\sqrt{2\overline A_{12}\overline A_{13}\overline A_{23}}\ge0.
+\end{gather}
+Each comparison allows a numerical tolerance of $10^{-12}$ below zero;
+diagonal values within that tolerance are clamped to zero in the radicals.
+\src{T}
+
+The strict perturbative bounds are
+\begin{equation}
+ |\lambda_\Phi|,|\lambda_S|,|\lambda_X|<4\pi,\qquad
+ |\lambda_{\Phi S}|,|\lambda_{\Phi X}|,|\lambda_{SX}|<8\pi,
+\end{equation}
+and every eigenvalue $u_a$ of
+\begin{equation}
+ U=\begin{pmatrix}
+ 12\lambda_\Phi&2\lambda_{\Phi S}&2\lambda_{\Phi X}\\
+ 2\lambda_{\Phi S}&6\lambda_S&\lambda_{SX}\\
+ 2\lambda_{\Phi X}&\lambda_{SX}&6\lambda_X
+ \end{pmatrix}
+\end{equation}
+must satisfy $|u_a|<16\pi$. Equality fails these strict bounds.
+Finite inputs and nonzero $v_s$ are required. The real symmetric eigenvalue
+routine \code{eigvalsh} is used. Their conjunction supplies \code{thc},
+with the unbounded-direction correction described below. \src{T}\src{G}
+
+\subsection{The desired vacuum}
+The tree-vacuum diagnostic compares the desired point
+$(h,s,x)=(v,v_s,0)$ with stationary points on all eight supports:
+the origin, three axes, three planes and the full three-field branch.
+Writing $y_i=\varphi_i^2\ge0$, it solves
+$A_{\mathcal S}y_{\mathcal S}=-\mu_{\mathcal S}^2$ on each support,
+checks the Hessian and compares the potential depths of local minima.
+The target must be local and obey
+\begin{equation}
+ V_{\rm target}-V_{\min}\le
+ 10^{-8}\max(1,|V_{\rm target}|,|V_{\min}|),
+\end{equation}
+where the numerical potential values are in $\mathrm{GeV}^4$.
+Degenerate global minima pass. Singular systems are examined for feasible
+flat stationary families and for nonnegative quartic-null directions with
+a negative quadratic contribution. An unresolved flat family remains
+unassessed. The full implementation includes coordinate and Hessian
+tolerances. \src{Q}
+
+\code{vacuum_tree_global} is an independent subset. A known deeper minimum
+does not by itself fail \code{thc}. However, the statuses
+\code{unbounded_quartic} and \code{unbounded_flat_direction} do force
+\code{thc=False}. The BSMPT NLO stability status is stored separately from
+this tree-level result. \src{G}\src{Q}
+
+\subsection{RG screening through 1 TeV}
+One-loop running starts at $\mu_0=91\GeV$ and extends to
+$\mu_{\max}=1000\GeV$. The boundary values are
+\begin{equation}
+ g_3=1.221,\qquad g_2=\sqrt{0.424},\qquad
+ g_1=\sqrt{0.1273},\qquad y_t=0.96738,
+\end{equation}
+with the scalar couplings reconstructed from tree masses and mixing.
+There is no threshold matching or precision pole-to-running matching.
+The integrator uses relative/absolute tolerances $10^{-8}/10^{-10}$ and
+maximum step $(1000-91)/256\GeV$. BFB and the same strict unitarity tests
+are checked on solver nodes and 513 logarithmically spaced samples.
+The first detected violation is refined to a bracket narrower than
+$10^{-5}\GeV$. This is a numerical trajectory screen. \src{I}\src{Q}
+
+\code{rg_integration_success}, \code{rg_bfb} and \code{rg_unitarity}
+are distinct. An observed physical violation is false even if integration
+later fails; with no detected violation, a failed integration leaves the
+corresponding physical verdict unavailable. The strict subset
+\code{theory_strict_subset} is the nullable conjunction of
+\code{vacuum_tree_global}, \code{rg_integration_success},
+\code{rg_bfb} and \code{rg_unitarity}.
+It is not required by Eq.~\eqref{eq:viability}. In the current generator,
+\code{evo} records integration success; it is not a synonym for either
+running BFB or running unitarity.
+
+\section{Higgs, electroweak and flavour constraints}
+\subsection{Physical widths and HiggsTools inputs}
+The portal coefficients in the scalar potential are
+\begin{align}
+ K_{133}&=\tfrac12(\lambda_{\Phi X}vc-\lambda_{SX}v_ss),\nonumber\\
+ K_{233}&=\tfrac12(\lambda_{\Phi X}vs+\lambda_{SX}v_sc).
+ \label{eq:portals}
+\end{align}
+Here $K_{i33}$ multiplies $h_i h_3^2$, so the identical-scalar vertex has
+magnitude $2K_{i33}$ and
+\begin{equation}
+ \Gamma(h_i\to h_3h_3)=\frac{K_{i33}^2}{8\pi M_i}
+ \sqrt{1-\frac{4M_3^2}{M_i^2}}\quad(M_i>2M_3).
+\end{equation}
+The width is zero at and below threshold. Invisible and open scalar-cascade
+widths enter the physical total widths and dilute visible branching
+fractions. The same convention applies to other identical-scalar decays.
+\src{W}
+
+HiggsBounds receives the mass, rescaled SM couplings and decay information
+and supplies the stored \code{hb} verdict through its \code{allowed}
+result. The relevant analyses are those in the installed, fingerprinted
+HiggsBounds dataset; there is no repository-wide single cross-section cut
+that replaces this provider result. \src{H}
+
+HiggsSignals supplies
+\begin{equation}
+ \Delta\chi^2_{\rm HS}=\chi^2_{\rm point}-\chi^2_{\rm SM}<4.00.
+ \label{eq:hs}
+\end{equation}
+The SM reference is constructed with the same mass and SM decay-input
+pipeline. Nonfinite values are unassessed. This strict, fixed screening
+threshold is not a profiled multi-parameter confidence region.
+The active path includes physical invisible decays in HiggsTools; it does
+not add an independent fixed upper cut on $\BR(h_1\to\mathrm{invisible})$.
+A provider width floor of $10^{-10}\GeV$ is numerical and is not a
+physical acceptance cut. \src{H}
+
+\subsection{Correlated electroweak precision observables}
+The active fit allows nonzero $U$. The singlet shifts have the form
+\begin{equation}
+ \Delta O=s^2[O(M_2)-O(M_1)],\qquad O\in\{S,T,U\}.
+\end{equation}
+The code evaluates
+\begin{equation}
+ \chi^2_{STU}=(\boldsymbol\Delta-\boldsymbol c)^T
+ \Sigma^{-1}(\boldsymbol\Delta-\boldsymbol c)\le7.82,
+ \qquad \Sigma_{ij}=\rho_{ij}\sigma_i\sigma_j,
+\end{equation}
+using, in $(S,T,U)$ order,
+\begin{align}
+ \boldsymbol c&=(-0.045235,\;0.013373,\;-0.016131),\nonumber\\
+ \boldsymbol\sigma&=(0.094703,\;0.11518,\;0.087103),\nonumber\\
+ \rho&=\begin{pmatrix}1&0.048&0.747\\0.048&1&-0.162\\0.747&-0.162&1\end{pmatrix}.
+\end{align}
+The repository attributes these inputs to a Jens Erler private communication
+dated 16 May 2025. They are documented here as implemented inputs, rather
+than an independently authenticated public likelihood. The loop normalization
+retains $\alpha(0)=7.2973525693\times10^{-3}$. A nonfinite test is
+unassessed. Historical two-dimensional $U=0$ and projected fits in the
+file are not called by the active generator. \src{E}
+
+\subsection{The separate W-mass curve}
+For $133\le M_2/\mathrm{GeV}\le999$, the code imposes
+\begin{equation}
+ |\sin\theta|\le s_{\max}^{W}(M_2),
+\end{equation}
+where $s_{\max}^{W}$ is the existing cubic interpolation of
+\code{datafiles/Tania_MW_SnowmassWhitepaper.dat}. Equality passes.
+There is no extrapolation. Finite points outside the table range receive
+a true non-veto from the checker and
+\code{wmass_status=outside_coverage}; the v2 experimental subset omits
+the $W$-mass factor there. Invalid inputs are unassessed. The STU and
+$W$-mass prescriptions are applied as screens, without forming a joint
+likelihood or asserting their statistical independence. \src{E}\src{R}
+
+\subsection{Upsilon lepton-product bounds}
+The independent \code{upsilon_leptons_v1} prescription tests
+\begin{equation}
+ P_{i\ell}=\BR(\Upsilon(1S)\to\gamma h_i)
+             \BR(h_i\to\ell^+\ell^-),\qquad \ell=\mu,\tau.
+\end{equation}
+The implemented production formula is
+\begin{align}
+ \frac{\BR(\Upsilon\to\gamma h_i)}{\BR(\Upsilon\to e^+e^-)}
+ &=\frac{G_Fm_b^2}{\sqrt2\pi\alpha}\,|k_i|^2
+ \left(1-\frac{M_i^2}{m_\Upsilon^2}\right)F_{bS}(M_i),\nonumber\\
+ F_{bS}(M_i)&=\frac23\left[1-\left(\frac{M_i}{m_\Upsilon}\right)^6\right],
+ \qquad M_i<m_\Upsilon.
+\end{align}
+It is zero when on-shell production is forbidden. The retained central
+inputs are $m_b=4.18\GeV$, $m_\Upsilon=9.46040\GeV$,
+$\alpha^{-1}=137.035999084$ and
+$\BR(\Upsilon\to e^+e^-)=0.0239$. Visible lepton BRs are multiplied by
+$\Gamma_{\rm base}/\Gamma_{\rm physical}$, so invisible decays dilute the
+signal without altering the underlying base BR arrays. \src{F}
+
+For each lepton channel, the strongest available individual digitized
+Belle or BaBar 90\% CL limit is used. The nominal windows are inclusive
+$[0.212,9.2]\GeV$ for muons and $[3.55,9.2]\GeV$ for taus, additionally
+restricted to each CSV curve's coverage. The supplied tau curves begin at
+approximately $3.834$ and $3.839\GeV$. Interpolation is linear in mass
+and logarithmic in the limit, with no extrapolation. Every covered ratio
+$P_{i\ell}/L_\ell(M_i)$ must be at most one; equality passes.
+These are the retained prompt, narrow-resonance bounds, not a combined
+experimental likelihood. No extra lifetime or broad-width acceptance
+test is imposed. \src{F}
+
+Outside coverage and exactly zero production are non-vetoes. A missing
+required decay input is unavailable; in particular, the base decay provider
+starts at $4\GeV$. In the active branch, $h_1$ is above the search range
+and $h_3$ has zero doublet projection, leaving a light $h_2$ as the relevant
+decaying scalar. The nullable conjunction over the scalar assessments
+defines \code{flavour}, and \code{flavour_max_ratio} records the largest
+covered ratio.
+
+\section{Dark-matter constraints}
+\label{sec:dm}
+The default backend is micrOMEGAs 7.1.4; 6.1.15 is an explicit comparison
+backend. A usable result requires a successful solver and finite physical
+outputs. The aggregate DM verdict is unavailable on a solver error, even
+if some raw diagnostics were printed. The active calculation uses the
+abundance fraction
+\begin{equation}
+ \xi=\min\left(1,\frac{\Omega h^2}{0.12}\right).
+ \label{eq:xi}
+\end{equation}
+Direct detection is rescaled linearly and annihilation observables
+quadratically. The abundance reference $0.12$ is distinct from the relic
+upper bound $0.121$. \src{D}\src{I}
+
+\subsection{Relic abundance}
+The required upper-bound condition is
+\begin{equation}
+ 0\le\Omega h^2\le0.121.
+\end{equation}
+There is no positive lower abundance cut and no requirement that $h_3$
+provide all of the dark matter. Negative/nonfinite solver output is invalid,
+rather than an accepted underabundant point. The nominal freeze-out
+temperature is recorded as $T_f=M_3/X_f$ when a valid $X_f>0$ is available.
+\src{D}
+
+\subsection{Spin-independent direct detection}
+The default is the stored LZ WS2024 observed, power-constrained 90\% CL
+elastic isoscalar per-nucleon table. The wrapper reads the neutron SI cross
+section from the micrOMEGAs cross-section output, in pb. The stored
+experimental values in $\mathrm{cm}^2$ are converted using
+$1\,\mathrm{cm}^2=10^{36}\,\mathrm{pb}$. The cut is
+\begin{equation}
+ \xi\,\sigma_n^{\rm SI}\le L_{\rm LZ}(M_3),
+ \quad\text{equivalently}\quad
+ \sigma_n^{\rm SI}\le L_{\rm LZ}(M_3)/\xi\quad(\xi>0).
+\end{equation}
+The 26-point default table covers $9$--$10000\GeV$ and is interpolated
+logarithmically in both mass and limit. There is no extrapolation.
+For positive $\xi$, an uncovered DD assessment is unavailable and cannot
+supply a DM pass. At $\xi=0$, the implementation sets the comparison limit
+to infinity, so a finite cross section is a non-veto. \src{D}\src{L}
+
+\code{dm_dir_det} stores the raw cross section, while
+\code{dm_dir_det_limit} stores the abundance-rescaled limit.
+The plotting ratio is their quotient; it is not a comparison of an already
+rescaled cross section with a second rescaled bound. An explicit
+\code{--dm-limit-table} can replace the default data. The optional LZ2026
+high-mass approximation and historical fitted providers are not the default
+WS2024 prescription and must be identified from the saved metadata.
+
+\subsection{Gamma-ray lines}
+The retained indirect-detection screen compares the individual line fluxes
+with the tabulated Fermi-LAT R16 line limit:
+\begin{equation}
+ R_{\rm line}=\max_{a\,\mathrm{usable}}
+ \frac{\xi^2\Phi_a}{L_{\rm R16}(E_{\gamma,a})}\le1.
+\end{equation}
+The energy coverage is $0.214$--$462\GeV$, with log--log interpolation
+and no extrapolation. The driver supplies photon-containing two-body
+annihilation channels, with $E_\gamma=M_3$ for $\gamma\gamma$ and
+$E_\gamma=M_3(1-m_Y^2/(4M_3^2))$ for $\gamma Y$.
+The implementation takes the largest individual line ratio; it does not
+sum nearby line fluxes into a new combined bound. The driver approximates
+the R16 region using $0.5^\circ$ patches inside
+$\sqrt{l^2+b^2}\le16^\circ$, excluding $|b|<5^\circ$ with
+$|l|>6^\circ$, and weights the flux by photon multiplicity.
+This is the retained line-flux prescription, not a published-ROI likelihood
+evaluation. \src{D}
+
+If no usable line is found, the code stores
+\code{dm_indirect_available=False} and
+\code{dm_indirect_detection_excluded=False}. This is a non-veto in the
+aggregate DM verdict, unlike an unavailable covered DD or enabled CMB
+assessment. The line availability must therefore be reported alongside
+the aggregate flag. The printed continuum flux is a diagnostic and is not
+an additional bound in this selection. \src{D}
+
+\subsection{CMB energy injection}
+New version-7 scans enable the Planck CMB screen by default; version-6
+comparison runs and legacy resumes without saved CMB settings default to
+disabled. The explicit switches are \code{--planck-cmb} and
+\code{--no-planck-cmb}. When enabled,
+\begin{equation}
+ R_{\rm CMB}=\xi^2 R_{\rm CMB}^{\rm raw}\le1,
+ \qquad
+ p_{\rm ann}^{\max}=3.2\times10^{-28}
+ \,\mathrm{cm}^3\,\mathrm{s}^{-1}\,\mathrm{GeV}^{-1}.
+\end{equation}
+The driver uses the built-in Planck2018 spectral energy-deposition
+prescription in a low-velocity $s$-wave approximation, with the quoted
+95\% CL normalization. A missing or invalid enabled CMB calculation is
+unassessed; it cannot supply a pass. A disabled CMB factor is omitted.
+\src{B}
+
+\subsection{Aggregate DM verdict and equality conventions}
+For a successful solver, \code{DMSummary.passed} forms a nullable
+conjunction of the relic pass, DD pass, absence of a line exclusion, and
+the CMB pass when enabled. Exclusions use strict ``greater than'' comparisons,
+so equality at the relic, DD, line or CMB upper limit passes.
+A known failing component gives \code{dm=False}; otherwise missing required
+components give \code{dm=None}. Valid component information is retained.
+The plotting suite trusts this stored aggregate flag and does not rebuild
+it from the displayed ratios. \src{D}\src{P}
+
+\section{EWPT entry, candidate criteria and thermal diagnostics}
+\subsection{Optional quartic preselection before BSMPT}
+\code{--ewpt-require-eq418} is off by default. If enabled in the active
+EWPT path, the repository's ``Eq.~4.18'' test must pass before BSMPT is
+called. Define the matrix $C$ with diagonal
+$c_i=\lambda_i$ and off-diagonal $c_{ij}=\lambda_{ij}/2$.
+The implemented conditions are
+\begin{equation}
+ c_i>0,\qquad c_ic_j-c_{ij}^2>0\quad(i<j),\qquad \det C>0,
+\end{equation}
+where
+\begin{equation}
+ \det C=c_\Phi c_S c_X+2c_{\Phi S}c_{\Phi X}c_{SX}
+ -c_{\Phi S}^2c_X-c_{\Phi X}^2c_S-c_{SX}^2c_\Phi.
+\end{equation}
+All inequalities are strict. This optional positive-definiteness screen
+uses the same matrix normalization as $A$ in Section~3, but imposes a stronger
+condition than copositivity. The diagonal normalization was corrected on
+29 October 2026; earlier code used $c_i=\lambda_i/2$, which can change the
+sign of $D$ and the preselection decision. Existing plots and stored outcomes
+must be recomputed to use the corrected normalization.
+The screen gates EWPT execution and does not alter the
+zero-temperature full-viability definition. The current
+\code{--write-all-points} option does not bypass
+Eq.~\eqref{eq:ewptgate}: the active caller still checks EWPT eligibility.
+\src{G}\src{J}
+
+\subsection{Qualitative baryogenesis and GW candidates}
+The thermal coordinates are $(w_1,w_x,w_s)$. Symmetry-related sign copies
+are mapped to positive representatives before jumps are evaluated, avoiding
+spurious transitions between equivalent copies. An EW-entry pair requires
+\begin{equation}
+ |w_{1,\mathrm{false}}|<5\GeV\le|w_{1,\mathrm{true}}|.
+\end{equation}
+The field thresholds for classifying EW, $X$ and $S$ breaking are
+$5$, $1$ and $1\GeV$, respectively, with exposed command-line overrides.
+The candidate definitions use available first-order-transition pairs from
+CalcTemps. The separate fully symmetric \code{SYM} phase label requires
+all three field magnitudes below $1\GeV$; it is distinct from the
+$|w_{1,\rm false}|<5\GeV$ EW-entry condition. \src{J}\src{A}
+
+\begin{longtable}{@{}p{0.27\textwidth}p{0.67\textwidth}@{}}
+\toprule
+Flag & Positive criterion\\\midrule\endhead
+\code{ewpt_baryo_candidate} & At least one EW-symmetric to EW-broken
+FOPT at $T_c$ with
+$\Delta v_{\rm EW}(T_c)/T_c>1$, where
+$\Delta v_{\rm EW}=\bigl||w_{1,\rm true}|-|w_{1,\rm false}|\bigr|$.\\
+\code{ewpt_gw_candidate} & At least one FOPT at an available
+$T_c$, $T_n$ or $T_p$ with
+$\Delta v_{\rm field}/T>1$, where
+$\Delta v_{\rm field}=\sqrt{(\Delta|w_1|)^2+(\Delta|w_x|)^2+(\Delta|w_s|)^2}$.\\
+\bottomrule
+\end{longtable}
+Both thresholds are \emph{strict}: equality at one fails. A larger
+nucleation jump cannot rescue an insufficient critical EW-entry jump for
+the baryogenesis flag. The GW flag can be positive from any of its three
+temperatures. Percolation and completion are stored as diagnostics and do
+not veto positive candidate evidence. These flags do not enter $V$.
+\src{A}
+
+A negative baryogenesis verdict requires adequate critical-temperature
+assessment. A negative GW verdict also needs assessed nucleation and
+percolation outcomes, since either could yield positive evidence.
+The assessment requires successful NLO stability and tracing, and assessed
+coexistence information; a successful no-coexistence-pair outcome can
+establish a negative. For each relevant temperature, \code{not_met}
+is an assessed outcome, while missing/failed calculations remain unknown.
+Positive evidence is retained even if another part of the calculation is
+incomplete. \src{A}
+
+These are qualitative transition screens. They do not calculate a
+sphaleron rate, a baryon asymmetry or a GW spectrum, and do not establish
+that the Universe actually traverses a particular transition. The
+finite-temperature potential and jump ratios retain their gauge and
+approximation dependence.
+
+\subsection{Equilibrium history and freeze-out consistency}
+The separate phase analysis compares traced local minima at common
+temperatures, merges symmetry copies and refines potential crossings.
+The default target crossing bracket is at most $10^{-3}\GeV$ where
+numerically resolvable. The resulting ordering is equilibrium ordering
+among the traced basins, rather than proof that all minima were found or
+that a cosmological transition completed. CalcTemps return codes,
+MinimaTracer/refinement outcomes, NLO stability and phase ordering have
+separate status fields. \src{A}\src{X}
+
+The thermal dark-matter diagnostics include:
+\begin{enumerate}
+\item \code{dm_relic_z2_freezeout_compatible}: a necessary equilibrium
+$Z_2$-compatibility screen around and after nominal freeze-out. Any sampled
+$X$-broken state at $T\le T_f$ makes it false. A true verdict requires
+coverage down to $T\simeq0$ (within $10^{-9}\GeV$), a resolved unbroken
+state at $T_f$, and every sampled state at $T\le T_f$ unbroken. Otherwise
+the verdict remains unavailable. Broken-interval endpoints are sampled
+temperatures; restoration is given as a bracket. The helper consumes the
+supplied lowest-potential branch, so this flag alone does not certify the
+equilibrium reconstruction used in a historical input.
+\item VEV variation over $[T_f/2,2T_f]$. The largest fractional changes
+relative to the traced $T=0$ VEVs are recorded, and a change
+$\ge10\%$ sets the VEV-shift diagnostic. Missing coverage and a phase
+boundary crossing are treated explicitly; the code does not interpolate
+between different minima to fabricate a smooth branch.
+\item Fixed-zero-temperature-mixing coupling proxies,
+\begin{align}
+ K_{133}(T)&=\tfrac12[\lambda_{\Phi X}|w_1(T)|c-\lambda_{SX}|w_s(T)|s],\nonumber\\
+ K_{233}(T)&=\tfrac12[\lambda_{\Phi X}|w_1(T)|s+\lambda_{SX}|w_s(T)|c].
+\end{align}
+These proxies require one resolved EW-broken ($|w_1|\ge5\GeV$),
+$X$-unbroken ($|w_x|<1\GeV$) branch across the window and its
+interpolation neighbours. Absolute changes, fractional changes and
+cancellations are recorded separately. Writing $K_a$ for the two portal
+terms, fractional changes are unavailable when
+$|K(0)|\le10^{-12}\max(\sum_a|K_a(0)|,1\GeV)$.
+Separately, a cancellation ratio
+$|\sum_a K_a|/\sum_a|K_a|<0.1$, at zero temperature or a sampled window
+point, flags cancellation sensitivity; that flag alone does not suppress
+the fractional result.
+\item Signed mass gaps $M_i-2M_3$ and the nonnegative diagnostics
+$|M_i-2M_3|/T_f$ and $|M_i-2M_3|/\Gamma_i$, using backend mediator widths.
+\end{enumerate}
+These diagnostics do not alter the stored aggregate DM verdict, recompute
+thermal mass eigenstates, or solve a temperature-dependent Boltzmann
+evolution. \src{X}\src{K}
+
+\section{Reading the plotting suite}
+\label{sec:plots}
+\subsection{Current and historical masks}
+The main suite reads flags from its input TSV, including files with a
+\code{.dat} suffix. It does not rerun the constraint calculations.
+For rows labelled \code{trsm_constraints_v2}, theory is \code{thc}
+and experimental is the stored \code{experimental_subset}. For legacy
+rows, theory is \code{evo} $\land$ \code{thc} and experimental is
+\code{hb} $\land$ \code{hs} $\land$ \code{ewpo} $\land$ \code{wmass}.
+Full and non-DM viability then
+include the stored flavour flag as in Eq.~\eqref{eq:viability}.
+Therefore an old file without flavour assessments cannot acquire current
+full viability merely by being replotted. \src{P}
+
+The four-way DM/experimental maps classify the independent pair $(D,E)$.
+Relic-only and DD-only maps instead use an available, nonexcluded component.
+The main suite's detailed DM availability mask requires non-null entries
+for \code{dm_relic_excluded}, \code{dm_direct_detection_excluded},
+\code{dm_indirect_available} and \code{dm_indirect_detection_excluded}.
+This bookkeeping mask is distinct from the aggregate DM verdict and from
+availability of an actual line bound. CMB has additional dedicated flags.
+
+\subsection{Independent v2 overlays and thermal comparisons}
+\code{v2_candidate_subsets} shows baryogenesis and GW candidates, with
+separate intersections with DM, global tree vacuum and RG subsets.
+The RG overlay requires all of integration success, running BFB and running
+unitarity. These three overlays are not successive cuts. Unknown candidate
+and experimental states receive distinct markers.
+\code{v2_jump_temperatures} compares critical and nucleation/percolation
+jumps for the same transition, with missing partners counted.
+\code{v2_freezeout_restoration} and \code{v2_thermal_sensitivity}
+display the diagnostics in the preceding section. \src{V}
+
+The older selected-transition quantity \code{ewpt_ew_true_over_T}
+is a separate $v_{\rm true}/T$ diagnostic. Its temperature priority is
+nucleation, percolation, completion, then critical. It must not be
+substituted for the critical EW-entry jump in the baryogenesis definition.
+Its implemented strong/weak split is $v/T>1$ versus $v/T\le1$.
+\src{P}\src{G}
+
+\subsection{Restrictions needed to display signal rates}
+Cascade and MadGraph mono-Higgs/mono-$Z$ panels use either full viability
+or non-DM viability, as stated in each plot, then require finite positive
+rates for display. The YR4 invisible-$h_2$ signal panels require full
+viability $V$, followed by physical finite inputs, $M_2>2M_3$, a positive
+$\BR(h_2\to h_3h_3)$, supported mass interpolation and a positive
+finite rate. The displayed narrow-width production proxy is
+\begin{equation}
+ \sigma_{\rm inv}^{p}(13.6\,\mathrm{TeV})
+ =\sigma_{\rm SM}^{p}(M_2)k_2^2\BR(h_2\to h_3h_3),
+ \qquad p\in\{\mathrm{ggF},\mathrm{VBF}\}.
+\end{equation}
+The table is not extrapolated. These requirements select where the
+observable can be shown; they do not add a new exclusion to $V$.
+Raw HL-LHC event proxies use $3000\,\mathrm{fb}^{-1}$ without acceptance
+or efficiency factors. \src{P}
+
+The width categories are
+\begin{equation}
+ \frac{\Gamma_2}{M_2}<0.01,\qquad
+ 0.01\le\frac{\Gamma_2}{M_2}<0.10,\qquad
+ \frac{\Gamma_2}{M_2}\ge0.10.
+\end{equation}
+Broad points remain in the plots; the width class is not a veto. Physical
+$\Gamma_i/M_i$ and $c\tau_i$ are recorded independently of the provider
+width floor. No prompt-decay or upper-width cut is part of full viability.
+
+Mass-plane lines such as $M_2=2M_3$, $M_3=2M_2$,
+$M_3=M_2+125\GeV$ and $M_3=1000\GeV$ are guides, not cuts applied
+by the plotter. In particular, the guide's nominal $125\GeV$ gap differs
+from the generator's $M_1=125.09\GeV$, and $M_3=2M_2$ is not an
+$h_3$ decay threshold in this stable-DM branch. Resonance-coloured panels
+do not themselves impose a resonance window. The flavour zoom's
+$4\le M_2/\mathrm{GeV}\le9.2$ restriction selects the displayed window.
+\src{P}\src{F}
+
+\subsection{Wording and legacy-code caveats}
+Some retained labels predate the current masks. When interpreting a plot
+or its summary, the following code definitions take precedence:
+\begin{itemize}
+\item The summary text may say theory is \code{evo} $\land$ \code{thc}; for v2
+the actual mask is \code{thc}. Its generic experimental text also omits
+the coverage-aware use of \code{experimental_subset}.
+\item Some older EWPT bar labels say strong $v/T\ge1$ and weak $v/T<1$;
+the implemented split is strictly strong $>1$ and weak $\le1$.
+\item The main suite's BSMPT ``success'' grouping includes the statuses
+\code{success}, \code{assessed} and \code{incomplete}. It does not
+guarantee a fully assessed thermal history; use the detailed v2 statuses.
+\item In the general $v_x\ne0$ evaluator \code{evaluate_trsm_point},
+the theory and evolution calls are commented out and the code explicitly
+sets \code{thc=evo=True}. The existence of the general theoretical
+functions therefore does not mean that this historical branch imposes them.
+The active $v_x=0$ implementation described here evaluates them as specified.
+\item \code{plot_trsm_observables.py} applies finite-value and ordinary
+log-axis positivity requirements, not a new physics selection.
+Its Eq.~4.18 quantities are observables unless separately requested as
+an EWPT preselection. The historical \code{plot_trsm_points.py} reads a
+hardcoded merged input and its ``Viable points'' title does not define a
+current viability predicate.
+\end{itemize}
+These are interpretive notes about existing code; this document does not
+change any constraint, data file or plotting behaviour. \src{P}\src{O}
+
+\section{Reproducing a selection and locating its implementation}
+\label{sec:sources}
+From the repository's configured Python environment, the comprehensive
+suite can be run on a chosen scan as follows:
+\begin{quote}\ttfamily
+python plot\_trsm\_constraint\_suite.py INPUT.tsv --format both
+\end{quote}
+Its default destination is \code{plots/<input-stem>_constraints} inside
+the repository. \code{index.html} and \code{constraint_summary.tsv}
+provide the figure inventory and selection counts; \code{v2-index.html}
+adds the diagnostic views when the input contains v2 rows.
+The cumulative entries always use the stored
+input rows as their denominator. A historical input may already have been
+filtered before plotting, so those counts do not reconstruct absent draws.
+
+For a scientific comparison, retain the input and metadata sidecar, physics
+version, source and executable fingerprints, Higgs dataset revisions,
+direct-detection table, CMB setting and actual sampling configuration.
+The current defaults cannot retrospectively identify an older scan's
+settings. Adding only flavour assessments with
+\code{reevaluate_trsm_flavour.py} does not revalidate its other historical
+verdicts. \src{R}\src{F}
+
+\small
+\begin{longtable}{@{}p{0.055\textwidth}p{0.40\textwidth}p{0.485\textwidth}@{}}
+\toprule
+Key & Repository-relative source & Relevant implementation\\
+\midrule\endhead
+\hypertarget{src:G}{G} & \code{generate_trsm_points.py} &
+\code{_evaluate_trsm_point_vxzero} (1556--1654);
+\code{run_ewpt_if_requested} (1312 onward);
+\code{sample_random_masses}, \code{draw_random_vxzero_candidate};
+range defaults (1667 onward).\\
+\hypertarget{src:R}{R} & \code{trsm_constraint_profile.py} &
+\code{profile_updates}: experimental and EWPT subsets, coverage;
+\code{physics_manifest}: source/dataset/executable provenance.\\
+\hypertarget{src:P}{P} & \code{plot_trsm_constraint_suite.py} &
+\code{cumulative_constraint_masks} (2029--2049);
+\code{load_scan} (2150 onward; masks at 2264--2279);
+\code{constraint_bar_metrics}, \code{build_summary};
+\code{derive_signal_observables}, \code{derive_bsmpt_results}.\\
+\hypertarget{src:V}{V} & \code{plot_trsm_v2.py} &
+\code{render_suite}: nullable candidate/subset overlays and
+same-transition temperature comparisons.\\
+\hypertarget{src:I}{I} & \code{trsm_inputs.py}; \code{config/sm-inputs-v2.json} &
+Shared inputs, relic/abundance constants, RG boundary convention and
+\code{nullable_and}.\\
+\hypertarget{src:C}{C} & \code{config/next-scan-v2.json}; \code{tools/run_next_scan.py} &
+Explicit campaign settings and construction of the EWPT-enabled command.\\
+\hypertarget{src:T}{T} & \code{test_trsm_theory_constraints.py} &
+\code{_copositive_quartic_matrix}, \code{_unitarity_eigenvalues},
+\code{_passes_tree_level_constraints}, \code{theory_constraints_vxzero}.\\
+\hypertarget{src:Q}{Q} & \code{trsm_theory_diagnostics.py}; \code{test_trsm_evolution.py} &
+\code{potential_parameters}, \code{assess_vacuum},
+\code{assess_running}, \code{theory_diagnostics}; one-loop \code{rhs}.\\
+\hypertarget{src:W}{W} & \code{generate_trsm_info.py} &
+\code{Rmatrix}, \code{vxzero_portal_couplings},
+\code{scalar_to_identical_scalar_width}, \code{vxzero_invisible_decay_info}.\\
+\hypertarget{src:H}{H} & \code{test_trsm_higgstools.py} &
+\code{analyze_parampoint} (422--496), \code{_sm_reference_chi2},
+\code{_set_base_decays}; physical BRs and provider width floor.\\
+\hypertarget{src:E}{E} & \code{singlet_EWPO.py}; \code{datafiles/Tania_MW_SnowmassWhitepaper.dat} &
+\code{check_EWPO_wU}, \code{calc_chisquared_correlated_wU}; fit inputs
+(255--267); \code{check_wmass_tania} (46--72).\\
+\hypertarget{src:F}{F} & \code{trsm_flavour.py}; \code{flavour/flavour_observables.py};
+\code{flavour/flavour_inputs.py}; \code{plot_trsm_flavour.py} &
+\code{assess_scalar}, \code{combine_flavour},
+\code{EvaluateUpsLeptonBounds}, \code{BRUpsgammahiNorm};
+digitized limits and flavour plot categories.\\
+\hypertarget{src:D}{D} & \code{test_trsm_DM.py}; \code{DM/main.c} &
+\code{DMSummary.passed} (210--218), \code{summarize_dm_result},
+\code{assess_indirect_limit}, \code{test_dm}; solver, spectra and line output.\\
+\hypertarget{src:L}{L} & \code{trsm_direct_detection.py};
+\code{DM/data/lz2024/observed-si-v2.json} &
+Default numerical DD table, validation, interpolation and units.\\
+\hypertarget{src:B}{B} & \code{trsm_cmb.py}; \code{DM/main.c} &
+\code{assess_cmb_limit}, configuration/capability checks;
+\code{calcSpectrum} and \code{PlanckCMB} driver calls.\\
+\hypertarget{src:J}{J} & \code{test_trsm_ewpt.py} &
+\code{check_eq_4_18} (661--712), \code{EWPTConfig},
+\code{run_trsm_ewpt}; extraction of thermal transition strengths.\\
+\hypertarget{src:A}{A} & \code{ewpt_entry_criterion.py}; \code{ewpt_assessment.py} &
+EW-entry/GW candidate definitions, strict thresholds, per-temperature
+assessment and positive/negative/unknown logic.\\
+\hypertarget{src:X}{X} & \code{ewpt_equilibrium.py}; \code{ewpt_x_history.py};
+\code{BSMPT/src/prog/PhaseProbe.cpp} &
+Common-temperature ordering, symmetry equivalence, crossing refinement,
+$X$-broken intervals and freeze-out compatibility.\\
+\hypertarget{src:K}{K} & \code{dm_thermal_relic_diagnostic.py} &
+\code{resonance_proximity_updates}, \code{thermal_vev_updates},
+\code{coupling_sensitivity_updates}.\\
+\hypertarget{src:O}{O} & \code{plot_trsm_observables.py}; \code{plot_trsm_points.py} &
+\code{rows_for_plot}: display validity; historical hardcoded-input plotter.\\
+\bottomrule
+\end{longtable}
+\normalsize
+Line numbers refer to the inspected working tree and may move in later
+revisions. Files prefixed \code{test_trsm_} in this index include the
+production physics routines imported by the generator; their names do not
+mean that they are only test fixtures.
+
+\end{document}

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Add missing associated-production rates to a separate saved scan copy.
+"""Add missing HH or associated-production rates to a separate saved scan copy.
 
 Only stored full-viability points enter MadGraph. Existing finite rates and
-all other assessments are retained. A SQLite checkpoint commits each native
+all other assessments are preserved. A SQLite checkpoint commits each native
 process result independently, so --resume never repeats a completed result.
 """
 
@@ -24,6 +24,7 @@ from trsm_mg5_rates import (
 )
 
 LAMBDA_COLUMNS = ("K111", "K112", "K113", "K123", "K122", "K1111", "K1112", "K1113", "K133", "K233")
+SUPPORTED_PROCESSES = (*ASSOCIATED_PROCESSES, "hh")
 
 
 def sha256(path):
@@ -167,8 +168,8 @@ def reprocess(source, output, *, processes=ASSOCIATED_PROCESSES, energy=13.6,
 def _reprocess(source, output, *, processes, energy, resume, dry_run, get_xsec,
                runtime_receipt):
     processes = tuple(dict.fromkeys(processes))
-    if not processes or any(process not in ASSOCIATED_PROCESSES for process in processes):
-        raise ValueError("select supported associated-production processes")
+    if not processes or any(process not in SUPPORTED_PROCESSES for process in processes):
+        raise ValueError("select supported HH or associated-production processes")
     if not math.isfinite(energy) or energy <= 0:
         raise ValueError("energy must be finite and positive")
     checkpoint = output.with_name(output.name + ".partial")
@@ -275,7 +276,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--mg5-process", action="append", choices=ASSOCIATED_PROCESSES)
+    parser.add_argument("--mg5-process", action="append", choices=SUPPORTED_PROCESSES)
     parser.add_argument("--energy", type=float, default=13.6, help="Collider energy in TeV (default: 13.6)")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Validate runtime and report missing rates without running MG5")

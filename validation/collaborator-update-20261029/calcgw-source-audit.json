@@ -1,0 +1,144 @@
+{
+  "source": "/home/apapaefs/Projects/TwoSingletDM/twosingletDM/output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv",
+  "source_sha256": "c8789cd9edeabcdf5b9736865bd5ec4ab9b8e4f3523bb3d21586521c510f5729",
+  "counts": {
+    "all_rows": 591340,
+    "ewpt_eligible": 31204,
+    "eligible_thc_True": 31204,
+    "eligible_experimental_subset_True": 31204,
+    "eligible_hb_True": 31204,
+    "eligible_hs_True": 31204,
+    "eligible_ewpo_True": 31204,
+    "eligible_wmass_True": 31204,
+    "eligible_flavour_True": 31204,
+    "eligible_dm_False": 29697,
+    "successful_points": 20763,
+    "successful_thc_True": 20763,
+    "successful_experimental_subset_True": 20763,
+    "successful_hb_True": 20763,
+    "successful_hs_True": 20763,
+    "successful_ewpo_True": 20763,
+    "successful_wmass_True": 20763,
+    "successful_flavour_True": 20763,
+    "successful_dm_False": 19927,
+    "eligible_dm_nan": 936,
+    "successful_dm_nan": 405,
+    "eligible_dm_True": 571,
+    "successful_dm_True": 431
+  },
+  "source_metadata": {
+    "mg5_enrichment": {
+      "configuration": {
+        "energy_TeV": 13.6,
+        "input": {
+          "metadata_sha256": "90191d0e80a6a7727d4a6a5beda6364bf69b5f30869daedc73d097fac48f6a8f",
+          "path": "/home/apapaefs/Projects/TwoSingletDM/twosingletDM/output/odysseus-100x1000-66662/combined_points_mg5.tsv",
+          "sha256": "5d0326d8b03e24b28365bc3def1e47f9e4ef202da34bdfac11ab5acaf4602876"
+        },
+        "output": "/home/apapaefs/Projects/TwoSingletDM/twosingletDM/output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv",
+        "processes": [
+          "hh"
+        ],
+        "runtime": {
+          "cores": "1",
+          "location": "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15",
+          "locking": "exclusive_per_process_directory",
+          "processes": {
+            "hh": {
+              "directory": "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/gg_hh_twoscalar",
+              "subprocesses": [
+                "P0_gg_hh"
+              ]
+            }
+          },
+          "sources_sha256": {
+            "VERSION": "45561064e24d94b8fcc2f22d632d40a4a3cb598bf5fcb23c58a3d76127fd2b40",
+            "gg_hh_twoscalar/Cards/proc_card_mg5.dat": "a701d2a8c52c97536e7d1f6caebb4b292459fcbb7f28b028d5ba4ac34c99c8b1",
+            "gg_hh_twoscalar/SubProcesses/subproc.mg": "724c61a22bf5224eca15dd81ac9680b81655d39bdd1db702a8033430bdbbabc9",
+            "gg_hh_twoscalar/bin/internal/ufomodel/CT_couplings.py": "eba0cc3e8ac089b21b38d4ca54f0c1a369241fd3a1b8ffa64d2004986f315164",
+            "gg_hh_twoscalar/bin/internal/ufomodel/CT_parameters.py": "4ae77d57a1f467a621ec331b6b73f8b7c417eff1f7e5d49417f7bbbb79086608",
+            "gg_hh_twoscalar/bin/internal/ufomodel/CT_vertices.py": "68e2e46fefabf2361c06957f7c94bc279694cec4c401484e66b4f77dd5e20930",
+            "gg_hh_twoscalar/bin/internal/ufomodel/__init__.py": "84fd7205db99cfcc58e5af1aa0bb76cb8816dd162894542a7c860c4ecb9f0828",
+            "gg_hh_twoscalar/bin/internal/ufomodel/coupling_orders.py": "285fad30e6b15317698ad79972e7f205be74d35484ed3c6dca2d1711942154c5",
+            "gg_hh_twoscalar/bin/internal/ufomodel/couplings.py": "c54152612f887d3cfdfd1f5f0a6ad4074f10120e96cc5d70ba499dcad5ac4b60",
+            "gg_hh_twoscalar/bin/internal/ufomodel/function_library.py": "244ec7cc29e821bac6ebcd04bcd960cdff97484843144d2916f7146202fa4187",
+            "gg_hh_twoscalar/bin/internal/ufomodel/lorentz.py": "abc9fee21a29c8ca3b6e4e9be24f9691c64271e864b88dbdd81d79d335b3afaa",
+            "gg_hh_twoscalar/bin/internal/ufomodel/object_library.py": "d984972daff4d49238e55b9635fbe01a134d12f6d7bb5b724b5604afd8dcae28",
+            "gg_hh_twoscalar/bin/internal/ufomodel/parameters.py": "dfc6fd33787d9ff68505688ffa5e47e4bbee305652e99872ea55e7bd18ca6e6a",
+            "gg_hh_twoscalar/bin/internal/ufomodel/particles.py": "1e234dc87783ade2da23c6b1d8363b940200adf9b48d5f763dceadf806c37a75",
+            "gg_hh_twoscalar/bin/internal/ufomodel/vertices.py": "4e2adb3a7b125529f3356cd0de9bee4ad4664a08718f29ba0a0f631223a60b37",
+            "gg_hh_twoscalar/bin/internal/ufomodel/write_param_card.py": "b1fefa31387db6d35631469c59ffbf87539093c34989f123dc63a98b46742462",
+            "gg_hh_twoscalar/bin/madevent": "b71d615574a49064f73e3c111940a8f8b2ae1e1054578305ce94906c734a408a"
+          }
+        },
+        "schema": "trsm_mg5_enrichment_v1",
+        "selection": "stored_full_viability_v1",
+        "source_energy": {
+          "energy_TeV": 13.6,
+          "evidence": [
+            {
+              "energy_TeV": 13.6,
+              "source": "mg5_enrichment.configuration.energy_TeV"
+            }
+          ],
+          "status": "verified_source_metadata"
+        },
+        "sources_sha256": {
+          "generate_mg5_trsm_xsecs.py": "857f8be46ba8310b79f7562e1b178fab2b79d3db2f59b83c2a62c0fad399f4a3",
+          "reprocess_trsm_mg5.py": "d4b6489c121713601bfb8306cfa32014b61f2457ea5bf41a1cc2b554e33cfcdc",
+          "tools/madloop_build.py": "28aa94fa69c1b5b0ea69ca1ea3b0a9a5b3174db00847bd4161692a0797364e71",
+          "trsm_mg5_rates.py": "105e36205039f45208103f4317a79fa39303dcda0d670d7c8e244fe32928ab09"
+        }
+      },
+      "counts": {
+        "eligible": 571,
+        "requested_missing_rates": 571,
+        "rows": 591340
+      },
+      "output_sha256": "f8cf1e9f4c53741fbbc4906358b3592c8be5670a676e87068fb84f871e66ae92"
+    },
+    "output_role": "mg5_enrichment",
+    "scan_file": "combined_points_mg5_hh.tsv",
+    "gw_enrichment": {
+      "configuration": {
+        "schema": "trsm_calcgw_v1",
+        "input": "/home/apapaefs/Projects/TwoSingletDM/twosingletDM/output/odysseus-100x1000-66662/combined_points_mg5_hh.tsv",
+        "input_sha256": "f8cf1e9f4c53741fbbc4906358b3592c8be5670a676e87068fb84f871e66ae92",
+        "input_metadata_sha256": "2b4cc1378e723fe24900b904cc51db7b2735fdc703ac7398ed804fa86cc63dfb",
+        "output": "/home/apapaefs/Projects/TwoSingletDM/twosingletDM/output/odysseus-100x1000-66662/combined_points_mg5_hh_gw.tsv",
+        "selection": "stored ewpt_eligible == True",
+        "options": {
+          "executable": "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/BSMPT-3.2.1/build/bin/CalcGW",
+          "thigh": 1000.0,
+          "trans_temp": "perc",
+          "vwall": 0.95,
+          "epsturb": 0.1,
+          "timeout": 3600.0
+        },
+        "executable_sha256": "749dbb22f307ee477d098e14ca958562a12300fe3c681e35158584855d1bbad4",
+        "sources_sha256": {
+          "reprocess_trsm_gw.py": "e5f6c64d94b5c57b9cbbab978477ba320fb6f1c3e4678ee8ff8d9473e714e617",
+          "trsm_gw.py": "3dd24c1d9fcd57e531a51ca330e94384031ab3031e38273bf579ed3d90ec5f40",
+          "test_trsm_ewpt.py": "7f2f277b1abbe8d778b54d90e58cf80d2fbf45fe4ac71444bef14ce9e4dc9d0b",
+          "trsm_inputs.py": "8e5150ba25d1dd685ba69f4ababf1560ae462bef9ee39ab4cef9ae2a2362a507",
+          "config/sm-inputs-v2.json": "d5a66092b885d2e1183c8ab31a75251cde89dd9d0e97ebc1c09fb430cadb50fc"
+        }
+      },
+      "counts": {
+        "rows": 591340,
+        "eligible": 31204,
+        "processed": 31204,
+        "newly_processed": 25701,
+        "status_no_successful_gw": 4964,
+        "successful_transitions": 34227,
+        "status_success": 20763,
+        "status_native_failure": 5172,
+        "status_invalid_output": 269,
+        "status_execution_failed": 5,
+        "status_timeout": 31,
+        "complete": true
+      },
+      "output_sha256": "c8789cd9edeabcdf5b9736865bd5ec4ab9b8e4f3523bb3d21586521c510f5729"
+    }
+  }
+}

@@ -1,0 +1,570 @@
+set nb_core 1
+set run_mode 0
+generate_events runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=3
+set ebeam1 6800.0
+set ebeam2 6800.0
+set Meta 511.1
+set Weta 2.29
+set Miota 61.66
+set Wiota 0.0
+set k1 0.988
+set k2 0.1545
+set k3 0.0
+set kap111 30.58
+set kap112 97.68
+set kap113 0.0
+set kap123 0.0
+set kap122 -69.24
+set kap1111 0.04444
+set kap1112 -0.002027
+set kap1113 0.0
+set kap133 0.5424
+set WH 0.003998
+set kap233 -0.1046
+set nevents 1
+0
+launch in debug mode
+************************************************************
+*                                                          *
+*                      W E L C O M E to                    *
+*             M A D G R A P H 5 _ a M C @ N L O            *
+*                      M A D E V E N T                     *
+*                                                          *
+*                 *                       *                *
+*                   *        * *        *                  *
+*                     * * * * 5 * * * *                    *
+*                   *        * *        *                  *
+*                 *                       *                *
+*                                                          *
+*         VERSION 3.5.15                                   *
+*                                                          *
+*    The MadGraph5_aMC@NLO Development Team - Find us at   *
+*    https://server06.fynu.ucl.ac.be/projects/madgraph     *
+*                                                          *
+*               Type 'help' for in-line help.              *
+*                                                          *
+************************************************************
+INFO: load configuration from /home/apapaefs/.config/mg5_configuration.txt  
+INFO: load configuration from /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/Cards/me5_configuration.txt  
+INFO: load configuration from /home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/input/mg5_configuration.txt  
+INFO: load configuration from /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/Cards/me5_configuration.txt  
+Using default text editor "vi". Set another one in ./input/mg5_configuration.txt
+No valid eps viewer found. Please set in ./input/mg5_configuration.txt
+Using default web browser "firefox". Set another one in ./input/mg5_configuration.txt
+import command /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/mg5_gg_heta0_lambdavar_runsurveytest.dcmd
+set nb_core 1
+INFO: This option will be the default in any output that you are going to create in this session. 
+INFO: In order to keep this changes permanent please run 'save options' 
+set run_mode 0
+INFO: This option will be the default in any output that you are going to create in this session. 
+INFO: In order to keep this changes permanent please run 'save options' 
+generate_events runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=3
+stty: standard input: Inappropriate ioctl for device
+set ebeam1 6800.0
+[1mINFO: modify parameter ebeam1 of the run_card.dat to 6800.0 [0m
+set ebeam2 6800.0
+[1mINFO: modify parameter ebeam2 of the run_card.dat to 6800.0 [0m
+set Meta 511.1
+[1mINFO: modify param_card information BLOCK mass with id (99925,) set to 511.1 [0m
+set Weta 2.29
+[1mINFO: modify param_card information BLOCK decay with id (99925,) set to 2.29 [0m
+set Miota 61.66
+[1mINFO: modify param_card information BLOCK mass with id (99926,) set to 61.66 [0m
+set Wiota 0.0
+[1mINFO: modify param_card information BLOCK decay with id (99926,) set to 0.0 [0m
+set k1 0.988
+[1mINFO: modify param_card information BLOCK bsm with id (12,) set to 0.988 [0m
+set k2 0.1545
+[1mINFO: modify param_card information BLOCK bsm with id (13,) set to 0.1545 [0m
+set k3 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (14,) set to 0.0 [0m
+set kap111 30.58
+[1mINFO: modify param_card information BLOCK bsm with id (15,) set to 30.58 [0m
+set kap112 97.68
+[1mINFO: modify param_card information BLOCK bsm with id (16,) set to 97.68 [0m
+set kap113 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (25,) set to 0.0 [0m
+set kap123 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (26,) set to 0.0 [0m
+set kap122 -69.24
+[1mINFO: modify param_card information BLOCK bsm with id (17,) set to -69.24 [0m
+set kap1111 0.04444
+[1mINFO: modify param_card information BLOCK bsm with id (19,) set to 0.04444 [0m
+set kap1112 -0.002027
+[1mINFO: modify param_card information BLOCK bsm with id (20,) set to -0.002027 [0m
+set kap1113 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (30,) set to 0.0 [0m
+set kap133 0.5424
+[1mINFO: modify param_card information BLOCK bsm with id (24,) set to 0.5424 [0m
+set WH 0.003998
+[1mINFO: modify param_card information BLOCK decay with id (25,) set to 0.003998 [0m
+set kap233 -0.1046
+[1mINFO: modify param_card information BLOCK bsm with id (28,) set to -0.1046 [0m
+set nevents 1
+[1mINFO: modify parameter nevents of the run_card.dat to 1 [0m
+INFO: Update the dependent parameter of the param_card.dat 
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/parameters.py:25: SyntaxWarning: invalid escape sequence '\l'
+  texname = '\lambda_{HV}')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:42: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gg')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:47: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gq')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:53: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gc')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:59: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gb')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:65: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gt')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:72: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_c}')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:79: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_b}')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:86: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_t}')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:93: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_c')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:100: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_b')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:107: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_t')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:114: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_b')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:121: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_c')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:128: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_t')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:139: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_c')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:146: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_b')
+/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/bin/internal/ufomodel/CT_parameters.py:153: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_t')
+[1;34mSingle-core mode not supported for loop-induced processes.
+Beware that MG5aMC now changes your runtime options to a multi-core mode with only one active core.[0m
+Generating 1 events with run name runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046
+survey  runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=3
+INFO: compile directory 
+initMadLoop -r -f
+Initializing MadLoop loop-induced matrix elements (this can take some time)...
+MadLoop initialization finished.
+compile Source Directory
+Using random number seed offset = 21
+INFO: Running Survey 
+Creating Jobs
+Working on SubProcesses
+INFO:     P0_gg_heta0  
+INFO:  Idle: 1,  Running: 1,  Completed: 0 [ current time: 10h50 ] 
+INFO:  Idle: 0,  Running: 1,  Completed: 1 [  7.8s  ] 
+Note: The following floating-point exceptions are signalling: IEEE_INVALID_FLAG IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+STOP 1
+rm: cannot remove 'results.dat': No such file or directory
+ERROR DETECTED
+INFO:  Idle: 0,  Running: 0,  Completed: 2 [  14.8s  ] 
+INFO:  Idle: 0,  Running: 0,  Completed: 2 [  14.8s  ] 
+[1;31mError when reading /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/SubProcesses/P0_gg_heta0/G3/results.dat[0m
+[1;31mCommand "import command /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/mg5_gg_heta0_lambdavar_runsurveytest.dcmd" interrupted in sub-command:
+"generate_events runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=3" with error:
+Exception : Reported error: End code 1.0 
+	 Full associated log: 
+	 Process in group number            0
+	 A PDF is used, so alpha_s(MZ) is going to be modified
+	 Old value of alpha_s from param_card:   0.13000000000000003     
+	  ****************************************
+	 
+	       NNPDFDriver version 1.0.3
+	   Grid: NNPDF23_lo_as_0130_qed_mem0.grid
+	  ****************************************
+	 New value of alpha_s from PDF nn23lo1:  0.13000000000000000     
+	 Define smin to   404623.21000000002     
+	 *****************************************************
+	 *               MadGraph/MadEvent                   *
+	 *        --------------------------------           *
+	 *          http://madgraph.hep.uiuc.edu             *
+	 *          http://madgraph.phys.ucl.ac.be           *
+	 *          http://madgraph.roma2.infn.it            *
+	 *        --------------------------------           *
+	 *                                                   *
+	 *          PARAMETER AND COUPLING VALUES            *
+	 *                                                   *
+	 *****************************************************
+	
+	  External Params
+	  ---------------------------------
+	  
+	 MU_R =    91.188000000000002     
+	 mdl_k1 =   0.98799999999999999     
+	 mdl_k2 =   0.15450000000000000     
+	 mdl_k3 =    0.0000000000000000     
+	 mdl_kap111 =    30.579999999999998     
+	 mdl_kap112 =    97.680000000000007     
+	 mdl_kap122 =   -69.239999999999995     
+	 mdl_kap222 =   -5.0000000000000000     
+	 mdl_kap133 =   0.54239999999999999     
+	 mdl_kap113 =    0.0000000000000000     
+	 mdl_kap123 =    0.0000000000000000     
+	 mdl_kap333 =   -14.000000000000000     
+	 mdl_kap233 =  -0.10460000000000000     
+	 mdl_kap223 =   -16.000000000000000     
+	 mdl_kap1111 =    4.4440000000000000E-002
+	 mdl_kap1112 =   -2.0270000000000002E-003
+	 mdl_kap1122 =   -8.0000000000000000     
+	 mdl_kap1222 =   -9.0000000000000000     
+	 mdl_kap2222 =   -10.000000000000000     
+	 mdl_kap1113 =    0.0000000000000000     
+	 mdl_kap1133 =   -18.000000000000000     
+	 mdl_kap1333 =   -19.000000000000000     
+	 mdl_kap3333 =   -20.000000000000000     
+	 mdl_kap2223 =   -21.000000000000000     
+	 mdl_kap2333 =   -22.000000000000000     
+	 mdl_kap2233 =   -23.000000000000000     
+	 mdl_kap1233 =   -24.000000000000000     
+	 mdl_kap1223 =   -25.000000000000000     
+	 mdl_kap1123 =   -26.000000000000000     
+	 aEWM1 =    132.50700000000001     
+	 mdl_Gf =    1.1663900000000000E-005
+	 aS =   0.13000000000000003     
+	 mdl_ymb =    4.7000000000000002     
+	 mdl_ymt =    173.00000000000000     
+	 mdl_ymtau =    1.7769999999999999     
+	 mdl_MT =    173.00000000000000     
+	 mdl_MB =    4.7000000000000002     
+	 mdl_MZ =    91.188000000000002     
+	 mdl_MH =    125.00000000000000     
+	 mdl_Meta =    511.10000000000002     
+	 mdl_Weta =    2.2900000000000000     
+	 mdl_Miota =    61.659999999999997     
+	 mdl_Wiota =    0.0000000000000000     
+	 mdl_MTA =    1.7769999999999999     
+	 mdl_WT =    1.4915000000000000     
+	 mdl_WZ =    2.4414039999999999     
+	 mdl_WW =    2.0476000000000001     
+	 mdl_WH =    3.9979999999999998E-003
+	  Internal Params
+	  ---------------------------------
+	  
+	 mdl_CKM3x3 =    1.0000000000000000     
+	 mdl_lhv =    1.0000000000000000     
+	 mdl_CKM22 =    1.0000000000000000     
+	 mdl_conjg__CKM3x3 =    1.0000000000000000     
+	 mdl_conjg__CKM22 =    1.0000000000000000     
+	 mdl_CKM33 =    1.0000000000000000     
+	 mdl_Ncol =    3.0000000000000000     
+	 mdl_CA =    3.0000000000000000     
+	 mdl_TF =   0.50000000000000000     
+	 mdl_CF =    1.3333333333333333     
+	 mdl_RH1 =   0.98799999999999999     
+	 mdl_RH2 =   0.15450000000000000     
+	 mdl_RH3 =    0.0000000000000000     
+	 mdl_complexi =                (0.0000000000000000,1.0000000000000000)
+	 mdl_MZ__exp__2 =    8315.2513440000002     
+	 mdl_MZ__exp__4 =    69143404.913893804     
+	 mdl_sqrt__2 =    1.4142135623730951     
+	 mdl_MH__exp__2 =    15625.000000000000     
+	 mdl_Ncol__exp__2 =    9.0000000000000000     
+	 mdl_MB__exp__2 =    22.090000000000003     
+	 mdl_MT__exp__2 =    29929.000000000000     
+	 mdl_RH1__exp__2 =   0.97614400000000001     
+	 mdl_RH2__exp__2 =    2.3870249999999999E-002
+	 mdl_RH3__exp__2 =    0.0000000000000000     
+	 mdl_aEW =    7.5467711139788835E-003
+	 mdl_MW =    80.419002445756163     
+	 mdl_sqrt__aEW =    8.6872153846781555E-002
+	 mdl_ee =   0.30795376724436879     
+	 mdl_MW__exp__2 =    6467.2159543705357     
+	 mdl_sw2 =   0.22224648578577766     
+	 mdl_cw =   0.88190334743339216     
+	 mdl_sqrt__sw2 =   0.47143025548407230     
+	 mdl_sw =   0.47143025548407230     
+	 mdl_g1 =   0.34919219678733299     
+	 mdl_gw =   0.65323293034757990     
+	 mdl_v =    246.21845810181637     
+	 mdl_v__exp__2 =    60623.529110035903     
+	 mdl_lam =   0.12886910601690263     
+	 mdl_yb =    2.6995554250465490E-002
+	 mdl_yt =   0.99366614581500623     
+	 mdl_ytau =    1.0206617000654717E-002
+	 mdl_muH =    88.388347648318430     
+	 mdl_AxialZUp =  -0.18517701861793787     
+	 mdl_AxialZDown =   0.18517701861793787     
+	 mdl_VectorZUp =    7.5430507588273299E-002
+	 mdl_VectorZDown =  -0.13030376310310560     
+	 mdl_VectorAUp =   0.20530251149624587     
+	 mdl_VectorADown =  -0.10265125574812294     
+	 mdl_VectorWmDxU =   0.23095271737156670     
+	 mdl_AxialWmDxU =  -0.23095271737156670     
+	 mdl_VectorWpUxD =   0.23095271737156670     
+	 mdl_AxialWpUxD =  -0.23095271737156670     
+	 mdl_I1x33 =          (2.69955542504654901E-002,0.0000000000000000)
+	 mdl_I2x33 =               (0.99366614581500623,0.0000000000000000)
+	 mdl_I3x33 =               (0.99366614581500623,0.0000000000000000)
+	 mdl_I4x33 =          (2.69955542504654901E-002,0.0000000000000000)
+	 mdl_Vector_tbGp =              (-0.96667059156454072,0.0000000000000000)
+	 mdl_Axial_tbGp =              (-1.0206617000654716,-0.0000000000000000)
+	 mdl_Vector_tbGm =               (0.96667059156454072,0.0000000000000000)
+	 mdl_Axial_tbGm =              (-1.0206617000654716,-0.0000000000000000)
+	 mdl_gw__exp__2 =   0.42671326129048615     
+	 mdl_cw__exp__2 =   0.77775351421422245     
+	 mdl_ee__exp__2 =    9.4835522759998875E-002
+	 mdl_sw__exp__2 =   0.22224648578577769     
+	 mdl_yb__exp__2 =    7.2875994928982540E-004
+	 mdl_yt__exp__2 =   0.98737240933884918     
+	  Internal Params evaluated point by point
+	  ----------------------------------------
+	  
+	 mdl_sqrt__aS =   0.36055512754639896     
+	 mdl_G__exp__4 =    2.6687410300545635     
+	 mdl_G__exp__2 =    1.6336281798666927     
+	 mdl_G__exp__3 =    2.0879967795625545     
+	 mdl_MU_R__exp__2 =    8315.2513440000002     
+	  Couplings of loop_sm_twoscalar_generic
+	  ---------------------------------
+	  
+	         GC_5 =   0.00000E+00   0.12781E+01
+	      R2_GGHb =   0.00000E+00  -0.36680E-02
+	      R2_GGHt =   0.00000E+00  -0.49696E+01
+	   R2_GGeta0b =   0.00000E+00  -0.57358E-03
+	   R2_GGeta0t =   0.00000E+00  -0.77713E+00
+	  R2_GGiota0b =   0.00000E+00   0.00000E+00
+	  R2_GGiota0t =   0.00000E+00   0.00000E+00
+	  R2_GGHeta0b =  -0.00000E+00  -0.23016E-05
+	  R2_GGHeta0t =  -0.00000E+00  -0.31184E-02
+	    GC_HHeta0 =  -0.00000E+00  -0.19536E+03
+	 GC_Heta0eta0 =   0.00000E+00   0.13848E+03
+	 GC_Hiota0eta0 = -0.00000E+00  -0.00000E+00
+	        GC_33 =  -0.00000E+00  -0.18860E-01
+	       GC_933 =  -0.00000E+00  -0.29492E-02
+	       GC_733 =  -0.00000E+00  -0.00000E+00
+	        GC_37 =  -0.00000E+00  -0.69420E+00
+	       GC_937 =  -0.00000E+00  -0.10856E+00
+	       GC_737 =  -0.00000E+00  -0.00000E+00
+	
+	 Collider parameters:
+	 --------------------
+	
+	 Running at P P   machine @    13600.000000000000       GeV
+	 PDF set = nn23lo1
+	 alpha_s(Mz)= 0.1300 running at 2 loops.
+	 alpha_s(Mz)= 0.1300 running at 2 loops.
+	 Renormalization scale set on event-by-event basis
+	 Factorization   scale set on event-by-event basis
+	
+	
+	 getting user params
+	Enter number of events and max and min iterations: 
+	 Number of events and iterations          600           3           3
+	Enter desired fractional accuracy: 
+	 Desired fractional accuracy:   0.25000000000000000     
+	Enter 0 for fixed, 2 for adjustable grid: 
+	Suppress amplitude (0 no, 1 yes)? 
+	 Using suppressed amplitude.
+	Exact helicity sum (0 yes, n = number/event)? 
+	 Monte-Carlo over helicities
+	 
+	 ********************************************
+	 * You are using the DiscreteSampler module *
+	 *      part of the MG5_aMC framework       *
+	 *         Author: Valentin Hirschi         *
+	 ********************************************
+	 
+	Enter Configuration Number: 
+	Running Configuration Number:    3
+	 Not subdividing B.W.
+	 Attempting mappinvarients           1           4
+	 Determine nb_t
+	 T-channel found:            0
+	 Completed mapping           4
+	 about to integrate            4         600           3           3           4           1
+	 Using non-zero grid deformation.
+	  4 dimensions    600 events  4 invarients  3 iterations  1 config(s),  (0.99)
+	 Using h-tuple random number sequence.
+	 Error opening grid
+	 Using Uniform Grid!          16
+	 Using uniform alpha   1.0000000000000000     
+	 Grid defined OK
+	 Masses: 0.000E+00 0.000E+00 0.125E+03 0.511E+03
+	 Set CM energy to      13600.00
+	 Mapping Graph           3  to config           3
+	 Determine nb_t
+	 T-channel found:            0
+	 Transforming s_hat 1/s            3   2.1876254865916961E-003   404623.21000000002        184959999.99999997     
+	Using random seed offsets     3 :      1
+	  with seed                   24
+	 Ranmar initialization seeds       31061        9398
+	  Particle       3       4
+	      Et >     0.0     0.0
+	       E >     0.0     0.0
+	     Eta <    -1.0    -1.0
+	   xqcut:      0.0     0.0
+	d R # 3  >    -0.0     0.0
+	s min # 3>     0.0     0.0
+	xqcutij # 3>     0.0     0.0
+	 alpha_s for scale    1018.6795001857818       is    9.2882912890742533E-002
+	  ========================================================================================== 
+	 {                                                                                          }
+	 {       [32m                                                                            [0m       }
+	 {       [32m                               ,,                                           [0m       }
+	 {       [32m`7MMM.     ,MMF'             `7MM  `7MMF'                                   [0m       }
+	 {       [32m  MMMb    dPMM                 MM    MM                                     [0m       }
+	 {       [32m  M YM   ,M MM   ,6"Yb.   ,M""bMM    MM         ,pW"Wq.   ,pW"Wq.`7MMpdMAo. [0m       }
+	 {       [32m  M  Mb  M' MM  8)   MM ,AP    MM    MM        6W'   `Wb 6W'   `Wb MM   `Wb [0m       }
+	 {       [32m  M  YM.P'  MM   ,pm9MM 8MI    MM    MM      , 8M     M8 8M     M8 MM    M8 [0m       }
+	 {       [32m  M  `YM'   MM  8M   MM `Mb    MM    MM     ,M YA.   ,A9 YA.   ,A9 MM   ,AP [0m       }
+	 {       [32m.JML. `'  .JMML.`Moo9^Yo.`Wbmd"MML..JMMmmmmMMM  `Ybmd9'   `Ybmd9'  MMbmmd'  [0m       }
+	 {       [32m                                                                   MM       [0m       }
+	 {       [32m                                                                 .JMML.     [0m       }
+	 {       [32m[0mv3.5.15 (2026-04-17), Ref: arXiv:1103.0621v2, arXiv:1405.0301[32m               [0m       }
+	 {       [32m                                                                            [0m       }
+	 {                                                                                          }
+	  ========================================================================================== 
+	 ===============================================================
+	 INFO: MadLoop read these parameters from ../MadLoop5_resources/MadLoopParams.dat                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+	 ===============================================================
+	  > MLReductionLib            = 6|7|1
+	  > CTModeRun                 =           -1
+	  > MLStabThres               =    9.9999999999999995E-008
+	  > NRotations_DP             =            1
+	  > NRotations_QP             =            0
+	  > CTStabThres               =    1.0000000000000000E-002
+	  > CTLoopLibrary             =            2
+	  > CTModeInit                =            1
+	  > CheckCycle                =            4
+	  > MaxAttempts               =            9
+	  > UseLoopFilter             =  F
+	  > HelicityFilterLevel       =            1
+	  > ImprovePSPoint            =            2
+	  > DoubleCheckHelicityFilter =  F
+	  > LoopInitStartOver         =  F
+	  > HelInitStartOver          =  F
+	  > ZeroThres                 =    1.0000000000000001E-009
+	  > OSThres                   =    1.0000000000000000E-008
+	  > WriteOutFilters           =  T
+	  > UseQPIntegrandForNinja    =  T
+	  > UseQPIntegrandForCutTools =  T
+	  > IREGIMODE                 =            2
+	  > IREGIRECY                 =  T
+	  > COLLIERMode               =            1
+	  > COLLIERRequiredAccuracy   =    1.0000000000000000E-008
+	  > COLLIERCanOutput          =  F
+	  > COLLIERComputeUVpoles     =  T
+	  > COLLIERComputeIRpoles     =  T
+	  > COLLIERGlobalCache        =           -1
+	  > COLLIERUseCacheForPoles   =  F
+	  > COLLIERUseInternalStabilityTest =  T
+	 ===============================================================
+	 ##INFO: For loop-induced processes it is preferable to always set the parameter LoopInitStartOver to True, so it is hard-set here to True.
+	 ##INFO: For loop-induced processes it is preferable to always set the parameter HelInitStartOver to True, so it is hard-set here to True.
+	 ##INFO: Due to the dynamic setting of the reference scale for contributions comparisons, it is preferable to set the parameter CheckCycle to a value larger than 4, so it is hard-set here to 5.
+	  
+	------------------------------------------------------------------------
+	|              You are using CutTools - Version 1.9.3                  |
+	|              Authors: G. Ossola, C. Papadopoulos, R. Pittau          |
+	|              Published in JHEP 0803:042,2008                         |
+	|              http://www.ugr.es/~pittau/CutTools                      |
+	|                                                                      |
+	|              Compiler with  34  significant digits detetected        |
+	 ---------------------------------------------------------------------- 
+	   
+	########################################################################
+	#                                                                      #
+	#                      You are using OneLOop-3.6                       #
+	#                                                                      #
+	# for the evaluation of 1-loop scalar 1-, 2-, 3- and 4-point functions #
+	#                                                                      #
+	# author: Andreas van Hameren <hamerenREMOVETHIS@ifj.edu.pl>           #
+	#   date: 18-02-2015                                                   #
+	#                                                                      #
+	# Please cite                                                          #
+	#    A. van Hameren,                                                   #
+	#      Comput.Phys.Commun. 182 (2011) 2427-2438, arXiv:1007.4716       #
+	#    A. van Hameren, C.G. Papadopoulos and R. Pittau,                  #
+	#      JHEP 0909:106,2009, arXiv:0903.4665                             #
+	# in publications with results obtained with the help of this program. #
+	#                                                                      #
+	########################################################################
+	                                                            
+	         *******************************************        
+	         *              C O L L I E R              *        
+	         *                                         *        
+	         *        Complex One-Loop Library         *        
+	         *      In Extended Regularizations        *        
+	         *                                         *        
+	         *    by A.Denner, S.Dittmaier, L.Hofer    *        
+	         *                                         *        
+	         *              version 1.2.9              *        
+	         *                                         *        
+	         *******************************************        
+	                                                            
+	 RESET CUMULATIVE VARIABLE
+	 RESET CUMULATIVE VARIABLE
+	 Iteration  1   Mean: 0.7322E-06 Abs mean: 0.7322E-06   Fluctuation:  0.578E-07   0.616E-05     9.5%
+	  1    0.7322E-06 0.7322E-06 +- 0.5784E-07      1.93
+	 Writing out events   4.3005804403880010E-009   1.9349370587899752     
+	 Relative summed weights:
+	  0.1000E+01  0.0000E+00
+	 Relative number of events:
+	  0.1000E+01  0.0000E+00
+	 Events:
+	         600           0
+	 DiscreteSampler:: Error, no point could be picked with random variable 0.8181366920471191 using upper bound found of 0.0000000000000000.
+	Note: The following floating-point exceptions are signalling: IEEE_INVALID_FLAG IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+	STOP 1
+	
+	ls status:
+	input_app.txt
+	run1_app.log
+	
+Please report this bug on https://bugs.launchpad.net/mg5amcnlo
+More information is found in '/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046_tag_1_debug.log'.
+Please attach this file to your report.[0m
+INFO:  
+quit
+INFO:  
+
+Traceback (most recent call last):
+  File "/tmp/trsm-mg5-survey-arlac7oh/run_point.py", line 9, in <module>
+    value=mg.get_mg5_xsec(process,'surveytest',p['lambdas'],p['k1'],p['k2'],p['k3'],p['m2'],p['w2'],p['m3'],p['w3'],ecm=p['ecm'],w1=p['w1'],k233=p['k233'])
+  File "/tmp/trsm-mg5-survey-arlac7oh/code/generate_mg5_trsm_xsecs.py", line 303, in get_mg5_xsec
+    drive_mg(
+    ~~~~~~~~^
+        process,
+        ^^^^^^^^
+    ...<15 lines>...
+        k233=round_sig(k233, 4) if k233 is not None else None,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/tmp/trsm-mg5-survey-arlac7oh/code/generate_mg5_trsm_xsecs.py", line 241, in drive_mg
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: MG5 process 'gg_heta0' failed for run runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 (exit code 0); expected /tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/Events/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046/unweighted_events.lhe.gz.
+	         *                                         *        
+	         *              version 1.2.9              *        
+	         *                                         *        
+	         *******************************************        
+	                                                            
+	 RESET CUMULATIVE VARIABLE
+	 RESET CUMULATIVE VARIABLE
+	 Iteration  1   Mean: 0.7322E-06 Abs mean: 0.7322E-06   Fluctuation:  0.578E-07   0.616E-05     9.5%
+	  1    0.7322E-06 0.7322E-06 +- 0.5784E-07      1.93
+	 Writing out events   4.3005804403880010E-009   1.9349370587899752     
+	 Relative summed weights:
+	  0.1000E+01  0.0000E+00
+	 Relative number of events:
+	  0.1000E+01  0.0000E+00
+	 Events:
+	         600           0
+	 DiscreteSampler:: Error, no point could be picked with random variable 0.8181366920471191 using upper bound found of 0.0000000000000000.
+	Note: The following floating-point exceptions are signalling: IEEE_INVALID_FLAG IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+	STOP 1
+	
+	ls status:
+	input_app.txt
+	run1_app.log
+	
+Please report this bug on https://bugs.launchpad.net/mg5amcnlo
+More information is found in '/tmp/trsm-mg5-survey-arlac7oh/fixed/gg_heta0/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046_tag_1_debug.log'.
+Please attach this file to your report.[0m
+INFO:  
+quit
+INFO:  

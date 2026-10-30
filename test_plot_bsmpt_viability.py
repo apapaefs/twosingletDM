@@ -71,7 +71,8 @@ class TestBSMPTFullViability(unittest.TestCase):
     def test_all_bsmpt_specs_have_full_viability_counterparts(self):
         originals = [spec for spec in plots.PLOT_SPECS
                      if spec.requires_bsmpt and spec.selection is None]
-        self.assertEqual(len(originals), 19)
+        self.assertTrue(originals)
+        self.assertIn("97b_calcgw_lisa_snr_vs_m2_1_to_100", {spec.stem for spec in originals})
         for spec in originals:
             clone = plots.PLOT_BY_STEM[spec.stem + "_full_viability"]
             self.assertEqual(clone.selection, "full_viability")

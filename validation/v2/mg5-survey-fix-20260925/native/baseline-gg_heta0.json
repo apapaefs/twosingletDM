@@ -1,0 +1,27 @@
+{
+  "process": "gg_heta0",
+  "case": "baseline",
+  "iterations": 1,
+  "status": "failed",
+  "error": "MG5 process 'gg_heta0' failed for run runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 (exit code 0); expected /tmp/trsm-mg5-survey-arlac7oh/baseline/gg_heta0/Events/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046/unweighted_events.lhe.gz.\nWorking on SubProcesses\nINFO:     P0_gg_heta0  \nINFO:  Idle: 1,  Running: 1,  Completed: 0 [ current time: 10h50 ] \nINFO:  Idle: 0,  Running: 1,  Completed: 1 [  1.4s  ] \nINFO:  Idle: 0,  Running: 0,  Completed: 2 [  8.4s  ] \nINFO:  Idle: 0,  Running: 0,  Completed: 2 [  8.4s  ] \nsum of cpu time of last step: 0 second\n  === Results Summary for run: runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 tag: tag_1 ===\n\n     Cross-section :   0 +- 0 pb\n     Nb of events :  0\n \nINFO: End survey \nrefine 1\nCreating Jobs\nINFO: Refine results to 1 \nINFO: Generating 1.0 unweighted events. \nsum of cpu time of last step: 0 second\nINFO: Effective Luminosity 1e+99 pb^-1 \nINFO: need to improve 0 channels \n\u001b[1;31mSurvey return zero cross section. \n   Typical reasons are the following:\n   1) A massive s-channel particle has a width set to zero.\n   2) The pdf are zero for at least one of the initial state particles\n      or you are using maxjetflavor=4 for initial state b:s.\n   3) The cuts are too strong.\n   Please check/correct your param_card and/or your run_card.\u001b[0m\n\u001b[1;34mZero result detected: See https://cp3.irmp.ucl.ac.be/projects/madgraph/wiki/FAQ-General-14\u001b[0m\nquit\nINFO:  ",
+  "seconds": 10.029204845428467,
+  "log": "/tmp/trsm-mg5-survey-arlac7oh/baseline-gg_heta0.log",
+  "exit_code": 1,
+  "channels": [
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G3",
+      "input": "         600         1           3      !Number of events and max and min iterations",
+      "results": " 0.00000E+00 0.00000E+00 0.00000E+00      601        0    1        0 0.000E+00 0.000E+00 0.000E+00 0.000E+00 0.000E+00        0"
+    },
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G2",
+      "input": "         600         1           3      !Number of events and max and min iterations",
+      "results": " 0.00000E+00 0.00000E+00 0.00000E+00      620        0    1        0 0.000E+00 0.000E+00 0.000E+00 0.000E+00 0.000E+00        0"
+    },
+    {
+      "directory": "SubProcesses/P0_gg_heta0/G1",
+      "input": "         600         1           3      !Number of events and max and min iterations",
+      "results": " 0.00000E+00 0.00000E+00 0.00000E+00      620        0    1        0 0.000E+00 0.000E+00 0.000E+00 0.000E+00 0.000E+00        0"
+    }
+  ]
+}
