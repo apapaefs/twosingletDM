@@ -154,8 +154,20 @@ The base-10 trilinear exponent ranges are `[-4, 3]` and `[-3, 5]` in GeV.
 The micrOMEGAs 7.1.4, Planck CMB and LZ WS2024 prescriptions are unchanged.
 EWPT uses `thigh = 1000 GeV`; the optional Eq. (4.18) preselection is disabled.
 MG5 evaluates the original `gg_heta0` and `pp_eta0Z` channels for fully viable
-points. The later `hh`, loop-induced `gg_eta0Z` and CalcGW enrichments are
-separate operations, as in the reference campaign.
+points. Both mass profiles now enable `run_calcgw`: after all seeds complete
+and the combined TSV is written, the launcher runs CalcGW automatically on
+the saved `ewpt_eligible=True` points. It writes `combined_points_gw.tsv` and
+its metadata alongside the original `combined_points.tsv`. Use the GW file
+as the plotting-suite input. The additional `hh` and loop-induced `gg_eta0Z`
+calculations remain separate operations.
+
+CalcGW uses the saved EWPT upper temperature and the existing percolation,
+wall-speed and turbulence defaults. Its concurrency defaults to the scan's
+`jobs`; override it with `--calcgw-jobs`. `--no-run-calcgw` disables the
+follow-up. An interrupted CalcGW stage resumes its existing checkpoint when
+the follow-up is repeated; incompatible inputs or settings produce an error.
+These are execution options and do not change the scan's physics fingerprint.
+`--aggregate-only` never launches CalcGW.
 
 Each profile uses the original seeds 66662--66761 in a **new directory**,
 100 single-thread workers, and 1,000 `evo & thc` passes per seed. Thus each
@@ -193,7 +205,24 @@ python tools/run_next_scan.py \
   --resume --jobs 100 --run
 ```
 
-For run B, substitute its directory. Resume reads the saved campaign settings.
+For run B, substitute its directory. Resume reads the saved campaign settings,
+including the CalcGW follow-up choice for campaigns launched with this update.
+
+For an already running or completed campaign launched before this update,
+attach the follow-up without restarting the scan:
+
+```bash
+python tools/run_campaign_calcgw.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --jobs 100 --wait
+```
+
+This waits for the live supervisor to finish aggregation, then runs or resumes
+CalcGW. It exits with an error if the scan stops incomplete. Run it in a
+persistent terminal or detached process when waiting for a long campaign.
+`calcgw_followup.json` records its stage and result; a separate lock prevents
+two follow-up supervisors for the same campaign. The existing CalcGW output
+lock also prevents duplicate writers. This command does not regenerate plots.
 
 ## Files, progress and interruption
 

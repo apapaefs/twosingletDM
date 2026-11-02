@@ -30,6 +30,8 @@ def parse_args(argv=None):
     parser.add_argument('--ewpt-executable', type=Path)
     parser.add_argument('--ewpt-minima-executable', type=Path)
     parser.add_argument('--run-mg5', action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument('--run-calcgw', action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument('--calcgw-jobs', type=job_limit)
     parser.add_argument('--mg5-without-dm', action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument('--mg5-process', dest='mg5_processes', action='append', choices=tuple(ProcLocation))
     parser.add_argument('--pilot', action='store_true', help='Default to two scans and two targets each; explicit values override these.')
@@ -59,6 +61,7 @@ def build_command(args):
         if args.nrandom_count_evo_thc is not None:
             command.append('--nrandom-count-evo-thc' if args.nrandom_count_evo_thc else '--no-nrandom-count-evo-thc')
         append_mg5_options(command, args)
+        append_calcgw_options(command, args)
         return command
     config = json.loads(args.config.read_text())
     if config.get('constraint_version') != PHYSICS_VERSION:
@@ -89,8 +92,21 @@ def build_command(args):
     command.append('--nrandom-count-evo-thc' if count else '--no-nrandom-count-evo-thc')
     command += ['--run-ewpt', '--ewpt-thigh', str(config['ewpt_thigh_GeV'])]
     append_mg5_options(command, args, config)
+    append_calcgw_options(command, args, config)
     command += ['--generator-extra-arg=' + str(arg) for arg in config.get('generator_arguments', [])]
     return command
+
+
+def append_calcgw_options(command, args, config=None):
+    config = config or {}
+    enabled = args.run_calcgw if args.run_calcgw is not None else config.get('run_calcgw')
+    if enabled is not None:
+        if not isinstance(enabled, bool):
+            raise ValueError('run_calcgw must be a JSON boolean')
+        command.append('--run-calcgw' if enabled else '--no-run-calcgw')
+    jobs = args.calcgw_jobs if args.calcgw_jobs is not None else config.get('calcgw_jobs')
+    if jobs is not None:
+        command += ['--calcgw-jobs', str(job_limit(jobs))]
 
 
 def append_mg5_options(command, args, config=None):

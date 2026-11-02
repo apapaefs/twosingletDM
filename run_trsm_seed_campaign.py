@@ -27,7 +27,7 @@ from trsm_scan_campaign import (CampaignLock, CampaignStateError, atomic_write_j
 
 CAMPAIGN_SCHEMA = "trsm_seed_campaign_v1"
 OPERATIONAL_OPTIONS = {"jobs", "heartbeat_seconds", "checkpoint_every", "shutdown_grace_seconds",
-                       "resume", "aggregate_only", "campaign_dir"}
+                       "resume", "aggregate_only", "campaign_dir", "run_calcgw", "calcgw_jobs"}
 EXECUTION_OPTIONS = OPERATIONAL_OPTIONS - {"resume", "aggregate_only", "campaign_dir"}
 PATH_OPTIONS = {"generator_script", "run_cwd", "python_executable", "ewpt_plot_output",
                 "ewpt_executable", "ewpt_minima_executable"}
@@ -117,6 +117,10 @@ def parse_args(argv=None):
         help="Forward --write-dm-failed to generate_trsm_points.py for each seed.",
     )
     parser.add_argument("--run-ewpt", action="store_true")
+    parser.add_argument("--run-calcgw", action=argparse.BooleanOptionalAction, default=False,
+                        help="Run/resume CalcGW on the combined output after every seed completes.")
+    parser.add_argument("--calcgw-jobs", type=job_limit,
+                        help="CalcGW concurrency; defaults to --jobs and is capped by available CPUs.")
     parser.add_argument("--run-mg5", action=argparse.BooleanOptionalAction, default=False,
                         help="Run MG5 for eligible points; workers sharing a process directory take turns.")
     parser.add_argument("--mg5-without-dm", action=argparse.BooleanOptionalAction, default=False,
@@ -973,11 +977,17 @@ def run_seed(seed, args):
 
 def main(argv=None):
     try:
-        result = run_campaign(parse_args(argv))
+        args = parse_args(argv)
+        result = run_campaign(args)
+        if not all(seed.status == "complete" for seed in result.seed_results):
+            return 1
+        if args.run_calcgw and not args.aggregate_only:
+            from tools.run_campaign_calcgw import run_followup
+            return run_followup(args.campaign_dir, jobs=args.calcgw_jobs or args.jobs)
     except (CampaignStateError, OSError, ValueError) as error:
         print(f"Campaign error: {error}", file=sys.stderr)
         return 1
-    return 0 if all(seed.status == "complete" for seed in result.seed_results) else 1
+    return 0
 
 
 if __name__ == "__main__":

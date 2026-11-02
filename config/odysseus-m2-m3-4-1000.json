@@ -11,6 +11,7 @@
   "shutdown_grace_seconds": 30,
   "ewpt_thigh_GeV": 1000.0,
   "run_mg5": true,
+  "run_calcgw": true,
   "mg5_without_dm": false,
   "mg5_processes": [
     "gg_heta0",
