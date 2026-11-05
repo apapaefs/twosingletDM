@@ -208,6 +208,28 @@ python tools/run_next_scan.py \
 For run B, substitute its directory. Resume reads the saved campaign settings,
 including the CalcGW follow-up choice for campaigns launched with this update.
 
+The saved runtime receipt includes the source checkout's Git revision, launcher
+and profile files. Updating these can prevent a resume even when the numerical
+physics code is unchanged. To recover an existing campaign, create a separate
+checkout at the commit recorded in
+`runtime_receipt.physics_manifest.repository_commit`, then pass its generator
+to the current launcher. For the wide-mass campaign started at `ce7991b`:
+
+```bash
+git worktree add --detach ../twosingletDM-resume-ce7991b ce7991b
+python tools/run_next_scan.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --resume --jobs 100 --run-calcgw \
+  --generator-snapshot ../twosingletDM-resume-ce7991b/generate_trsm_points.py --run
+```
+
+Create the worktree only once. The complete runtime receipt and per-seed
+checkpoint fingerprints must still match; this option does not bypass them or
+change their saved values. The snapshot path is recorded as an execution
+option and reused on later resumes. Keep that checkout available until the
+campaign is finished. A mismatch in native executables, datasets or physics
+settings still requires restoring the original runtime before resuming.
+
 For an already running or completed campaign launched before this update,
 attach the follow-up without restarting the scan:
 

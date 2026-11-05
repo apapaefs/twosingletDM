@@ -318,6 +318,45 @@ class ParallelCampaignTests(unittest.TestCase):
         self.generator.write_text(self.generator.read_text() + '\n# changed code\n')
         with self.assertRaises(CampaignStateError): self.resume()
 
+    def test_original_snapshot_recovers_interrupted_seed_with_exact_receipt(self):
+        # One seed stops once after a committed draw. The others finish normally.
+        original = self.generator.read_text().replace(
+            'time.sleep(a.sleep)',
+            "if a.seed == 71 and cp['draw_count'] == 2 and not Path('stopped-once').exists():\n"
+            "                Path('stopped-once').touch()\n"
+            "                raise KeyboardInterrupt()\n"
+            "            time.sleep(a.sleep)")
+        self.generator.write_text(original)
+        result = self.run_campaign(self.args('snapshot'))
+        self.assertNotEqual(result.seed_results[0].status, 'complete')
+        self.assertTrue(all(r.status == 'complete' for r in result.seed_results[1:]))
+        directory = self.root / 'snapshot'
+        before = json.loads((directory / 'campaign_state.json').read_text())
+        completed_files = {Path(r.point_output): Path(r.point_output).read_bytes()
+                           for r in result.seed_results[1:]}
+        source_copy = self.root / 'original-generator.py'
+        source_copy.write_text(original)
+        self.generator.write_text(original + '\n# later source revision\n')
+        with self.assertRaisesRegex(CampaignStateError, 'Runtime/source fingerprint changed'):
+            self.resume('snapshot')
+        resumed = self.resume('snapshot', '--generator-snapshot', str(source_copy))
+        self.assertTrue(all(r.status == 'complete' for r in resumed.seed_results))
+        self.assertEqual(len(resumed.combined_points), 24)
+        after = json.loads((directory / 'campaign_state.json').read_text())
+        self.assertEqual(after['runtime_receipt'], before['runtime_receipt'])
+        self.assertEqual(after['runtime_fingerprint'], before['runtime_fingerprint'])
+        self.assertEqual(after['configuration'], before['configuration'])
+        self.assertEqual(after['configuration_fingerprint'], before['configuration_fingerprint'])
+        self.assertEqual(after['execution']['generator_snapshot'], str(source_copy.resolve()))
+        self.assertEqual([r['attempts'] for r in after['seeds']], [2, 1, 1])
+        self.assertEqual(after['seeds'][0]['command'][2], str(source_copy.resolve()))
+        self.assertTrue(all(p.read_bytes() == data for p, data in completed_files.items()))
+        # The chosen checkout survives another resume, while changed snapshots fail.
+        self.assertEqual(len(self.resume('snapshot').combined_points), 24)
+        source_copy.write_text(original + '\n# wrong snapshot\n')
+        with self.assertRaisesRegex(CampaignStateError, 'Runtime/source fingerprint changed'):
+            self.resume('snapshot')
+
     def test_relative_provider_paths_are_resolved_before_isolation(self):
         args = self.args('paths', '--generator-extra-arg=--micromegas-main',
                          '--generator-extra-arg=relative/TRSM/main')
@@ -412,6 +451,15 @@ class ParallelCampaignTests(unittest.TestCase):
 
 
 class WrapperTests(unittest.TestCase):
+    def test_snapshot_option_reaches_resume_without_reading_profile(self):
+        args = run_next_scan.parse_args(['--campaign-dir', '/tmp/example', '--resume',
+            '--config', '/does/not/exist', '--generator-snapshot', '/tmp/original/generate_trsm_points.py'])
+        parsed = campaign.parse_args(run_next_scan.build_command(args)[2:])
+        self.assertEqual(parsed.generator_snapshot, '/tmp/original/generate_trsm_points.py')
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                run_next_scan.parse_args(['--campaign-dir', '/tmp/example', '--generator-snapshot', '/tmp/original.py'])
+
     def test_mg5_flags_and_config_reach_campaign(self):
         args = run_next_scan.parse_args(['--campaign-dir', '/tmp/example', '--run-mg5',
             '--mg5-without-dm', '--mg5-process', 'hh', '--mg5-process', 'pp_eta0Z'])

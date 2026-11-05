@@ -27,7 +27,8 @@ from trsm_scan_campaign import (CampaignLock, CampaignStateError, atomic_write_j
 
 CAMPAIGN_SCHEMA = "trsm_seed_campaign_v1"
 OPERATIONAL_OPTIONS = {"jobs", "heartbeat_seconds", "checkpoint_every", "shutdown_grace_seconds",
-                       "resume", "aggregate_only", "campaign_dir", "run_calcgw", "calcgw_jobs"}
+                       "resume", "aggregate_only", "campaign_dir", "run_calcgw", "calcgw_jobs",
+                       "generator_snapshot"}
 EXECUTION_OPTIONS = OPERATIONAL_OPTIONS - {"resume", "aggregate_only", "campaign_dir"}
 PATH_OPTIONS = {"generator_script", "run_cwd", "python_executable", "ewpt_plot_output",
                 "ewpt_executable", "ewpt_minima_executable"}
@@ -99,6 +100,9 @@ def parse_args(argv=None):
         default=Path(__file__).resolve().with_name("generate_trsm_points.py"),
         help="Path to generate_trsm_points.py; mainly useful for tests.",
     )
+    parser.add_argument("--generator-snapshot",
+                        help="Resume with generate_trsm_points.py from the original source checkout; "
+                             "the full saved runtime fingerprint must still match.")
     parser.add_argument(
         "--run-cwd",
         type=Path,
@@ -147,6 +151,8 @@ def parse_args(argv=None):
 
     if not (args.resume or args.aggregate_only) and (args.seed_start is None or args.nseeds is None):
         parser.error("fresh campaigns require --seed-start and --nseeds")
+    if args.generator_snapshot is not None and not args.resume:
+        parser.error("--generator-snapshot requires --resume")
     if args.nseeds is not None and args.nseeds <= 0:
         parser.error("--nseeds must be positive")
     if args.nrandom < 0:
@@ -391,6 +397,8 @@ def configuration(args):
 
 def canonicalize_paths(args):
     args.campaign_dir = args.campaign_dir.expanduser().resolve()
+    if args.generator_snapshot is not None:
+        args.generator_snapshot = str(Path(args.generator_snapshot).expanduser().resolve())
     for key in PATH_OPTIONS - {"ewpt_plot_output"}:
         value = getattr(args, key)
         if value is not None:
@@ -433,8 +441,13 @@ def hydrate_configuration(args, state):
     validate_mg5_options(args)
 
 
+def generator_program(args):
+    return Path(args.generator_snapshot or args.generator_script)
+
+
 def run_preflight(args):
-    command = build_generator_command(args, args.seed_start, args.generator_script,
+    generator = generator_program(args)
+    command = build_generator_command(args, args.seed_start, generator,
                                       args.campaign_dir / "preflight-ewpt") + ["--preflight"]
     print("Checking scan runtime before launching workers...", flush=True)
     env = worker_environment(args.campaign_dir / "preflight-cache")
@@ -466,7 +479,7 @@ def run_preflight(args):
     if len(receipts) != 1:
         raise CampaignStateError("Generator did not return a unique TRSM_PREFLIGHT receipt")
     receipt = json.loads(receipts[0])
-    receipt["generator_sha256"] = hashlib.sha256(args.generator_script.read_bytes()).hexdigest()
+    receipt["generator_sha256"] = hashlib.sha256(generator.read_bytes()).hexdigest()
     return receipt
 
 
@@ -591,13 +604,14 @@ def assert_no_live_workers(state):
 
 def launch_seed(record, args):
     checkpoint = seed_checkpoint(record)
+    generator = generator_program(args)
     if checkpoint:
         target_complete(checkpoint, args)  # check counting-mode consistency
-        command = [str(args.python_executable), "-u", str(args.generator_script),
+        command = [str(args.python_executable), "-u", str(generator),
                    "--resume-from", record["point_output"], "--nrandom", str(args.nrandom),
                    "--checkpoint-every", str(args.checkpoint_every)]
     else:
-        command = build_generator_command(args, record["seed"], args.generator_script,
+        command = build_generator_command(args, record["seed"], generator,
                                           Path(record["ewpt_workdir"]))
         command += ["--output-manifest", record["manifest"]]
     cwd = Path(record["cwd"])

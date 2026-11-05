@@ -27,6 +27,7 @@ def parse_args(argv=None):
     parser.add_argument('--heartbeat-seconds', type=float)
     parser.add_argument('--shutdown-grace-seconds', type=float)
     parser.add_argument('--python-executable', type=Path)
+    parser.add_argument('--generator-snapshot', type=Path)
     parser.add_argument('--ewpt-executable', type=Path)
     parser.add_argument('--ewpt-minima-executable', type=Path)
     parser.add_argument('--run-mg5', action=argparse.BooleanOptionalAction, default=None)
@@ -42,6 +43,8 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if args.pilot and (args.resume or args.aggregate_only):
         parser.error('--pilot applies only to fresh campaigns')
+    if args.generator_snapshot is not None and not args.resume:
+        parser.error('--generator-snapshot requires --resume')
     return args
 
 
@@ -54,7 +57,7 @@ def build_command(args):
         # Existing campaigns own their physics configuration; do not reread defaults.
         for name in ('seed_start', 'nseeds', 'nrandom', 'jobs', 'checkpoint_every',
                      'heartbeat_seconds', 'shutdown_grace_seconds', 'python_executable',
-                     'ewpt_executable', 'ewpt_minima_executable'):
+                     'ewpt_executable', 'ewpt_minima_executable', 'generator_snapshot'):
             value = getattr(args, name)
             if value is not None:
                 command += ['--' + name.replace('_', '-'), str(value)]
