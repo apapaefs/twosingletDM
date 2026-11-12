@@ -571,6 +571,45 @@ use a `K233` scan to populate `M3 > 400 GeV`. The conditions live in
 `generate_trsm_points.py`; edit those two functions to apply a different
 selection.
 
+A further selection, `--target-foewpt-cond`, targets a quartic-coupling region
+for a first-order electroweak phase transition. It uses `λX`, `λΦX`, `λSX`
+from the scan and
+
+```text
+λΦ  = (M1² cos²θ + M2² sin²θ) / (2 v²)
+λS  = (M1² sin²θ + M2² cos²θ) / (2 vs²)
+λΦS = (M2² - M1²) sin 2θ / (2 v vs)                    θ = a12
+
+CΦS = λΦ λS - λΦS²/4     CΦX = λΦ λX - λΦX²/4     CSX = λS λX - λSX²/4
+D   = λΦ λS λX + λΦS λΦX λSX/4 - λSX² λΦ/4 - λΦX² λS/4 - λΦS² λX/4
+```
+
+A candidate is accepted when every inequality holds:
+
+```text
+λΦS > 0, λΦX > 0, λSX > 0,  CΦS > 0, CΦX > 0, CSX > 0,  D < 0
+```
+
+All `--target-*` options work the same way (redraw until
+accepted; `--nrandom` counts accepted points; recorded in the metadata; fixed
+on resume) and combine: `--target-viability --target-foewpt-cond` accepts a
+point only when it passes both selections. For example:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --independent-m3 \
+  --scan-k133-k233-log \
+  --target-viability \
+  --target-foewpt-cond
+```
+
+The conditions need portal couplings comparable to the other quartics, so they
+are essentially unreachable with the default `lambda_PhiX`/`lambda_SX` ranges; scan
+`K133`/`K233` or widen `--lphix-max`/`--lsx-max`. The scan stops with an error
+if 1000000 consecutive candidates are rejected. The conditions live in
+`foewpt_quantities` and `passes_target_foewpt_cond`.
+
 Every random-scan range can be overridden on the command line. Any bound that
 is omitted keeps the value in the `define ranges here` block of
 `generate_trsm_points.py`. For example, a light-DM rectangular scan can use:

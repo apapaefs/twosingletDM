@@ -2820,6 +2820,64 @@ class TestTargetViability(unittest.TestCase):
             {"m2": 300.0, "m3": 330.0},
         )
 
+    def test_parse_args_accepts_target_foewpt_cond(self):
+        generator = load_generator_module()
+        self.assertFalse(generator.parse_args([]).target_foewpt_cond)
+        self.assertTrue(generator.parse_args(["--target-foewpt-cond"]).target_foewpt_cond)
+        with self.assertRaises(SystemExit):
+            generator.parse_args([
+                "--target-foewpt-cond", "--m2", "300", "--m3", "500", "--vs", "200",
+                "--a12", "0.1", "--lx", "0.1", "--lphix", "0.01", "--lsx", "0.01",
+            ])
+
+    def test_foewpt_quantities_match_definitions(self):
+        generator = load_generator_module()
+        m1, m2, vs, a12, lx, lphix, lsx, v = 125.09, 300.0, 200.0, 0.3, 0.2, 0.5, -0.4, 246.0
+        q = generator.foewpt_quantities(m1, m2, vs, a12, lx, lphix, lsx, v=v)
+        c, s = math.cos(a12), math.sin(a12)
+        lphi = (m1**2 * c**2 + m2**2 * s**2) / (2 * v**2)
+        ls = (m1**2 * s**2 + m2**2 * c**2) / (2 * vs**2)
+        lphis = (m2**2 - m1**2) * math.sin(2 * a12) / (2 * v * vs)
+        self.assertAlmostEqual(q["lPhi"], lphi)
+        self.assertAlmostEqual(q["lS"], ls)
+        self.assertAlmostEqual(q["lPhiS"], lphis)
+        self.assertAlmostEqual(q["C_PhiS"], lphi * ls - lphis**2 / 4)
+        self.assertAlmostEqual(q["C_PhiX"], lphi * lx - lphix**2 / 4)
+        self.assertAlmostEqual(q["C_SX"], ls * lx - lsx**2 / 4)
+        a, b, e = lphis / 2, lphix / 2, lsx / 2
+        determinant = (
+            lphi * (ls * lx - e * e) - a * (a * lx - e * b) + b * (a * e - ls * b)
+        )
+        self.assertAlmostEqual(q["D"], determinant)
+
+    def test_foewpt_cond_requires_every_inequality(self):
+        generator = load_generator_module()
+        cond = generator.passes_target_foewpt_cond
+        base = dict(lPhiS=0.1, lPhiX=0.1, lSX=0.1, C_PhiS=1.0, C_PhiX=1.0, C_SX=1.0, D=-1.0)
+        self.assertTrue(cond(base))
+        for key in base:
+            with self.subTest(flipped=key):
+                self.assertFalse(cond({**base, key: -base[key]}))
+                self.assertFalse(cond({**base, key: 0.0}))
+
+    def test_foewpt_cond_applies_only_when_requested_and_combines_with_viability(self):
+        generator = load_generator_module()
+        generator.foewpt_quantities = lambda *a, **k: None
+        candidate = dict(m2=300.0, m3=320.0, vs=200.0, a12=0.1, lX=0.1, lPhiX=0.1, lSX=0.1)
+        accept = generator.candidate_passes_target_selections
+        generator.passes_target_foewpt_cond = lambda q: False
+        self.assertTrue(accept(candidate, ewpt_args()))
+        self.assertFalse(accept(candidate, ewpt_args(target_foewpt_cond=True)))
+        generator.passes_target_foewpt_cond = lambda q: True
+        self.assertTrue(accept(candidate, ewpt_args(target_foewpt_cond=True)))
+        args = ewpt_args(target_foewpt_cond=True, target_viability=True)
+        generator.candidate_passes_target_viability = lambda candidate: False
+        self.assertFalse(accept(candidate, args))
+        generator.candidate_passes_target_viability = lambda candidate: True
+        self.assertTrue(accept(candidate, args))
+        generator.passes_target_foewpt_cond = lambda q: False
+        self.assertFalse(accept(candidate, args))
+
     def test_candidate_with_unavailable_widths_is_redrawn(self):
         generator = load_generator_module()
 

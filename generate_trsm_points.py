@@ -375,6 +375,17 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--target-foewpt-cond",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, redraw candidates until one satisfies "
+            "the first-order-EWPT quartic conditions: lPhiS > 0, "
+            "lPhiX > 0, lSX > 0, C_PhiS > 0, C_PhiX > 0, C_SX > 0 and D < 0. "
+            "Combines with --target-viability, which must then also be "
+            "satisfied."
+        ),
+    )
+    parser.add_argument(
         "--nrandom",
         type=int,
         default=100,
@@ -620,6 +631,8 @@ def parse_args(argv=None):
         parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
     if args.target_viability and provided:
         parser.error("--target-viability is a random-scan mode and cannot be combined with explicit point parameters")
+    if args.target_foewpt_cond and provided:
+        parser.error("--target-foewpt-cond is a random-scan mode and cannot be combined with explicit point parameters")
     if args.independent_m3 and provided:
         parser.error("--independent-m3 is a random-scan mode and cannot be combined with explicit point parameters")
     if (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and args.delta_res is None:
@@ -1819,7 +1832,8 @@ TARGET_VIABILITY_M3_HEAVY = 400.0
 TARGET_VIABILITY_K233_MIN = 1.0
 # Maximum total width of h1 and h2 as a fraction of the particle mass
 TARGET_VIABILITY_MAX_WIDTH_FRACTION = 0.1
-TARGET_VIABILITY_MAX_ATTEMPTS = 1000000
+# Maximum consecutive rejected candidates per point for the --target-* selections
+TARGET_SELECTION_MAX_ATTEMPTS = 1000000
 TARGET_VIABILITY_DESCRIPTION = (
     "--target-viability: candidates are redrawn until they satisfy any 2->2 "
     "condition (M3 >= M2 - w2/2, 2*M3 >= M2 + M1 - (w2 + w1)/2, "
@@ -1892,17 +1906,93 @@ def candidate_passes_target_viability(candidate):
         SHARED_M1, candidate["m2"], candidate["m3"], w1, w2, K233)
 
 
+TARGET_FOEWPT_COND_DESCRIPTION = (
+    "--target-foewpt-cond: lPhiS > 0, lPhiX > 0, lSX > 0, C_PhiS > 0, "
+    "C_PhiX > 0, C_SX > 0 and D < 0."
+)
+
+
+def foewpt_quantities(m1, m2, vs, a12, lX, lPhiX, lSX, v=SHARED_VEV):
+    """Return the quartic couplings and the combinations used by --target-foewpt-cond.
+
+    C_ij = l_i*l_j - l_ij**2/4 and D is the determinant of the quartic
+    coupling matrix [[lPhi, lPhiS/2, lPhiX/2], [lPhiS/2, lS, lSX/2],
+    [lPhiX/2, lSX/2, lX]].
+    """
+    c, s = math.cos(a12), math.sin(a12)
+    lPhi = (m1**2 * c**2 + m2**2 * s**2) / (2 * v**2)
+    lS = (m1**2 * s**2 + m2**2 * c**2) / (2 * vs**2)
+    lPhiS = (m2**2 - m1**2) * math.sin(2 * a12) / (2 * v * vs)
+    return {
+        "lPhi": lPhi,
+        "lS": lS,
+        "lPhiS": lPhiS,
+        "lX": lX,
+        "lPhiX": lPhiX,
+        "lSX": lSX,
+        "C_PhiS": lPhi * lS - lPhiS**2 / 4,
+        "C_PhiX": lPhi * lX - lPhiX**2 / 4,
+        "C_SX": lS * lX - lSX**2 / 4,
+        "D": (
+            lPhi * lS * lX
+            + lPhiS * lPhiX * lSX / 4
+            - lSX**2 * lPhi / 4
+            - lPhiX**2 * lS / 4
+            - lPhiS**2 * lX / 4
+        ),
+    }
+
+
+def passes_target_foewpt_cond(q):
+    return bool(
+        q["lPhiS"] > 0 and q["lPhiX"] > 0 and q["lSX"] > 0
+        and q["C_PhiS"] > 0 and q["C_PhiX"] > 0 and q["C_SX"] > 0
+        and q["D"] < 0
+    )
+
+
+def candidate_passes_target_foewpt_cond(candidate):
+    return passes_target_foewpt_cond(foewpt_quantities(
+        SHARED_M1, candidate["m2"], candidate["vs"], candidate["a12"],
+        candidate["lX"], candidate["lPhiX"], candidate["lSX"]))
+
+
+def target_selection_descriptions(args):
+    descriptions = []
+    if getattr(args, "target_viability", False):
+        descriptions.append(TARGET_VIABILITY_DESCRIPTION)
+    if getattr(args, "target_foewpt_cond", False):
+        descriptions.append(TARGET_FOEWPT_COND_DESCRIPTION)
+        descriptions.append(
+            "All requested --target-* selections must hold together; "
+            "rejected draws are not evaluated or written."
+        )
+    return descriptions
+
+
+def candidate_passes_target_selections(candidate, args):
+    """Apply every requested --target-* selection; all must accept the candidate."""
+    if getattr(args, "target_foewpt_cond", False) and not candidate_passes_target_foewpt_cond(candidate):
+        return False
+    if getattr(args, "target_viability", False):
+        return candidate_passes_target_viability(candidate)
+    return True
+
+
 def draw_random_vxzero_candidate(args, rng=None):
-    """Draw one candidate; with --target-viability, redraw until it is selected."""
-    if not getattr(args, "target_viability", False):
+    """Draw one candidate; with --target-* selections, redraw until it is accepted."""
+    if not any(
+        getattr(args, name, False)
+        for name in ("target_viability", "target_foewpt_cond")
+    ):
         return _draw_unfiltered_vxzero_candidate(args, rng=rng)
-    for _attempt in range(TARGET_VIABILITY_MAX_ATTEMPTS):
+    for _attempt in range(TARGET_SELECTION_MAX_ATTEMPTS):
         candidate = _draw_unfiltered_vxzero_candidate(args, rng=rng)
-        if candidate_passes_target_viability(candidate):
+        if candidate_passes_target_selections(candidate, args):
             return candidate
     raise ValueError(
-        "--target-viability found no accepted candidate in "
-        f"{TARGET_VIABILITY_MAX_ATTEMPTS} draws; the configured scan ranges "
+        "The --target-* selections accepted no candidate in "
+        f"{TARGET_SELECTION_MAX_ATTEMPTS} draws; the configured scan ranges "
         "are incompatible with the selection"
     )
 
@@ -2264,8 +2354,8 @@ def build_scan_metadata(
 ):
     mass_mode, mass_description, mass_ranges = _mass_sampling_metadata(args)
     portal_mode, portal_description, portal_ranges = _portal_sampling_metadata(args)
-    if getattr(args, "target_viability", False):
-        mass_description += " " + TARGET_VIABILITY_DESCRIPTION
+    for description in target_selection_descriptions(args):
+        mass_description += " " + description
     explicit = has_explicit_point(args)
 
     variable_ranges = list(mass_ranges)
@@ -2439,8 +2529,8 @@ def immutable_scan_configuration(args):
             continue
         if key == "planck_cmb" and not value:
             continue
-        # Campaigns that predate --target-viability keep their fingerprints.
-        if key == "target_viability" and not value:
+        # Campaigns that predate the --target-* selections keep their fingerprints.
+        if key in ("target_viability", "target_foewpt_cond") and not value:
             continue
         if key in RESUME_PATH_OPTIONS:
             value = _resolved_path_value(value)
@@ -3014,8 +3104,8 @@ def run_random_vxzero_scan(runtime=None):
     drawcounter = 0 if runtime is None else runtime["draw_count"]
     rng = random if runtime is None else runtime["rng"]
     print('Generating points randomly within ranges')
-    if getattr(args, "target_viability", False):
-        print(TARGET_VIABILITY_DESCRIPTION)
+    for description in target_selection_descriptions(args):
+        print(description)
     if getattr(args, "independent_m3", False):
         print(
             f'Sampling M3 independently in [{m3_min}, {m3_max}] GeV; '
