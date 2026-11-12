@@ -379,8 +379,7 @@ def parse_args(argv=None):
         action="store_true",
         help=(
             "In the random vx=0 scan, redraw candidates until one satisfies "
-            "the first-order-EWPT quartic conditions: lPhiS > 0, "
-            "lPhiX > 0, lSX > 0, C_PhiS > 0, C_PhiX > 0, C_SX > 0 and D < 0. "
+            "the first-order-EWPT quartic conditions: C_PhiS > 0 and D < 0. "
             "Combines with --target-viability, which must then also be "
             "satisfied."
         ),
@@ -1907,8 +1906,7 @@ def candidate_passes_target_viability(candidate):
 
 
 TARGET_FOEWPT_COND_DESCRIPTION = (
-    "--target-foewpt-cond: lPhiS > 0, lPhiX > 0, lSX > 0, C_PhiS > 0, "
-    "C_PhiX > 0, C_SX > 0 and D < 0."
+    "--target-foewpt-cond: C_PhiS > 0 and D < 0."
 )
 
 
@@ -1944,11 +1942,7 @@ def foewpt_quantities(m1, m2, vs, a12, lX, lPhiX, lSX, v=SHARED_VEV):
 
 
 def passes_target_foewpt_cond(q):
-    return bool(
-        q["lPhiS"] > 0 and q["lPhiX"] > 0 and q["lSX"] > 0
-        and q["C_PhiS"] > 0 and q["C_PhiX"] > 0 and q["C_SX"] > 0
-        and q["D"] < 0
-    )
+    return bool(q["C_PhiS"] > 0 and q["D"] < 0)
 
 
 def candidate_passes_target_foewpt_cond(candidate):

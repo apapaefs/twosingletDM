@@ -580,14 +580,14 @@ from the scan and
 λS  = (M1² sin²θ + M2² cos²θ) / (2 vs²)
 λΦS = (M2² - M1²) sin 2θ / (2 v vs)                    θ = a12
 
-CΦS = λΦ λS - λΦS²/4     CΦX = λΦ λX - λΦX²/4     CSX = λS λX - λSX²/4
+CΦS = λΦ λS - λΦS²/4
 D   = λΦ λS λX + λΦS λΦX λSX/4 - λSX² λΦ/4 - λΦX² λS/4 - λΦS² λX/4
 ```
 
-A candidate is accepted when every inequality holds:
+A candidate is accepted when both inequalities hold:
 
 ```text
-λΦS > 0, λΦX > 0, λSX > 0,  CΦS > 0, CΦX > 0, CSX > 0,  D < 0
+CΦS > 0,  D < 0
 ```
 
 All `--target-*` options work the same way (redraw until

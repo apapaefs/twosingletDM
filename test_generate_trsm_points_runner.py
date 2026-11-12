@@ -2850,15 +2850,28 @@ class TestTargetViability(unittest.TestCase):
         )
         self.assertAlmostEqual(q["D"], determinant)
 
-    def test_foewpt_cond_requires_every_inequality(self):
+    def test_foewpt_cond_requires_positive_c_phis_and_negative_d(self):
         generator = load_generator_module()
         cond = generator.passes_target_foewpt_cond
         base = dict(lPhiS=0.1, lPhiX=0.1, lSX=0.1, C_PhiS=1.0, C_PhiX=1.0, C_SX=1.0, D=-1.0)
         self.assertTrue(cond(base))
-        for key in base:
+        for key in ("C_PhiS", "D"):
             with self.subTest(flipped=key):
                 self.assertFalse(cond({**base, key: -base[key]}))
                 self.assertFalse(cond({**base, key: 0.0}))
+        for key in ("lPhiS", "lPhiX", "lSX", "C_PhiX", "C_SX"):
+            with self.subTest(unconstrained=key):
+                self.assertTrue(cond({**base, key: -base[key]}))
+
+    def test_foewpt_cond_accepts_reference_point(self):
+        generator = load_generator_module()
+        q = generator.foewpt_quantities(
+            125.09, 206.30973260871903, 250.21934914138942, 0.1870335512182665,
+            1.975370976221058, 0.6351303798376499, 3.3023789838734205)
+        self.assertGreater(q["C_PhiS"], 0)
+        self.assertLess(q["C_SX"], 0)
+        self.assertLess(q["D"], 0)
+        self.assertTrue(generator.passes_target_foewpt_cond(q))
 
     def test_foewpt_cond_applies_only_when_requested_and_combines_with_viability(self):
         generator = load_generator_module()
