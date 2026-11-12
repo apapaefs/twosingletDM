@@ -538,6 +538,39 @@ This fills the rectangular `(M2, M3)` scan range and can therefore include
 `M3 < M2` as well as `M3 < M2 + mhiggs`. The mode is mutually exclusive with
 the exact and approximate resonant-DM mass modes.
 
+To restrict a random scan to the region recommended for passing the dark
+matter and collider constraints, add `--target-viability`:
+
+```bash
+python3 generate_trsm_points.py 123 \
+  --nrandom 500 \
+  --independent-m3 \
+  --scan-k133-k233-log \
+  --target-viability
+```
+
+Candidates are drawn from the configured ranges as usual and redrawn until one
+is accepted, so `--nrandom` counts accepted points only; rejected draws are
+not evaluated or written. With `Γ1`, `Γ2` the total `h1`, `h2` widths
+(including invisible decays), a candidate is accepted when it satisfies at
+least one mass condition,
+
+```text
+2->2 annihilation:  M3 >= M2 - Γ2/2,   2 M3 >= M2 + M1 - (Γ2 + Γ1)/2,   M3 >= M1 - Γ1/2
+resonance:          M2 - Γ2/2 < 2 M3 < M2 + Γ2/2,   M1 - Γ1/2 < 2 M3 < M1 + Γ1/2
+```
+
+and, independently, all of the following: `M2 > 62.5 GeV`; `|K233| > 1 GeV`
+whenever `M3 > 400 GeV`; and narrow widths, `Γ1 < 0.1 M1` and `Γ2 < 0.1 M2`
+(the DM candidate `h3` is stable). A point failing any of these is rejected
+even if it satisfies a mass condition. The option combines with every mass and portal sampling mode
+and is recorded in the metadata sidecar; it cannot be changed on resume. With
+the default `lambda_PhiX`/`lambda_SX` ranges `|K233|` stays below 1 GeV, so
+use a `K233` scan to populate `M3 > 400 GeV`. The conditions live in
+`target_viability_checks` and `passes_target_viability` in
+`generate_trsm_points.py`; edit those two functions to apply a different
+selection.
+
 Every random-scan range can be overridden on the command line. Any bound that
 is omitted keeps the value in the `define ranges here` block of
 `generate_trsm_points.py`. For example, a light-DM rectangular scan can use:

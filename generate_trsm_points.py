@@ -363,6 +363,18 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--target-viability",
+        action="store_true",
+        help=(
+            "In the random vx=0 scan, redraw candidates until one lies in the "
+            "region recommended for DM and collider viability: a 2->2 "
+            "annihilation or resonance mass condition, M2 > 62.5 GeV, "
+            "|K233| > 1 GeV when M3 > 400 GeV, and h1 and h2 total widths "
+            "below 10%% of their masses. Works with every mass and portal "
+            "sampling mode."
+        ),
+    )
+    parser.add_argument(
         "--nrandom",
         type=int,
         default=100,
@@ -606,6 +618,8 @@ def parse_args(argv=None):
         parser.error("--checkpoint-every must be at least 1")
     if (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and provided:
         parser.error("--approximate-resonantDM is a random-scan mode and cannot be combined with explicit point parameters")
+    if args.target_viability and provided:
+        parser.error("--target-viability is a random-scan mode and cannot be combined with explicit point parameters")
     if args.independent_m3 and provided:
         parser.error("--independent-m3 is a random-scan mode and cannot be combined with explicit point parameters")
     if (args.approximate_resonantDM or args.mass_ratio_m3_2m2) and args.delta_res is None:
@@ -1799,7 +1813,101 @@ except ValueError as error:
     raise SystemExit(2) from error
 
 
+# Thresholds of the --target-viability selection [GeV]
+TARGET_VIABILITY_M2_MIN = 62.5
+TARGET_VIABILITY_M3_HEAVY = 400.0
+TARGET_VIABILITY_K233_MIN = 1.0
+# Maximum total width of h1 and h2 as a fraction of the particle mass
+TARGET_VIABILITY_MAX_WIDTH_FRACTION = 0.1
+TARGET_VIABILITY_MAX_ATTEMPTS = 1000000
+TARGET_VIABILITY_DESCRIPTION = (
+    "--target-viability: candidates are redrawn until they satisfy any 2->2 "
+    "condition (M3 >= M2 - w2/2, 2*M3 >= M2 + M1 - (w2 + w1)/2, "
+    "M3 >= M1 - w1/2) or either resonance condition (|2*M3 - M2| < w2/2, "
+    "|2*M3 - M1| < w1/2), and in addition M2 > 62.5 GeV, |K233| > 1 GeV "
+    "when M3 > 400 GeV, and narrow widths w1 < 0.1*M1 and w2 < 0.1*M2. "
+    "Rejected draws are not evaluated or written."
+)
+
+
+def target_viability_checks(m1, m2, m3, w1, w2, K233):
+    """Evaluate each --target-viability condition for one candidate.
+
+    w1 and w2 are the total h1 and h2 widths, including invisible decays.
+    Edit this function and passes_target_viability to change the selection.
+    """
+    return {
+        "scatter_m3_above_m2": m3 >= m2 - w2 / 2,
+        "scatter_2m3_above_m1_plus_m2": 2 * m3 >= m2 + m1 - (w2 + w1) / 2,
+        "scatter_m3_above_m1": m3 >= m1 - w1 / 2,
+        "resonance_h2": m2 - w2 / 2 < 2 * m3 < m2 + w2 / 2,
+        "resonance_h1": m1 - w1 / 2 < 2 * m3 < m1 + w1 / 2,
+        "collider_m2": m2 > TARGET_VIABILITY_M2_MIN,
+        "relic_k233": (
+            m3 <= TARGET_VIABILITY_M3_HEAVY
+            or abs(K233) > TARGET_VIABILITY_K233_MIN
+        ),
+        "narrow_width_h1": w1 < TARGET_VIABILITY_MAX_WIDTH_FRACTION * m1,
+        "narrow_width_h2": w2 < TARGET_VIABILITY_MAX_WIDTH_FRACTION * m2,
+    }
+
+
+def passes_target_viability(m1, m2, m3, w1, w2, K233):
+    checks = target_viability_checks(m1, m2, m3, w1, w2, K233)
+    annihilation = any(
+        passed
+        for name, passed in checks.items()
+        if name.startswith(("scatter_", "resonance_"))
+    )
+    return bool(
+        annihilation
+        and checks["collider_m2"]
+        and checks["relic_k233"]
+        and checks["narrow_width_h1"]
+        and checks["narrow_width_h2"]
+    )
+
+
+def target_viability_inputs(candidate):
+    """Return (w1, w2, K233) for a candidate exactly as the evaluator computes them."""
+    info = generate_lams(
+        ini_seed, candidate["m2"], candidate["m3"], candidate["vs"], 0,
+        candidate["a12"], 0, 0, False,
+        lX=candidate["lX"], lPhiX=candidate["lPhiX"], lSX=candidate["lSX"])
+    M2, M3, w1, w2, K122, K133 = info[2], info[3], info[7], info[8], info[14], info[18]
+    K233 = lambdas_to_k133_k233(
+        candidate["lPhiX"], candidate["lSX"], candidate["vs"], candidate["a12"])[1]
+    decay_info = generated_vxzero_invisible_decay_info(
+        SHARED_M1, M2, M3, K133, K233, w1, w2, info[22], info[23], K122=K122)
+    return decay_info["w1"], decay_info["w2"], K233
+
+
+def candidate_passes_target_viability(candidate):
+    try:
+        w1, w2, K233 = target_viability_inputs(candidate)
+    except (ValueError, ArithmeticError):
+        # Widths unavailable: the conditions cannot be verified, so redraw.
+        return False
+    return passes_target_viability(
+        SHARED_M1, candidate["m2"], candidate["m3"], w1, w2, K233)
+
+
 def draw_random_vxzero_candidate(args, rng=None):
+    """Draw one candidate; with --target-viability, redraw until it is selected."""
+    if not getattr(args, "target_viability", False):
+        return _draw_unfiltered_vxzero_candidate(args, rng=rng)
+    for _attempt in range(TARGET_VIABILITY_MAX_ATTEMPTS):
+        candidate = _draw_unfiltered_vxzero_candidate(args, rng=rng)
+        if candidate_passes_target_viability(candidate):
+            return candidate
+    raise ValueError(
+        "--target-viability found no accepted candidate in "
+        f"{TARGET_VIABILITY_MAX_ATTEMPTS} draws; the configured scan ranges "
+        "are incompatible with the selection"
+    )
+
+
+def _draw_unfiltered_vxzero_candidate(args, rng=None):
     """Draw one candidate while preserving the historical random-call order."""
     rng = rng or random
     draw_sign = (lambda: randsign()) if rng is random else (lambda: randsign(rng))
@@ -2156,6 +2264,8 @@ def build_scan_metadata(
 ):
     mass_mode, mass_description, mass_ranges = _mass_sampling_metadata(args)
     portal_mode, portal_description, portal_ranges = _portal_sampling_metadata(args)
+    if getattr(args, "target_viability", False):
+        mass_description += " " + TARGET_VIABILITY_DESCRIPTION
     explicit = has_explicit_point(args)
 
     variable_ranges = list(mass_ranges)
@@ -2328,6 +2438,9 @@ def immutable_scan_configuration(args):
         if key == "dm_limit_table" and value is None:
             continue
         if key == "planck_cmb" and not value:
+            continue
+        # Campaigns that predate --target-viability keep their fingerprints.
+        if key == "target_viability" and not value:
             continue
         if key in RESUME_PATH_OPTIONS:
             value = _resolved_path_value(value)
@@ -2901,6 +3014,8 @@ def run_random_vxzero_scan(runtime=None):
     drawcounter = 0 if runtime is None else runtime["draw_count"]
     rng = random if runtime is None else runtime["rng"]
     print('Generating points randomly within ranges')
+    if getattr(args, "target_viability", False):
+        print(TARGET_VIABILITY_DESCRIPTION)
     if getattr(args, "independent_m3", False):
         print(
             f'Sampling M3 independently in [{m3_min}, {m3_max}] GeV; '

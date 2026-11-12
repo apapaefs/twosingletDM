@@ -2743,5 +2743,93 @@ class TestGenerateTRSMPointsEWPT(unittest.TestCase):
         self.assertFalse(rows[0][1]["ewpt_eligible"])
 
 
+class TestTargetViability(unittest.TestCase):
+    M1 = 125.09
+
+    def test_parse_args_accepts_target_viability(self):
+        generator = load_generator_module()
+        self.assertFalse(generator.parse_args([]).target_viability)
+        self.assertTrue(generator.parse_args(["--target-viability"]).target_viability)
+
+    def test_parse_args_rejects_target_viability_in_explicit_point_mode(self):
+        generator = load_generator_module()
+        with self.assertRaises(SystemExit):
+            generator.parse_args([
+                "--target-viability", "--m2", "300", "--m3", "500", "--vs", "200",
+                "--a12", "0.1", "--lx", "0.1", "--lphix", "0.01", "--lsx", "0.01",
+            ])
+
+    def test_selection_conditions(self):
+        generator = load_generator_module()
+        passes = generator.passes_target_viability
+        w1, w2 = 0.004, 2.0
+        cases = [
+            # (m2, m3, K233, expected, label)
+            (300.0, 320.0, 0.0, True, "2->2: M3 above M2"),
+            (300.0, 299.5, 0.0, True, "2->2: M3 within w2/2 below M2"),
+            (300.0, 130.0, 0.0, True, "2->2: M3 above M1 only"),
+            (100.0, 110.0, 0.0, True, "2->2: M3 above M2 only"),
+            (300.0, 150.4, 0.0, True, "h2 resonance"),
+            (300.0, 62.5455, 0.0, True, "h1 resonance"),
+            (300.0, 148.0, 0.0, True, "2->2: M3 above M1, off h2 resonance"),
+            (300.0, 100.0, 0.0, False, "no mass condition"),
+            (300.0, 62.0, 0.0, False, "just off h1 resonance"),
+            (60.0, 200.0, 0.0, False, "M2 below 62.5 GeV"),
+            (62.5, 200.0, 0.0, False, "M2 at 62.5 GeV is excluded"),
+            (300.0, 500.0, 0.5, False, "heavy M3 with small K233"),
+            (300.0, 500.0, -1.5, True, "heavy M3 with |K233| > 1 GeV"),
+            (300.0, 400.0, 0.5, True, "K233 cut applies only above 400 GeV"),
+        ]
+        for m2, m3, k233, expected, label in cases:
+            with self.subTest(label=label):
+                self.assertIs(passes(self.M1, m2, m3, w1, w2, k233), expected)
+
+    def test_selection_requires_widths_below_ten_percent_of_mass(self):
+        generator = load_generator_module()
+        passes = generator.passes_target_viability
+        m2, m3 = 300.0, 320.0
+        cases = [
+            # (w1, w2, expected, label)
+            (0.004, 29.9, True, "h2 width just below 10% of M2"),
+            (0.004, 30.0, False, "h2 width at 10% of M2"),
+            (0.004, 400.0, False, "h2 width above M2"),
+            (12.5, 2.0, True, "h1 width just below 10% of M1"),
+            (12.6, 2.0, False, "h1 width above 10% of M1"),
+        ]
+        for w1, w2, expected, label in cases:
+            with self.subTest(label=label):
+                self.assertIs(passes(self.M1, m2, m3, w1, w2, 0.0), expected)
+
+    def test_draw_redraws_until_candidate_is_accepted(self):
+        generator = load_generator_module()
+        draws = iter([
+            {"m2": 300.0, "m3": 100.0},
+            {"m2": 50.0, "m3": 200.0},
+            {"m2": 300.0, "m3": 320.0},
+            {"m2": 300.0, "m3": 330.0},
+        ])
+        generator._draw_unfiltered_vxzero_candidate = lambda args, rng=None: next(draws)
+        generator.target_viability_inputs = lambda candidate: (0.004, 2.0, 0.0)
+
+        candidate = generator.draw_random_vxzero_candidate(
+            ewpt_args(target_viability=True))
+
+        self.assertEqual(candidate, {"m2": 300.0, "m3": 320.0})
+        self.assertEqual(
+            generator.draw_random_vxzero_candidate(ewpt_args()),
+            {"m2": 300.0, "m3": 330.0},
+        )
+
+    def test_candidate_with_unavailable_widths_is_redrawn(self):
+        generator = load_generator_module()
+
+        def unavailable(candidate):
+            raise ValueError("no width")
+
+        generator.target_viability_inputs = unavailable
+        self.assertFalse(generator.candidate_passes_target_viability(
+            {"m2": 300.0, "m3": 320.0}))
+
+
 if __name__ == "__main__":
     unittest.main()
