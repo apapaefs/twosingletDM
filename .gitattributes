@@ -1,2 +1,7 @@
 # Trailing TSV separators preserve unavailable final columns.
 *.tsv whitespace=-blank-at-eol
+
+# Keep original native validation output byte-for-byte.
+validation/v2/mg5-survey-fix-20260925/native/** whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+validation/collaborator-update-20261029/reference-seed-metadata.json whitespace=-blank-at-eof
+output/collaborator-66662/reference-seed-66662.metadata.json whitespace=-blank-at-eof

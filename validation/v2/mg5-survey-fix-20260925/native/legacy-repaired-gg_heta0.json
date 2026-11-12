@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "cross_section_pb": 6.68066e-05,
+  "error_pb": 8.067224e-07,
+  "event_count": 1,
+  "weight": 6.68066e-05,
+  "lhe": "/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/Events/runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046/unweighted_events.lhe.gz",
+  "wrapper_sha256": "97681c85444110c6190b68c4cb60996730a89402f95a3a51885f0ecfa5830bf1",
+  "survey_inputs": [
+    [
+      "         300         3           3      !Number of events and max and min iterations",
+      "  0.25    !Accuracy",
+      "  2       !Grid Adjustment 0=none, 2=adjust",
+      "  1       !Suppress Amplitude 1=yes",
+      "  0        !Helicity Sum/event 0=exact",
+      "        "
+    ]
+  ],
+  "case": "legacy-repaired",
+  "process": "gg_heta0",
+  "exit_code": 0,
+  "elapsed_s": 6.573786140070297,
+  "log": "/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired-gg_heta0.log",
+  "maintenance_receipt": "/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/.trsm-maintenance/survey-minimum-20260925T145754.014249Z/receipt.json"
+}

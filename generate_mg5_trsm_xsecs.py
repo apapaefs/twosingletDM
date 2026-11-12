@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from math import floor, log10
 from pathlib import Path
 
+from tools.madloop_build import validate_madloop
+
 
 # MG5/aMC subdirectory.  Override this for installations outside the project.
 MGLocation = os.environ.get(
@@ -22,11 +24,15 @@ ProcLocation = {
     "hhh": "gg_hhh_twoscalar/",
     "gg_heta0": "gg_heta0/",
     "pp_eta0Z": "pp_eta0Z/",
+    "gg_eta0Z": "gg_eta0Z/",
 }
 
 
 TREE_LEVEL_SURVEY_ITERATIONS = 3
-LOOP_INDUCED_SURVEY_ITERATIONS = 1
+# The unsplit MadEvent survey requires at least three iterations for both
+# process types. With maxiter=1 and miniter=3, dsample writes zero results even
+# when its first iteration found a nonzero integral (MG5 3.5.15).
+LOOP_INDUCED_SURVEY_ITERATIONS = 3
 
 
 def round_sig(x, sig=2):
@@ -77,6 +83,10 @@ def mg5_runtime_receipt(processes, mgloc=None):
             if (subprocess_dir.resolve().parent != (directory / "SubProcesses").resolve()
                     or not binary.is_file() or not os.access(binary, os.X_OK)):
                 raise ValueError(f"Missing or invalid compiled MG5 subprocess: {binary}")
+        # MadLoop temporarily deletes check while initializing a point. Wait
+        # for any writer before treating an absent artifact as a broken build.
+        with _madevent_lock(directory):
+            validate_madloop(directory)
         installations[process] = {"directory": str(directory), "subprocesses": names}
         files += [madevent, listing, directory / "Cards/proc_card_mg5.dat"]
         # UFO Python sources and process cards are stable during event generation.
@@ -111,21 +121,24 @@ def _lhe_path(process_dir, run_name):
     return process_dir / "Events" / run_name / "unweighted_events.lhe.gz"
 
 
-def _survey_iterations(process_dir):
-    """Use MadEvent's minimum survey length for tree-level processes."""
+def _is_loop_induced(process_dir):
     characteristics = process_dir / "SubProcesses" / "proc_characteristics"
     try:
         lines = characteristics.read_text(encoding="ascii").splitlines()
     except OSError:
-        return TREE_LEVEL_SURVEY_ITERATIONS
+        return False
 
     for line in lines:
         key, separator, value = line.partition("=")
         if separator and key.strip() == "loop_induced":
-            if value.strip().lower() == "true":
-                return LOOP_INDUCED_SURVEY_ITERATIONS
-            return TREE_LEVEL_SURVEY_ITERATIONS
-    return TREE_LEVEL_SURVEY_ITERATIONS
+            return value.strip().lower() == "true"
+    return False
+
+
+def _survey_iterations(process_dir):
+    """Respect MadEvent's minimum survey length, including loop-induced runs."""
+    return (LOOP_INDUCED_SURVEY_ITERATIONS if _is_loop_induced(process_dir)
+            else TREE_LEVEL_SURVEY_ITERATIONS)
 
 
 @contextmanager
@@ -205,6 +218,11 @@ def drive_mg(
                 f"set kap1113 {lambdas[7]}",
                 f"set kap133 {lambdas[8]}",
             ]
+            if _is_loop_induced(process_dir):
+                # MG5 3.5.15's adaptive helicity sampler can abort after the
+                # first survey iteration. Explicit summation evaluates the
+                # same unpolarized matrix element without that sampler.
+                commands.append("set nhel 0")
             if w1 is not None:
                 commands.append(f"set WH {w1}")
             effective_k233 = k233 if k233 is not None else (

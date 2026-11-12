@@ -122,6 +122,51 @@ class CompatibilityTests(unittest.TestCase):
         self.assertEqual(len(json.loads((output / 'cutflow.json').read_text())), 4)
         self.assertEqual(json.loads((output / 'results.json').read_text())[0]['dm_cmb_status'], 'disabled')
 
+    def test_job_launcher_reports_missing_cards_before_starting_backend(self):
+        empty = self.directory / 'empty'
+        empty.mkdir()
+        wrong_names = self.directory / 'wrong-names'
+        wrong_names.mkdir()
+        (wrong_names / 'oks.dat').write_text('1 .1 .02 .03 50 300 .1 200\n')
+        cases = [(self.directory / 'missing', 'Card directory does not exist'),
+                 (wrong_names / 'oks.dat', 'not a directory'),
+                 (empty, 'No MO_inp*.dat cards found'),
+                 (wrong_names, 'No MO_inp*.dat cards found')]
+        output = self.directory / 'out'
+        for cards, expected in cases:
+            with self.subTest(cards=cards):
+                result = subprocess.run([
+                    'bash', str(EXAMPLE / 'run/launch/exec.sh'), '--cards', str(cards),
+                    '--output-dir', str(output), '--micromegas-main', str(self.directory / 'no-backend')],
+                    cwd=self.directory, env=dict(self.env, PYTHON=sys.executable),
+                    capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(expected, result.stderr)
+                self.assertIn(str(cards.resolve()), result.stderr)
+                self.assertIn('source/write_mo.py', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertFalse(output.exists())
+
+    def test_job_launcher_replays_prepared_cards_from_another_working_directory(self):
+        points = self.directory / 'oks.dat'
+        points.write_text('1 .1 .05 .15 50 200 -.14943813247359922 380\n')
+        cards = self.directory / 'cards'
+        prepared = self.python('source/write_mo.py', '--input', points, '--output-dir', cards)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        raw = self.directory / 'raw'
+        raw.mkdir()
+        (raw / 'OUT_mO_1').write_text(RAW)
+        output = self.directory / 'out'
+        result = subprocess.run([
+            'bash', str(EXAMPLE / 'run/launch/exec.sh'), '--raw-output-dir', str(raw)],
+            cwd=self.directory, env=dict(self.env, PYTHON=sys.executable,
+                CARD_DIR=str(cards), OUTPUT_DIR=str(output)),
+            capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = json.loads((output / 'results.json').read_text())
+        self.assertEqual([row['index'] for row in rows], [1])
+        self.assertEqual(rows[0]['dm_calculation_status'], 'success')
+
     def test_card_regeneration_preserves_previous_cards_and_excludes_stale_indices(self):
         points, cards = self.directory / 'oks.dat', self.directory / 'cards'
         points.write_text('1 .1 .02 .03 50 300 .1 200\n2 .1 .02 .03 60 300 .1 200\n')

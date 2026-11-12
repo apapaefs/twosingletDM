@@ -1,0 +1,273 @@
+Matplotlib is building the font cache; this may take a moment.
+.........................................Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmpath47i1m/dashboard_bsmpt_summary.png
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmpkeej5sjt/26_cumulative_constraints_m2_a12.png
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmpg5wtw6k5/01_dm_experimental_fourway_m2_m3.png
+Loaded 8 rows from /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp3fqq42jq/points_bsmpt.tsv
+No scan metadata sidecar found; the index will label ranges as observed stored-row extrema.
+Selections: experimental=4 non_dm_viable=4 dm=4 full=2
+Skipped 31c_bsmpt_ew_entry_jump_over_t_m2_m3: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 31d_bsmpt_ew_entry_status_m2_m3: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 31e_bsmpt_gw_max_jump_over_t_m2_m3: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 31f_bsmpt_gw_status_m2_m3: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 34b_bsmpt_ew_entry_strength_vs_m2: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35b_bsmpt_ew_entry_strength_vs_m3: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35c_bsmpt_selected_vs_ew_entry_jump: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35d_bsmpt_gw_max_jump_vs_m3: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 35e_bsmpt_ew_entry_temperature_jumps: missing scan column(s): ewpt_ew_entry_jump_over_T, ewpt_ew_entry_nucl_jump_over_T, ewpt_ew_entry_perc_jump_over_T
+Skipped 35f_bsmpt_gw_temperature_jumps: missing scan column(s): ewpt_gw_crit_field_jump_over_T, ewpt_gw_nucl_field_jump_over_T, ewpt_gw_perc_field_jump_over_T
+Skipped 35g_freezeout_vs_x_broken_window: missing scan column(s): dm_freezeout_temperature_GeV, ewpt_x_broken_min_T_GeV, ewpt_x_broken_max_T_GeV
+Skipped 48_h2_h1h1_one_h1_invisible_xsec_vs_m2: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 49_h2_h1h1_one_h1_invisible_xsec_vs_m3: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 50_h1_h2h2_one_h2_invisible_xsec_vs_m2: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 51_h1_h2h2_one_h2_invisible_xsec_vs_m3: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 52_mono_higgs_xsec_vs_m2: missing scan column(s): mono_higgs_xsec_pb
+Skipped 53_mono_higgs_xsec_vs_m3: missing scan column(s): mono_higgs_xsec_pb
+Skipped 54_mono_z_xsec_vs_m2: missing scan column(s): mono_z_xsec_pb
+Skipped 55_mono_z_xsec_vs_m3: missing scan column(s): mono_z_xsec_pb
+Skipped 56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 60_mono_higgs_xsec_no_dm_vs_m2: missing scan column(s): mono_higgs_xsec_pb
+Skipped 61_mono_higgs_xsec_no_dm_vs_m3: missing scan column(s): mono_higgs_xsec_pb
+Skipped 62_mono_z_xsec_no_dm_vs_m2: missing scan column(s): mono_z_xsec_pb
+Skipped 63_mono_z_xsec_no_dm_vs_m3: missing scan column(s): mono_z_xsec_pb
+Skipped 64_signal_rate_m2_m3: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 65_signal_rates_vs_m2: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 66_signal_rate_vs_m3: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 67_signal_k2sq_vs_br: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 68_signal_width_fraction_vs_rate: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 69_signal_rate_vs_direct_detection: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 72_flavour_strength_m2_m3: no finite flavour prediction/limit ratios
+Skipped 73_flavour_lepton_products: no stored h2 lepton-product predictions
+Skipped 74_flavour_mixing_m2: no positive assessed h2 mixing values
+Skipped 31c_bsmpt_ew_entry_jump_over_t_m2_m3_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 31d_bsmpt_ew_entry_status_m2_m3_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 31e_bsmpt_gw_max_jump_over_t_m2_m3_full_viability: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 31f_bsmpt_gw_status_m2_m3_full_viability: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 34b_bsmpt_ew_entry_strength_vs_m2_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35b_bsmpt_ew_entry_strength_vs_m3_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35c_bsmpt_selected_vs_ew_entry_jump_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T
+Skipped 35d_bsmpt_gw_max_jump_vs_m3_full_viability: missing scan column(s): ewpt_gw_max_field_jump_over_T
+Skipped 35e_bsmpt_ew_entry_temperature_jumps_full_viability: missing scan column(s): ewpt_ew_entry_jump_over_T, ewpt_ew_entry_nucl_jump_over_T, ewpt_ew_entry_perc_jump_over_T
+Skipped 35f_bsmpt_gw_temperature_jumps_full_viability: missing scan column(s): ewpt_gw_crit_field_jump_over_T, ewpt_gw_nucl_field_jump_over_T, ewpt_gw_perc_field_jump_over_T
+Skipped 35g_freezeout_vs_x_broken_window_full_viability: missing scan column(s): dm_freezeout_temperature_GeV, ewpt_x_broken_min_T_GeV, ewpt_x_broken_max_T_GeV
+Skipped 80_zh2_production_vs_m2: no finite positive full-viable ZH2 production rates
+Skipped 81_zh2_production_vs_m3: no finite positive full-viable ZH2 production rates
+Skipped 82_mono_z_gg_xsec_vs_m2: missing scan column(s): mono_z_gg_xsec_pb
+Skipped 83_mono_z_gg_xsec_vs_m3: missing scan column(s): mono_z_gg_xsec_pb
+Skipped 84_mono_z_total_xsec_vs_m2: missing scan column(s): mono_z_total_xsec_pb
+Skipped 85_mono_z_total_xsec_vs_m3: missing scan column(s): mono_z_total_xsec_pb
+Skipped 88_hh_enhancement_m2_m3: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 89_hh_enhancement_vs_m2: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 90_hh_enhancement_vs_m3: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 91_bsmpt_ew_entry_strength_vs_determinant: missing scan column(s): vs, lX, lPhiX, ewpt_ew_entry_jump_over_T
+Skipped 92_bsmpt_field_strength_vs_determinant: missing scan column(s): vs, lX, lPhiX, ewpt_gw_max_field_jump_over_T
+Skipped 93_calcgw_alpha_beta: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 94_calcgw_alpha_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 95_calcgw_beta_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 96_calcgw_sound_wave_amplitude: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97_calcgw_lisa_snr_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 98_calcgw_alpha_vs_temperature: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97b_calcgw_lisa_snr_vs_m2_1_to_100: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 91_bsmpt_ew_entry_strength_vs_determinant_full_viability: missing scan column(s): vs, lX, lPhiX, ewpt_ew_entry_jump_over_T
+Skipped 92_bsmpt_field_strength_vs_determinant_full_viability: missing scan column(s): vs, lX, lPhiX, ewpt_gw_max_field_jump_over_T
+Skipped 93_calcgw_alpha_beta_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 94_calcgw_alpha_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 95_calcgw_beta_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 96_calcgw_sound_wave_amplitude_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97_calcgw_lisa_snr_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 98_calcgw_alpha_vs_temperature_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97b_calcgw_lisa_snr_vs_m2_1_to_100_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped dashboard_scalar_cascade_rates: none of the dashboard observables are available
+Skipped dashboard_mg5_mono_rates: none of the dashboard observables are available.
+Skipped dashboard_scalar_cascade_rates_no_dm: none of the dashboard observables are available
+Skipped dashboard_mg5_mono_rates_no_dm: none of the dashboard observables are available
+Skipped dashboard_signal_summary: none of the dashboard observables are available
+Skipped dashboard_hh_enhancement: none of the dashboard observables are available
+Skipped dashboard_zh2_production: none of the dashboard observables are available
+Skipped dashboard_mono_z_components: none of the dashboard observables are available
+Skipped dashboard_bsmpt_determinant: none of the dashboard observables are available
+Skipped dashboard_bsmpt_determinant_full_viability: none of the dashboard observables are available
+Skipped dashboard_calcgw: none of the dashboard observables are available
+Skipped dashboard_calcgw_full_viability: none of the dashboard observables are available
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp3fqq42jq/out/constraint_summary.tsv
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp3fqq42jq/out/index.html
+Created 152 figure files in /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp3fqq42jq/out
+Loaded 8 rows from /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmprpzio1ul/points.tsv
+No scan metadata sidecar found; the index will label ranges as observed stored-row extrema.
+Selections: experimental=4 non_dm_viable=4 dm=4 full=2
+Skipped 30_bsmpt_status_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31_bsmpt_ew_true_over_t_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31b_bsmpt_ew_jump_over_t_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31c_bsmpt_ew_entry_jump_over_t_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31d_bsmpt_ew_entry_status_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31e_bsmpt_gw_max_jump_over_t_m2_m3: BSMPT was not run for any stored scan row
+Skipped 31f_bsmpt_gw_status_m2_m3: BSMPT was not run for any stored scan row
+Skipped 32_bsmpt_phase_history_m2_m3: BSMPT was not run for any stored scan row
+Skipped 33_bsmpt_ew_entry_step_m2_m3: BSMPT was not run for any stored scan row
+Skipped 34_bsmpt_strength_vs_m2: BSMPT was not run for any stored scan row
+Skipped 34b_bsmpt_ew_entry_strength_vs_m2: BSMPT was not run for any stored scan row
+Skipped 35_bsmpt_strength_vs_m3: BSMPT was not run for any stored scan row
+Skipped 35b_bsmpt_ew_entry_strength_vs_m3: BSMPT was not run for any stored scan row
+Skipped 35c_bsmpt_selected_vs_ew_entry_jump: BSMPT was not run for any stored scan row
+Skipped 35d_bsmpt_gw_max_jump_vs_m3: BSMPT was not run for any stored scan row
+Skipped 35e_bsmpt_ew_entry_temperature_jumps: BSMPT was not run for any stored scan row
+Skipped 35f_bsmpt_gw_temperature_jumps: BSMPT was not run for any stored scan row
+Skipped 35g_freezeout_vs_x_broken_window: BSMPT was not run for any stored scan row
+Skipped 36_bsmpt_counts: BSMPT was not run for any stored scan row
+Skipped 48_h2_h1h1_one_h1_invisible_xsec_vs_m2: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 49_h2_h1h1_one_h1_invisible_xsec_vs_m3: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 50_h1_h2h2_one_h2_invisible_xsec_vs_m2: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 51_h1_h2h2_one_h2_invisible_xsec_vs_m3: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 52_mono_higgs_xsec_vs_m2: missing scan column(s): mono_higgs_xsec_pb
+Skipped 53_mono_higgs_xsec_vs_m3: missing scan column(s): mono_higgs_xsec_pb
+Skipped 54_mono_z_xsec_vs_m2: missing scan column(s): mono_z_xsec_pb
+Skipped 55_mono_z_xsec_vs_m3: missing scan column(s): mono_z_xsec_pb
+Skipped 56_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m2: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 57_h2_h1h1_one_h1_invisible_xsec_no_dm_vs_m3: missing scan column(s): xsec_h2_h1h1_one_h1_invisible_pb
+Skipped 58_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m2: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 59_h1_h2h2_one_h2_invisible_xsec_no_dm_vs_m3: missing scan column(s): xsec_h1_h2h2_one_h2_invisible_pb
+Skipped 60_mono_higgs_xsec_no_dm_vs_m2: missing scan column(s): mono_higgs_xsec_pb
+Skipped 61_mono_higgs_xsec_no_dm_vs_m3: missing scan column(s): mono_higgs_xsec_pb
+Skipped 62_mono_z_xsec_no_dm_vs_m2: missing scan column(s): mono_z_xsec_pb
+Skipped 63_mono_z_xsec_no_dm_vs_m3: missing scan column(s): mono_z_xsec_pb
+Skipped 64_signal_rate_m2_m3: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 65_signal_rates_vs_m2: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 66_signal_rate_vs_m3: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 67_signal_k2sq_vs_br: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 68_signal_width_fraction_vs_rate: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 69_signal_rate_vs_direct_detection: Signal plots require stored k2, h2_h3h3_br columns.
+Skipped 72_flavour_strength_m2_m3: no finite flavour prediction/limit ratios
+Skipped 73_flavour_lepton_products: no stored h2 lepton-product predictions
+Skipped 74_flavour_mixing_m2: no positive assessed h2 mixing values
+Skipped 30_bsmpt_status_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31_bsmpt_ew_true_over_t_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31b_bsmpt_ew_jump_over_t_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31c_bsmpt_ew_entry_jump_over_t_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31d_bsmpt_ew_entry_status_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31e_bsmpt_gw_max_jump_over_t_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 31f_bsmpt_gw_status_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 32_bsmpt_phase_history_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 33_bsmpt_ew_entry_step_m2_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 34_bsmpt_strength_vs_m2_full_viability: BSMPT was not run for any stored scan row
+Skipped 34b_bsmpt_ew_entry_strength_vs_m2_full_viability: BSMPT was not run for any stored scan row
+Skipped 35_bsmpt_strength_vs_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 35b_bsmpt_ew_entry_strength_vs_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 35c_bsmpt_selected_vs_ew_entry_jump_full_viability: BSMPT was not run for any stored scan row
+Skipped 35d_bsmpt_gw_max_jump_vs_m3_full_viability: BSMPT was not run for any stored scan row
+Skipped 35e_bsmpt_ew_entry_temperature_jumps_full_viability: BSMPT was not run for any stored scan row
+Skipped 35f_bsmpt_gw_temperature_jumps_full_viability: BSMPT was not run for any stored scan row
+Skipped 35g_freezeout_vs_x_broken_window_full_viability: BSMPT was not run for any stored scan row
+Skipped 36_bsmpt_counts_full_viability: BSMPT was not run for any stored scan row
+Skipped 80_zh2_production_vs_m2: no finite positive full-viable ZH2 production rates
+Skipped 81_zh2_production_vs_m3: no finite positive full-viable ZH2 production rates
+Skipped 82_mono_z_gg_xsec_vs_m2: missing scan column(s): mono_z_gg_xsec_pb
+Skipped 83_mono_z_gg_xsec_vs_m3: missing scan column(s): mono_z_gg_xsec_pb
+Skipped 84_mono_z_total_xsec_vs_m2: missing scan column(s): mono_z_total_xsec_pb
+Skipped 85_mono_z_total_xsec_vs_m3: missing scan column(s): mono_z_total_xsec_pb
+Skipped 88_hh_enhancement_m2_m3: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 89_hh_enhancement_vs_m2: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 90_hh_enhancement_vs_m3: missing mg5_xsec_hh_pb; use reprocess_trsm_mg5.py --mg5-process hh
+Skipped 91_bsmpt_ew_entry_strength_vs_determinant: BSMPT was not run for any stored scan row
+Skipped 92_bsmpt_field_strength_vs_determinant: BSMPT was not run for any stored scan row
+Skipped 93_calcgw_alpha_beta: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 94_calcgw_alpha_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 95_calcgw_beta_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 96_calcgw_sound_wave_amplitude: no successful CalcGW transitions; run reprocess_trsm_gw.py...................................................
+Skipped 97_calcgw_lisa_snr_vs_m2: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 98_calcgw_alpha_vs_temperature: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97b_calcgw_lisa_snr_vs_m2_1_to_100: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 91_bsmpt_ew_entry_strength_vs_determinant_full_viability: BSMPT was not run for any stored scan row
+Skipped 92_bsmpt_field_strength_vs_determinant_full_viability: BSMPT was not run for any stored scan row
+Skipped 93_calcgw_alpha_beta_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 94_calcgw_alpha_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 95_calcgw_beta_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 96_calcgw_sound_wave_amplitude_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97_calcgw_lisa_snr_vs_m2_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 98_calcgw_alpha_vs_temperature_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped 97b_calcgw_lisa_snr_vs_m2_1_to_100_full_viability: no successful CalcGW transitions; run reprocess_trsm_gw.py
+Skipped dashboard_bsmpt_summary: none of the dashboard observables are available
+Skipped dashboard_scalar_cascade_rates: none of the dashboard observables are available
+Skipped dashboard_mg5_mono_rates: none of the dashboard observables are available
+Skipped dashboard_scalar_cascade_rates_no_dm: none of the dashboard observables are available
+Skipped dashboard_mg5_mono_rates_no_dm: none of the dashboard observables are available
+Skipped dashboard_signal_summary: none of the dashboard observables are available
+Skipped dashboard_bsmpt_summary_full_viability: none of the dashboard observables are available
+Skipped dashboard_hh_enhancement: none of the dashboard observables are available
+Skipped dashboard_zh2_production: none of the dashboard observables are available
+Skipped dashboard_mono_z_components: none of the dashboard observables are available
+Skipped dashboard_bsmpt_determinant: none of the dashboard observables are available
+Skipped dashboard_bsmpt_determinant_full_viability: none of the dashboard observables are available
+Skipped dashboard_calcgw: none of the dashboard observables are available
+Skipped dashboard_calcgw_full_viability: none of the dashboard observables are available
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmprpzio1ul/out/constraint_summary.tsv
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmprpzio1ul/out/index.html
+Created 116 figure files in /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmprpzio1ul/out
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmpjkyg4yrn/dashboard_signal_summary.png
+Loaded 8 rows from /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp461ij1az/points.tsv
+No scan metadata sidecar found; the index will label ranges as observed stored-row extrema.
+Selections: experimental=4 non_dm_viable=4 dm=4 full=2
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp461ij1az/constraint_summary.tsv
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp461ij1az/index.html
+Created 7 figure files in /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp461ij1az
+Saved /var/folders/hn/t0ypy8kx5vgd4b680v63fq340000gp/T/tmp9smdhyqm/ewpt_ew_true_over_T_vs_M2.png
+Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+.Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+.Saved scan: 4 rows; 3 full viable; 2 missing requested rates
+Checkpointed data row 3: hh = 0.5 pb
+Saved scan: 4 rows; 3 full viable; 2 missing requested rates
+Checkpointed data row 4: hh = 0.5 pb
+..Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+.Saved scan: 3 rows; 2 full viable; 3 missing requested rates
+Checkpointed data row 1: gg_heta0 = 0.5 pb
+Saved scan: 3 rows; 2 full viable; 3 missing requested rates
+Saved scan: 3 rows; 2 full viable; 3 missing requested rates
+Saved scan: 3 rows; 2 full viable; 3 missing requested rates
+Saved scan: 3 rows; 2 full viable; 3 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+.Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+.Saved scan: 3 rows; 2 full viable; 2 missing requested rates
+Checkpointed data row 1: gg_eta0Z = 0.5 pb
+Checkpointed data row 3: gg_eta0Z = 0.5 pb
+...........................Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+CalcGW 1/3; row 1: success
+CalcGW 2/3; row 3: success
+Pilot finished; checkpoint saved. Repeat without --max-points and with --resume to finish.
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+CalcGW 3/3; row 4: success
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+CalcGW 1/3; row 1: success
+CalcGW 2/3; row 3: success
+CalcGW 3/3; row 4: success
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+.Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+CalcGW 1/3; row 1: success
+Pilot finished; checkpoint saved. Repeat without --max-points and with --resume to finish.
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+Saved scan: 4 rows; 3 EWPT-eligible for CalcGW
+.............................Checking scan runtime before launching workers...
+Starting TRSM seed campaign: nseeds=3 requested_jobs=2 available_cpus=18 effective_jobs=2 target=20 count=draws
+[launch] seed=1
+[launch] seed=2
+[1/3 done] seed=1 status=complete draws=20 evo/thc=20 elapsed=0.1s
+[2/3 done] seed=2 status=failed draws=0 evo/thc=0 elapsed=0.1s
+[launch] seed=3
+[3/3 done] seed=3 status=complete draws=20 evo/thc=20 elapsed=0.1s
+........
+----------------------------------------------------------------------
+Ran 165 tests in 18.715s
+
+OK

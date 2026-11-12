@@ -177,7 +177,7 @@ def _hydrate_resume_args(parser, args, argv):
     return args
 
 
-MG5_PROCESS_KEYS = ("hh", "hhh", "gg_heta0", "pp_eta0Z")
+MG5_PROCESS_KEYS = ("hh", "hhh", "gg_heta0", "pp_eta0Z", "gg_eta0Z")
 DEFAULT_MG5_PROCESSES = ("gg_heta0", "pp_eta0Z")
 
 
@@ -661,6 +661,7 @@ from test_trsm_higgstools import * # HiggsTools setup
 from trsm_kstoalphas import * # Convert from k1, k2, k3 to a12, a13, a23
 from generate_mg5_trsm_xsecs import * # call MG5 to get the cross section for a specific proces. Make sure that the process has been generated (and check run card for energy/cuts etc!)
 from mg5_process_runner import run_mg5_processes # run selected MG5 processes and collect cross sections
+from trsm_mg5_rates import derive_mg5_rates
 from scan_output import output_columns as scan_output_columns
 from scan_output import write_valid_point as write_valid_point_file
 from trsm_flavour import generated_flavour_updates, unassessed_flavour, flavour_configuration
@@ -1001,14 +1002,8 @@ def generated_vxzero_invisible_decay_info(M1, M2, M3, K133, K233, w1, w2, h1_BRs
 
 def add_mg5_signal_rates(point_info, mg5xsecs):
     """Add mono-Higgs/mono-Z rates from production xsecs and H2 invisible BR."""
-    invisible_br = float(point_info.get("h2_h3h3_br", 0.0))
-    for process, column in (
-        ("gg_heta0", "mono_higgs_xsec_pb"),
-        ("pp_eta0Z", "mono_z_xsec_pb"),
-    ):
-        value = mg5xsecs.get(process)
-        if value is not None and math.isfinite(float(value)):
-            point_info[column] = float(value) * invisible_br
+    values = {**point_info, **{f"mg5_xsec_{key}_pb": value for key, value in mg5xsecs.items()}}
+    point_info.update(derive_mg5_rates(values))
 
 
 # write the full accepted point record

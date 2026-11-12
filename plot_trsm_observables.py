@@ -220,9 +220,10 @@ def trsm_tree_lambdas(row):
 
 def eq418_couplings(row):
     lambdas = trsm_tree_lambdas(row)
-    c_phi = 0.5 * lambdas["lambda_phiphi"]
-    c_x = 0.5 * lambdas["lambda_xx"]
-    c_s = 0.5 * lambdas["lambda_ss"]
+    # Match check_eq_4_18: c_ii = lambda_i, c_ij = lambda_ij / 2 for i != j.
+    c_phi = lambdas["lambda_phiphi"]
+    c_x = lambdas["lambda_xx"]
+    c_s = lambdas["lambda_ss"]
     c_phix = 0.5 * lambdas["lambda_phix"]
     c_phis = 0.5 * lambdas["lambda_phis"]
     c_xs = 0.5 * lambdas["lambda_xs"]

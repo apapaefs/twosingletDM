@@ -1,0 +1,185 @@
+{
+  "source": "plots/seed66666_xbroken_phases/sources/point_223615/ewpt_result.json",
+  "freezeout_temperature_GeV": 0.7535256410256411,
+  "freezeout_source": "micrOMEGAs printed values MX=23.51, Xf=31.2 from previous point evaluation",
+  "calctemps_status": {
+    "status_bounce_sol_0": "success",
+    "status_bounce_sol_1": "success",
+    "status_bounce_sol_2": "success",
+    "status_coex_pairs": "success",
+    "status_compl_0": "success",
+    "status_compl_1": "success",
+    "status_compl_2": "not_met",
+    "status_crit_0": "success",
+    "status_crit_1": "success",
+    "status_crit_2": "success",
+    "status_ewsr": "ew_sym_res",
+    "status_nlo_stability": "success",
+    "status_nucl_0": "success",
+    "status_nucl_1": "success",
+    "status_nucl_2": "not_met",
+    "status_nucl_approx_0": "success",
+    "status_nucl_approx_1": "success",
+    "status_nucl_approx_2": "not_met",
+    "status_perc_0": "success",
+    "status_perc_1": "success",
+    "status_perc_2": "not_met",
+    "status_tracing": "success",
+    "transition_history": "0-(0)->1-(1)->2"
+  },
+  "legacy_selected": {
+    "delta_vev": {
+      "w1": -0.007229282001134152,
+      "ws": -1.558514652953916e-08,
+      "wx": 16.309422544245212
+    },
+    "ew_false_over_T": 1.1915869660093061,
+    "ew_jump": 0.007229282001134152,
+    "ew_jump_over_T": 5.5275245600134795e-05,
+    "ew_true_over_T": 1.191531690763706,
+    "false_vev": {
+      "w1": 155.84405121369775,
+      "ws": 2.334605644339277e-09,
+      "wx": -1.965563483551848e-07
+    },
+    "field_jump": 16.30942414646367,
+    "field_jump_over_T": 0.12470220765369465,
+    "status": "success",
+    "temperature": 130.7869720458831,
+    "temperature_kind": "nucl",
+    "transition_index": 1,
+    "true_vev": {
+      "w1": 155.83682193169662,
+      "ws": -1.3250540885199884e-08,
+      "wx": 16.309422347688862
+    }
+  },
+  "candidates": {
+    "ewpt_ew_entry_true_over_T": 0.13598249216276156,
+    "ewpt_ew_entry_false_over_T": 5.55335374227654e-12,
+    "ewpt_ew_entry_jump_over_T": 0.13598249215720823,
+    "ewpt_ew_entry_temperature_GeV": 154.14713445928717,
+    "ewpt_ew_entry_temperature_kind": "crit",
+    "ewpt_ew_entry_transition_index": 0,
+    "ewpt_ew_entry_nucl_jump_over_T": 0.14111258192922996,
+    "ewpt_ew_entry_nucl_temperature_GeV": 154.1386184286223,
+    "ewpt_ew_entry_perc_jump_over_T": 0.14252246735111032,
+    "ewpt_ew_entry_perc_temperature_GeV": 154.136070475576,
+    "ewpt_ew_entry_percolated": true,
+    "ewpt_ew_entry_completed": true,
+    "ewpt_baryo_candidate": false,
+    "ewpt_gw_crit_field_jump_over_T": 6.590801330584111,
+    "ewpt_gw_crit_temperature_GeV": 51.552503449024826,
+    "ewpt_gw_nucl_field_jump_over_T": 0.14111258192943987,
+    "ewpt_gw_nucl_temperature_GeV": 154.1386184286223,
+    "ewpt_gw_perc_field_jump_over_T": 0.14252246735131877,
+    "ewpt_gw_perc_temperature_GeV": 154.136070475576,
+    "ewpt_gw_max_field_jump_over_T": 6.590801330584111,
+    "ewpt_gw_max_temperature_kind": "crit",
+    "ewpt_gw_max_transition_index": 2,
+    "ewpt_gw_candidate": true
+  },
+  "z2": {
+    "ewpt_x_broken_min_T_GeV": 51.0,
+    "ewpt_x_broken_max_T_GeV": 130.7787103501725,
+    "ewpt_x_broken_intervals_GeV": "[[51.0,51.0],[52.0,52.0],[53.0,130.7787103501725]]",
+    "ewpt_x_final_restoration_low_T_GeV": 50.89906601796918,
+    "ewpt_x_final_restoration_high_T_GeV": 51.0,
+    "ewpt_x_phase_at_freezeout": "unbroken",
+    "ewpt_x_broken_at_or_after_freezeout": false,
+    "dm_relic_z2_freezeout_compatible": true
+  },
+  "thermal": {
+    "dm_relic_thermal_vev_window_low_T_GeV": 0.37676282051282056,
+    "dm_relic_thermal_vev_window_high_T_GeV": 1.5070512820512822,
+    "dm_relic_thermal_ew_vev_Tf_over_T0": 0.9999997243664618,
+    "dm_relic_thermal_s_vev_Tf_over_T0": 1.0000010919447282,
+    "dm_relic_thermal_ew_vev_max_fractional_shift": 2.2579569024516744e-06,
+    "dm_relic_thermal_s_vev_max_fractional_shift": 1.4491142288353132e-06,
+    "dm_relic_thermal_phase_boundary_bracket_overlaps_window": false,
+    "dm_relic_thermal_vev_shift_ge_10pct": false
+  },
+  "global_branch_50_54_GeV": [
+    {
+      "label": "EW",
+      "phase_index": 3,
+      "temp": 50.89906601796918,
+      "veff": -176376444.11606303,
+      "w1": 243.01401728425125,
+      "ws": 335.1352841443315,
+      "wx": 2.4071309746238363e-10
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 51.0,
+      "veff": -176892867.64753887,
+      "w1": 234.99223324784123,
+      "ws": -1.5612396549131296e-08,
+      "wx": 60.37511221001378
+    },
+    {
+      "label": "EW",
+      "phase_index": 3,
+      "temp": 51.89906601796918,
+      "veff": -181691258.53325272,
+      "w1": 242.75937688454067,
+      "ws": 333.80917286872517,
+      "wx": -1.5074272774004532e-10
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 52.0,
+      "veff": -182251003.44464755,
+      "w1": 234.78235967236,
+      "ws": 9.71720156274946e-09,
+      "wx": 60.27394003233033
+    },
+    {
+      "label": "EW",
+      "phase_index": 3,
+      "temp": 52.89906601796918,
+      "veff": -187335285.4820804,
+      "w1": 242.49062168313418,
+      "ws": 332.4101325034073,
+      "wx": 7.390617104343892e-10
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 53.0,
+      "veff": -187935624.88790867,
+      "w1": 234.5611959218251,
+      "ws": 4.444379518955546e-09,
+      "wx": 60.168846526556855
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 53.62814867206687,
+      "veff": -191673509.9074992,
+      "w1": 234.4165669534777,
+      "ws": 3.077662174150672e-08,
+      "wx": 60.10086728584641
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 53.89906601796918,
+      "veff": -193333241.6512254,
+      "w1": 234.3525805920577,
+      "ws": -2.592584835030705e-08,
+      "wx": 60.07099767041707
+    },
+    {
+      "label": "EW_X_BROKEN",
+      "phase_index": 2,
+      "temp": 54.0,
+      "veff": -193974733.0915365,
+      "w1": 234.3279678215072,
+      "ws": -2.3741909805841873e-08,
+      "wx": 60.05960609191671
+    }
+  ]
+}

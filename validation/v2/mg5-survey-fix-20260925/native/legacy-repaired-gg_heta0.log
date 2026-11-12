@@ -1,0 +1,199 @@
+set nb_core 1
+set run_mode 0
+generate_events runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=1
+set ebeam1 6800.0
+set ebeam2 6800.0
+set Meta 511.1
+set Weta 2.29
+set Miota 61.66
+set Wiota 0.0
+set k1 0.988
+set k2 0.1545
+set k3 0.0
+set kap111 30.58
+set kap112 97.68
+set kap113 0.0
+set kap123 0.0
+set kap122 -69.24
+set kap1111 0.04444
+set kap1112 -0.002027
+set kap1113 0.0
+set kap133 0.5424
+set WH 0.003998
+set kap233 -0.1046
+set nevents 1
+0
+************************************************************
+*                                                          *
+*                      W E L C O M E to                    *
+*             M A D G R A P H 5 _ a M C @ N L O            *
+*                      M A D E V E N T                     *
+*                                                          *
+*                 *                       *                *
+*                   *        * *        *                  *
+*                     * * * * 5 * * * *                    *
+*                   *        * *        *                  *
+*                 *                       *                *
+*                                                          *
+*         VERSION 3.5.15                                   *
+*                                                          *
+*    The MadGraph5_aMC@NLO Development Team - Find us at   *
+*    https://server06.fynu.ucl.ac.be/projects/madgraph     *
+*                                                          *
+*               Type 'help' for in-line help.              *
+*                                                          *
+************************************************************
+INFO: load configuration from /home/apapaefs/.config/mg5_configuration.txt  
+INFO: load configuration from /tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/Cards/me5_configuration.txt  
+INFO: load configuration from /home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/input/mg5_configuration.txt  
+INFO: load configuration from /tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/Cards/me5_configuration.txt  
+Using default text editor "vi". Set another one in ./input/mg5_configuration.txt
+No valid eps viewer found. Please set in ./input/mg5_configuration.txt
+Using default web browser "firefox". Set another one in ./input/mg5_configuration.txt
+import command /tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/mg5_gg_heta0_lambdavar_runsurveytest.dcmd
+set nb_core 1
+INFO: This option will be the default in any output that you are going to create in this session. 
+INFO: In order to keep this changes permanent please run 'save options' 
+set run_mode 0
+INFO: This option will be the default in any output that you are going to create in this session. 
+INFO: In order to keep this changes permanent please run 'save options' 
+generate_events runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=1
+stty: standard input: Inappropriate ioctl for device
+set ebeam1 6800.0
+[1mINFO: modify parameter ebeam1 of the run_card.dat to 6800.0 [0m
+set ebeam2 6800.0
+[1mINFO: modify parameter ebeam2 of the run_card.dat to 6800.0 [0m
+set Meta 511.1
+[1mINFO: modify param_card information BLOCK mass with id (99925,) set to 511.1 [0m
+set Weta 2.29
+[1mINFO: modify param_card information BLOCK decay with id (99925,) set to 2.29 [0m
+set Miota 61.66
+[1mINFO: modify param_card information BLOCK mass with id (99926,) set to 61.66 [0m
+set Wiota 0.0
+[1mINFO: modify param_card information BLOCK decay with id (99926,) set to 0.0 [0m
+set k1 0.988
+[1mINFO: modify param_card information BLOCK bsm with id (12,) set to 0.988 [0m
+set k2 0.1545
+[1mINFO: modify param_card information BLOCK bsm with id (13,) set to 0.1545 [0m
+set k3 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (14,) set to 0.0 [0m
+set kap111 30.58
+[1mINFO: modify param_card information BLOCK bsm with id (15,) set to 30.58 [0m
+set kap112 97.68
+[1mINFO: modify param_card information BLOCK bsm with id (16,) set to 97.68 [0m
+set kap113 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (25,) set to 0.0 [0m
+set kap123 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (26,) set to 0.0 [0m
+set kap122 -69.24
+[1mINFO: modify param_card information BLOCK bsm with id (17,) set to -69.24 [0m
+set kap1111 0.04444
+[1mINFO: modify param_card information BLOCK bsm with id (19,) set to 0.04444 [0m
+set kap1112 -0.002027
+[1mINFO: modify param_card information BLOCK bsm with id (20,) set to -0.002027 [0m
+set kap1113 0.0
+[1mINFO: modify param_card information BLOCK bsm with id (30,) set to 0.0 [0m
+set kap133 0.5424
+[1mINFO: modify param_card information BLOCK bsm with id (24,) set to 0.5424 [0m
+set WH 0.003998
+[1mINFO: modify param_card information BLOCK decay with id (25,) set to 0.003998 [0m
+set kap233 -0.1046
+[1mINFO: modify param_card information BLOCK bsm with id (28,) set to -0.1046 [0m
+set nevents 1
+[1mINFO: modify parameter nevents of the run_card.dat to 1 [0m
+INFO: Update the dependent parameter of the param_card.dat 
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/parameters.py:25: SyntaxWarning: invalid escape sequence '\l'
+  texname = '\lambda_{HV}')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:42: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gg')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:47: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gq')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:53: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gc')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:59: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gb')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:65: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Gt')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:72: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_c}')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:79: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_b}')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:86: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta G_{wfct\_t}')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:93: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_c')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:100: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_b')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:107: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta Z_t')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:114: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_b')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:121: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_c')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:128: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta m_t')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:139: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_c')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:146: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_b')
+/tmp/trsm-mg5-survey-arlac7oh/legacy-repaired/gg_heta0/bin/internal/ufomodel/CT_parameters.py:153: SyntaxWarning: invalid escape sequence '\d'
+  texname = '\delta y_t')
+[1;34mSingle-core mode not supported for loop-induced processes.
+Beware that MG5aMC now changes your runtime options to a multi-core mode with only one active core.[0m
+Generating 1 events with run name runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046
+survey  runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 --accuracy=0.25 --points=300 --iterations=1
+INFO: compile directory 
+initMadLoop -r -f
+Initializing MadLoop loop-induced matrix elements (this can take some time)...
+MadLoop initialization finished.
+compile Source Directory
+Using random number seed offset = 21
+INFO: Running Survey 
+Creating Jobs
+Working on SubProcesses
+INFO:     P0_gg_heta0  
+[1;34mWARNING: Survey iterations 1 are below minimum 3; using the minimum. [0m
+INFO:  Idle: 1,  Running: 1,  Completed: 0 [ current time: 10h57 ] 
+INFO:  Idle: 0,  Running: 1,  Completed: 1 [  4s  ] 
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+INFO:  Idle: 0,  Running: 0,  Completed: 2 [  4.9s  ] 
+sum of cpu time of last step: 0 second
+  === Results Summary for run: runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 tag: tag_1 ===
+
+     Cross-section :   6.681e-05 +- 8.067e-07 pb
+     Nb of events :  0
+ 
+INFO: End survey 
+refine 1
+Creating Jobs
+INFO: Refine results to 1 
+INFO: Generating 1.0 unweighted events. 
+sum of cpu time of last step: 0 second
+INFO: Effective Luminosity 14968.580948588913 pb^-1 
+INFO: need to improve 0 channels 
+- Current estimate of cross-section: 6.68066e-05 +- 8.067224207272288e-07
+INFO:  Idle: 0,  Running: 0,  Completed: 0 [ current time: 10h58 ] 
+INFO: Combining runs 
+sum of cpu time of last step: 0 second
+INFO: finish refine 
+refine 1 --treshold=0.9
+No need for second refine due to stability of cross-section
+INFO: Combining Events 
+combination of events done in 0.008504152297973633 s 
+  === Results Summary for run: runsurveytest_m2_511.1_m3_61.66_w2_2.29_w3_0.0_30.58_97.68_0.0_0.0_-69.24_0.04444_-0.002027_0.0_0.5424_-0.1046 tag: tag_1 ===
+
+     Cross-section :   6.681e-05 +- 8.067e-07 pb
+     Nb of events :  1
+ 
+store_events
+INFO: Storing parton level results 
+INFO: End Parton 
+reweight -from_cards
+decay_events -from_cards
+INFO: storing files of previous run 
+INFO: Done 
+quit
+INFO:  
+launch in debug mode
+
+Done generating cross section

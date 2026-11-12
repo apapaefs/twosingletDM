@@ -268,7 +268,19 @@ class TestTRSMEWPT(unittest.TestCase):
         self.assertTrue(check.conditions["c_phiphi > 0"])
         self.assertTrue(check.conditions["C_phix > 0"])
         self.assertTrue(check.conditions["D > 0"])
-        self.assertTrue(math.isclose(check.couplings["c_phiphi"], 0.0766285972235586))
+        self.assertTrue(math.isclose(check.couplings["c_phiphi"], 0.1532571944471172))
+
+    def test_eq_4_18_decoupled_x_matches_mass_product_at_any_mixing(self):
+        ewpt = load_module()
+        row = dict(m1=125.09, m2=600.0, m3=400.0, vs=200.0,
+                   lx=0.1, lphix=0.0, lsx=0.0)
+        expected_minor = row["m1"]**2 * row["m2"]**2 / (4 * ewpt.SM_VEV**2 * row["vs"]**2)
+        for angle in (0.0, 0.2, -0.2, 0.7):
+            with self.subTest(a12=angle):
+                check = ewpt.check_eq_4_18(row | dict(a12=angle))
+                self.assertTrue(check.satisfied)
+                self.assertTrue(math.isclose(check.couplings["C_phis"], expected_minor, rel_tol=1e-12))
+                self.assertTrue(math.isclose(check.couplings["D"], row["lx"] * expected_minor, rel_tol=1e-12))
 
     def test_eq_4_18_check_fails_when_coupling_matrix_is_not_positive(self):
         ewpt = load_module()

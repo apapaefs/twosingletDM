@@ -660,10 +660,11 @@ def trsm_tree_lambdas(row, sm_vev=SM_VEV):
 
 def check_eq_4_18(row):
     lambdas = trsm_tree_lambdas(row)
+    # V4 = (1/4) sum_ij c_ij phi_i^2 phi_j^2: only mixed quartics are halved.
     couplings = {
-        "c_phiphi": 0.5 * lambdas["lambda_phiphi"],
-        "c_xx": 0.5 * lambdas["lambda_xx"],
-        "c_ss": 0.5 * lambdas["lambda_ss"],
+        "c_phiphi": lambdas["lambda_phiphi"],
+        "c_xx": lambdas["lambda_xx"],
+        "c_ss": lambdas["lambda_ss"],
         "c_phix": 0.5 * lambdas["lambda_phix"],
         "c_phis": 0.5 * lambdas["lambda_phis"],
         "c_xs": 0.5 * lambdas["lambda_xs"],

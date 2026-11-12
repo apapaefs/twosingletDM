@@ -64,7 +64,8 @@ explicitly: setting `OMP_NUM_THREADS` alone does not control it. Standalone
 
 Both launchers accept `--run-mg5`. By default this evaluates `gg_heta0` and
 `pp_eta0Z` at 13.6 TeV for points passing full viability, including flavour.
-Repeat `--mg5-process NAME` to choose from `hh`, `hhh`, `gg_heta0`, and `pp_eta0Z`.
+Repeat `--mg5-process NAME` to choose from `hh`, `hhh`, `gg_heta0`, `pp_eta0Z`,
+and loop-induced `gg_eta0Z`. The two associated-production defaults are unchanged.
 `--mg5-without-dm` drops only the DM requirement; all non-DM constraints,
 including flavour, still apply. These options do not change EWPT eligibility.
 
@@ -90,16 +91,37 @@ an MG5-eligible point. Cross sections appear in `mg5_xsec_<process>_pb` columns
 in each scan and `combined_points.tsv`.
 
 Activate the runtime before launching so `TRSM_MG5_LOCATION` selects the compiled
-processes. Preflight checks the selected launchers and compiled subprocesses and
-records stable process/model files in the campaign receipt. Missing installations
+processes. Preflight checks the selected launchers, compiled subprocesses, and
+MadLoop initialization executables and local Fortran modules, and records stable
+process/model files in the campaign receipt. Missing installations
 stop the campaign before workers start. Actual run cards and helicity-optimized
 binaries are mutable and are not included in this receipt's source hashes.
+An older loop-process installation may need the
+[MadLoop artifact repair](runtime-bootstrap.md#repairing-an-existing-madloop-installation)
+before use. This repair preserves the campaign and its physics inputs.
 
 MG5 updates cards and event files inside each generated process directory.
 An exclusive file lock covers each invocation: workers using the same process
 take turns, while different processes and other scan calculations can proceed
 concurrently. Campaign workers set `TRSM_MG5_CORES=1`, so each invocation uses one
 core. `--jobs` controls concurrent scans, not independent copies of MG5.
+
+Both tree-level and loop-induced MG5 processes use three survey iterations.
+The older one-iteration loop setting was invalid for MadEvent's unsplit survey:
+its input requested `maxiter=1` with `miniter=3`, causing zero result files even
+when individual channel estimates were nonzero. Do not reduce this setting to
+one to speed up a campaign. Loop-induced processes also set `nhel=0` to sum
+helicities explicitly. MG5 3.5.15's adaptive helicity sampler can otherwise
+abort after the first iteration with `DiscreteSampler:: Error, no point could
+be picked`. The exact sum evaluates the same unpolarized process; it does not
+change the model or its couplings. Tree-level helicity settings are preserved.
+A zero survey with no event file remains a reported failure; it is not recorded
+as an assessed zero cross section.
+
+For an existing campaign that must retain its original Python checkout, use
+the [survey runtime repair](runtime-bootstrap.md#repairing-an-existing-mg5-survey)
+before resuming. It records the integration-setting changes and backups without
+altering campaign checkpoints or their saved fingerprints.
 
 The `tools/run_next_scan.py` wrapper exposes the same options. Its configuration
 also accepts `run_mg5` and `mg5_without_dm` booleans and an `mg5_processes` list;
@@ -110,6 +132,119 @@ MG5 enablement, its DM selection, and its process list are saved with the
 campaign and cannot change on resume. Use a fresh campaign directory to enable
 MG5 for a previous scan that did not run it. Existing native installations can
 be reused; this feature does not require a rebuild.
+
+To calculate missing channels on the same stored points instead, use the
+[saved-point MG5 reprocessor](../README.md#add-loop-induced-zh2-rates-to-a-saved-campaign).
+It produces a separate enriched TSV and preserves the original campaign.
+
+## Mass-range runs from the 66662 reference
+
+Two profiles reproduce the settings recorded in
+`odysseus-100x1000-66662/campaign_state.json` and its seed-66662 metadata,
+changing only the requested mass bounds:
+
+| Profile | M2 [GeV] | M3 [GeV] |
+| --- | --- | --- |
+| `config/odysseus-m2-m3-4-1000.json` | 4--1000 | 4--1000 |
+| `config/odysseus-m2-4-200-m3-4-65.json` | 4--200 | 4--65 |
+
+Both use independent uniform masses, logarithmic `K133`/`K233` magnitudes with
+independent signs, `vs = 50--500 GeV`, `k1 = 0.9--1`, and `lX = 0--10`.
+The base-10 trilinear exponent ranges are `[-4, 3]` and `[-3, 5]` in GeV.
+The micrOMEGAs 7.1.4, Planck CMB and LZ WS2024 prescriptions are unchanged.
+EWPT uses `thigh = 1000 GeV`; the optional Eq. (4.18) preselection is disabled.
+MG5 evaluates the original `gg_heta0` and `pp_eta0Z` channels for fully viable
+points. Both mass profiles now enable `run_calcgw`: after all seeds complete
+and the combined TSV is written, the launcher runs CalcGW automatically on
+the saved `ewpt_eligible=True` points. It writes `combined_points_gw.tsv` and
+its metadata alongside the original `combined_points.tsv`. Use the GW file
+as the plotting-suite input. The additional `hh` and loop-induced `gg_eta0Z`
+calculations remain separate operations.
+
+CalcGW uses the saved EWPT upper temperature and the existing percolation,
+wall-speed and turbulence defaults. Its concurrency defaults to the scan's
+`jobs`; override it with `--calcgw-jobs`. `--no-run-calcgw` disables the
+follow-up. An interrupted CalcGW stage resumes its existing checkpoint when
+the follow-up is repeated; incompatible inputs or settings produce an error.
+These are execution options and do not change the scan's physics fingerprint.
+`--aggregate-only` never launches CalcGW.
+
+Each profile uses the original seeds 66662--66761 in a **new directory**,
+100 single-thread workers, and 1,000 `evo & thc` passes per seed. Thus each
+targets 100,000 such passes; the number of raw draws can be larger. The
+reference needed 591,340 draws. Reusing seed numbers in separate campaigns
+preserves the random-number convention without overwriting the original run.
+
+On Odysseus, from the repository with these profiles installed:
+
+```bash
+source ../runtime-v2-new/activate.sh
+
+# A: M2 and M3 in [4, 1000] GeV
+python tools/run_next_scan.py \
+  --config config/odysseus-m2-m3-4-1000.json \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 --run
+
+# B: M2 in [4, 200] GeV; M3 in [4, 65] GeV
+python tools/run_next_scan.py \
+  --config config/odysseus-m2-4-200-m3-4-65.json \
+  --campaign-dir output/odysseus-100x1000-66662-m2-4-200-m3-4-65 --run
+```
+
+The commands run in the foreground, so executing the block sequentially uses
+100 workers at a time. Omit `--run` to validate and print either command.
+The launcher caps concurrency at the available CPUs. The profiles were checked
+through both command parsers and 1,000 mass draws each; this setup does not
+start a production scan or claim a new native-runtime validation.
+
+Resume either run with its own directory:
+
+```bash
+python tools/run_next_scan.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --resume --jobs 100 --run
+```
+
+For run B, substitute its directory. Resume reads the saved campaign settings,
+including the CalcGW follow-up choice for campaigns launched with this update.
+
+The saved runtime receipt includes the source checkout's Git revision, launcher
+and profile files. Updating these can prevent a resume even when the numerical
+physics code is unchanged. To recover an existing campaign, create a separate
+checkout at the commit recorded in
+`runtime_receipt.physics_manifest.repository_commit`, then pass its generator
+to the current launcher. For the wide-mass campaign started at `ce7991b`:
+
+```bash
+git worktree add --detach ../twosingletDM-resume-ce7991b ce7991b
+python tools/run_next_scan.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --resume --jobs 100 --run-calcgw \
+  --generator-snapshot ../twosingletDM-resume-ce7991b/generate_trsm_points.py --run
+```
+
+Create the worktree only once. The complete runtime receipt and per-seed
+checkpoint fingerprints must still match; this option does not bypass them or
+change their saved values. The snapshot path is recorded as an execution
+option and reused on later resumes. Keep that checkout available until the
+campaign is finished. A mismatch in native executables, datasets or physics
+settings still requires restoring the original runtime before resuming.
+
+For an already running or completed campaign launched before this update,
+attach the follow-up without restarting the scan:
+
+```bash
+python tools/run_campaign_calcgw.py \
+  --campaign-dir output/odysseus-100x1000-66662-m2-m3-4-1000 \
+  --jobs 100 --wait
+```
+
+This waits for the live supervisor to finish aggregation, then runs or resumes
+CalcGW. It exits with an error if the scan stops incomplete. Run it in a
+persistent terminal or detached process when waiting for a long campaign.
+`calcgw_followup.json` records its stage and result; a separate lock prevents
+two follow-up supervisors for the same campaign. The existing CalcGW output
+lock also prevents duplicate writers. This command does not regenerate plots.
 
 ## Files, progress and interruption
 

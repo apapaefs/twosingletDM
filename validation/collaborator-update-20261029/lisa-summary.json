@@ -1,0 +1,15 @@
+{
+  "max_snr": {
+    "snr": 1.5344127919211443,
+    "M2": 401.308101536867,
+    "M3": 62.557506899684604,
+    "dm": "False",
+    "transition_index": 0,
+    "source_row_index": "232192"
+  },
+  "max_full_viability_snr": 4.49116461619875e-11,
+  "transitions_snr_ge_5": 0,
+  "transitions_snr_1_to_100": 1,
+  "strong_ew_entry_points": 7,
+  "full_viable_strong_ew_entry_points": 0
+}

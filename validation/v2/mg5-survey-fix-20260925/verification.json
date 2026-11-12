@@ -1,0 +1,26 @@
+{
+  "unit_tests": 108,
+  "status": "passed",
+  "native_cases": 6,
+  "processes": [
+    "gg_heta0",
+    "pp_eta0Z",
+    "hh",
+    "hhh"
+  ],
+  "reference_pull_sigma": 0.5545658316001323,
+  "wrapper_sha256": "994cad72a4ae188de1bf9c10ee7638023f5e2d1ab6b1bb0b9626b76443a53f61",
+  "repair_tool_sha256": "b12ac71b35e7648824284f2253f90e4ad8252e05325be8102d5dfe225f5a7e64",
+  "deployment": {
+    "protected_files": 3547,
+    "protected_files_unchanged": true,
+    "runtime_fingerprint": "0099d74f76e7fa4852a152247d08d61098ac500f2930e7155b25f749d75c97a1",
+    "campaign_receipts_unchanged": true,
+    "repair_receipts": [
+      "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/gg_heta0/.trsm-maintenance/survey-minimum-20260925T150308.543883Z/receipt.json",
+      "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/gg_hh_twoscalar/.trsm-maintenance/survey-minimum-20260925T150308.570059Z/receipt.json",
+      "/home/apapaefs/Projects/TwoSingletDM/runtime-v2-new/MG5_aMC_v3_5_15/gg_hhh_twoscalar/.trsm-maintenance/survey-minimum-20260925T150308.596115Z/receipt.json"
+    ],
+    "restarted_campaigns": false
+  }
+}

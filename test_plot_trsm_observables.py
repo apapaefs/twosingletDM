@@ -119,9 +119,9 @@ class TestPlotTRSMObservables(unittest.TestCase):
         lphis = ((-m1**2 + m2**2) * math.cos(a12) * math.sin(a12)) / (
             plotter.SM_VEV * vs
         )
-        c_phi = 0.5 * lphi
-        c_x = 0.5 * 0.8
-        c_s = 0.5 * ls
+        c_phi = lphi
+        c_x = 0.8
+        c_s = ls
         c_phix = 0.5 * 0.3
         c_phis = 0.5 * lphis
         c_xs = 0.5 * 0.28
@@ -129,6 +129,9 @@ class TestPlotTRSMObservables(unittest.TestCase):
             "eq418_c_phiphi": c_phi,
             "eq418_c_xx": c_x,
             "eq418_c_ss": c_s,
+            "eq418_c_phix": c_phix,
+            "eq418_c_phis": c_phis,
+            "eq418_c_xs": c_xs,
             "eq418_C_phix": c_phi * c_x - c_phix**2,
             "eq418_C_phis": c_phi * c_s - c_phis**2,
             "eq418_C_xs": c_x * c_s - c_xs**2,

@@ -1,0 +1,431 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=22mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,longtable,array,enumitem,microtype,pdflscape}
+\usepackage{xcolor,xurl}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
+\newcommand{\code}[1]{\ifmmode\mbox{\ttfamily\detokenize{#1}}\else\nolinkurl{#1}\fi}
+\newcommand{\GeV}{\,\mathrm{GeV}}
+\newcommand{\BR}{\operatorname{BR}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlength{\emergencystretch}{3em}
+\setlist[itemize]{leftmargin=*,itemsep=5pt,topsep=5pt}
+\renewcommand{\arraystretch}{1.15}
+\title{Applied constraints in the two-singlet dark-matter scan}
+\author{Collaborator discussion: implementation summary}
+\date{29 October 2026}
+\begin{document}
+\maketitle
+
+We list the constraints actually used in the $v_x=0$ scan, the separate
+theoretical and thermal diagnostics, and the HiggsTools analyses selected in
+the reference campaign. The reference is \code{odysseus-100x1000-66662}, with
+HiggsTools 1.1.3, micrOMEGAs 7.1.4, BSMPT 3.2.1 and constraint profile
+\code{trsm_constraints_v2}. Its saved campaign and seed metadata were read
+directly from Odysseus. Both local Higgs datasets match the campaign's complete
+dataset checksums. The detailed derivations and source index remain in
+\code{docs/constraints-and-selection.tex}; this document provides the requested
+bullet list and analysis tables.
+
+\section{Model and meaning of an accepted point}
+\begin{itemize}
+\item The SM-like scalar has $M_1=125.09\GeV$. The dark scalar is
+$h_3=X$, with $v_x=0$ and zero doublet projection. With
+$\theta=a_{12}$, the visible couplings scale as $k_1=\cos\theta$ and
+$k_2=\sin\theta$; $a_{13}=a_{23}=0$.
+\item In the current v2 selection, \textbf{full viability} means an explicit
+pass of tree theory, the experimental subset, flavour and the aggregate DM
+assessment:
+\[
+ V=T\land E\land F\land D.
+\]
+Here $T$ is \code{thc}; $E$ is \code{experimental_subset}; $F$ is
+\code{flavour}; and $D$ is \code{dm}. Non-DM viability is $T\land E\land F$.
+An unknown result cannot supply a required pass.
+\item The experimental subset combines HiggsBounds, HiggsSignals and the
+correlated $S,T,U$ test, with the separate $W$-mass test added within its
+tabulated mass coverage. Flavour is evaluated separately.
+\item The original campaign stops each of 100 seeds after 1,000 points with
+both \code{evo=True} and \code{thc=True}. It stores all evaluated draws,
+including excluded and unassessed points. The resulting ledger contains
+591,340 rows; the target of 100,000 counts tree-theory and RG-integration
+passes, rather than 100,000 fully viable points.
+\item The ordinary full-viability definition does not impose a global tree
+vacuum, RG boundedness, RG unitarity, a strong phase transition, or a LISA
+SNR threshold. Their separate flags must be requested explicitly when
+forming such subsets. The cumulative HB--HS--$W$--DM plotting sequence also
+omits tree theory, $S,T,U$ and flavour, so its last stage is not $V$.
+\end{itemize}
+
+\section{Theoretical constraints and separate theory assessments}
+\begin{itemize}
+\item \textbf{Tree-level boundedness from below: required.}
+The potential convention is
+\[
+ V=\frac12\sum_i\mu_i^2\varphi_i^2+
+ \frac14\sum_i\lambda_i\varphi_i^4+
+ \frac14\sum_{i<j}\lambda_{ij}\varphi_i^2\varphi_j^2,
+ \qquad\varphi=(h,s,x).
+\]
+Define $A_{ii}=\lambda_i$, $A_{ij}=\lambda_{ij}/2$ and
+$\bar A_{ij}=A_{ij}+\sqrt{A_{ii}A_{jj}}$. The implemented copositivity
+conditions are
+\begin{gather*}
+ A_{ii}\geq0,\qquad \bar A_{12},\bar A_{13},\bar A_{23}\geq0,\\
+ \sqrt{A_{11}A_{22}A_{33}}+A_{12}\sqrt{A_{33}}+
+ A_{13}\sqrt{A_{22}}+A_{23}\sqrt{A_{11}}+
+ \sqrt{2\bar A_{12}\bar A_{13}\bar A_{23}}\geq0.
+\end{gather*}
+The numerical tolerance is $10^{-12}$ below zero; small negative diagonal
+values within that tolerance are set to zero in square roots.
+\item \textbf{Perturbative unitarity: required.}
+The strict bounds are $|\lambda_{\Phi,S,X}|<4\pi$,
+$|\lambda_{\Phi S,\Phi X,SX}|<8\pi$, and $|u_a|<16\pi$ for every eigenvalue of
+\[
+ U=\begin{pmatrix}
+ 12\lambda_\Phi&2\lambda_{\Phi S}&2\lambda_{\Phi X}\\
+ 2\lambda_{\Phi S}&6\lambda_S&\lambda_{SX}\\
+ 2\lambda_{\Phi X}&\lambda_{SX}&6\lambda_X
+ \end{pmatrix}.
+\]
+Equality fails these strict bounds. The inputs must be finite and $v_s\ne0$.
+\item \textbf{Unbounded tree potential: veto.} The independent vacuum
+assessment can identify an unbounded quartic direction or a flat quartic
+direction destabilised by its quadratic term. Either status also sets
+\code{thc=False}.
+\item \textbf{Global tree vacuum: separate assessment.} The desired vacuum
+$(v,v_s,0)$ is compared with minima on all eight field supports, including
+the origin. It must be local and satisfy
+$V_{\rm target}-V_{\min}\leq10^{-8}\max(1,|V_{\rm target}|,|V_{\min}|)$,
+using numerical potentials in $\mathrm{GeV}^4$; degenerate minima pass.
+Singular stationary systems and flat directions receive dedicated checks.
+An unresolved case is unknown. A deeper bounded minimum does not by itself
+fail ordinary full viability.
+\item \textbf{One-loop RG evolution to 1 TeV: separate assessments.}
+Running begins at $91\GeV$, with
+$(g_3,g_2,g_1,y_t)=(1.221,\sqrt{0.424},\sqrt{0.1273},0.96738)$.
+The couplings are screened for BFB and the same unitarity conditions on
+solver nodes and 513 logarithmically spaced scales. The integration uses
+relative/absolute tolerances $10^{-8}/10^{-10}$; violation brackets are
+refined to $10^{-5}\GeV$. No threshold or precision pole-to-running
+matching is added. \code{evo} records integration success, not physical
+acceptance of the entire running trajectory.
+\item \textbf{Strict theory subset: optional.} This combines the global
+tree-vacuum verdict with RG integration success, RG BFB and RG unitarity.
+It is available for comparisons but is not a factor in $V$.
+\item \textbf{Positive quartic determinant: optional EWPT preselection.}
+The \code{--ewpt-require-eq418} option requires positive diagonal entries,
+positive two-by-two principal minors and $\det A>0$. It was \emph{disabled}
+in the reference run and remains disabled in the two new profiles.
+The current determinant uses $A_{ii}=\lambda_i$, $A_{ij}=\lambda_{ij}/2$;
+this is stronger than copositivity. The plot itself applies no determinant cut.
+\end{itemize}
+\textit{Implementation:} \code{test_trsm_theory_constraints.py},
+\code{trsm_theory_diagnostics.py}, \code{trsm_inputs.py},
+\code{generate_trsm_points.py} and \code{test_trsm_ewpt.py}.
+
+\section{Experimental constraints}
+\begin{itemize}
+\item \textbf{HiggsBounds: required.} HiggsTools evaluates applicable
+search limits with the point's masses, production inputs, widths and branching
+fractions. For each scalar it selects the most sensitive analysis using
+expected sensitivity, then tests its observed limit. The pipeline uses the
+provider's \code{allowed} verdict, rather than intersecting every displayed
+observed ratio. See the \href{https://higgsbounds.gitlab.io/higgstools/HiggsBoundsAPI.html}{HiggsBounds API}.
+Section~\ref{sec:catalogue} lists the 31 different IDs selected somewhere in
+the reference ledger; rows with a zero selection count are omitted.
+\item \textbf{HiggsSignals: required.} The implemented condition is
+$\chi^2_{\rm point}-\chi^2_{\rm SM}<4.00$. The SM reference uses the same
+$M_1$ and SM decay-input pipeline. All 22 installed measurement files,
+containing 159 submeasurements, enter the calculation. This fixed threshold
+is a screening prescription, not a profiled confidence region for every
+scan parameter. A nonfinite likelihood is unassessed.
+\item \textbf{Visible, invisible and scalar-cascade decays: included in
+HiggsTools.} The independent invisible widths are
+\[
+ \Gamma(h_i\to h_3h_3)=\frac{K_{i33}^2}{8\pi M_i}
+ \sqrt{1-\frac{4M_3^2}{M_i^2}},\qquad M_i>2M_3,
+\]
+and zero at or below threshold. Here $K_{i33}$ is the coefficient of
+$h_i h_3^2$ in the potential. Physical total widths include these channels
+and open $h_1\to h_2h_2$ or $h_2\to h_1h_1$ decays; the visible branching
+fractions are diluted consistently. There is no additional universal cut
+on the invisible Higgs branching fraction. A $10^{-10}\GeV$ floor is used
+only in nonzero HiggsTools width records to avoid numerical zeroing.
+\item \textbf{Scope of the HiggsTools production input.} The adapter uses
+\code{scaledSMlikeEffCouplings} for $h_1,h_2$ and supplies the physical decay
+inputs above. Provider nonresonant identical-scalar pair-production estimates
+are therefore included where applicable; the adapter does not supply a
+model-specific self-coupling override to those estimates. Separately computed
+MadGraph $hh$ and associated-production rates are not fed back into the
+stored HiggsBounds decision. Scalar-to-$Z$-scalar, flavour-changing top and
+charged-scalar channels do not acquire nonzero model inputs here.
+\item \textbf{Correlated electroweak precision observables: required.}
+With $U$ allowed to vary, the scalar contributions obey
+$\Delta O=\sin^2\theta[O(M_2)-O(M_1)]$ for $O=S,T,U$.
+The cut is
+\[
+ (\boldsymbol\Delta-\boldsymbol c)^T\Sigma^{-1}
+ (\boldsymbol\Delta-\boldsymbol c)\leq7.82,
+ \qquad \Sigma_{ij}=\rho_{ij}\sigma_i\sigma_j,
+\]
+with
+\begin{align*}
+ \boldsymbol c&=(-0.045235,0.013373,-0.016131),\\
+ \boldsymbol\sigma&=(0.094703,0.11518,0.087103),&
+ \rho&=\begin{pmatrix}1&0.048&0.747\\0.048&1&-0.162\\0.747&-0.162&1\end{pmatrix}.
+\end{align*}
+The repository attributes these fit inputs to Jens Erler, private
+communication, 16 May 2025. They describe the implemented fit.
+\item \textbf{$W$ mass: required within coverage.} For
+$133\leq M_2/\mathrm{GeV}\leq999$, require
+$|\sin\theta|\leq s^W_{\max}(M_2)$ using the cubic interpolation of
+\code{datafiles/Tania_MW_SnowmassWhitepaper.dat}. Equality passes.
+There is no extrapolation; outside coverage this factor is a non-veto and
+is omitted from the v2 experimental subset. The $S,T,U$ and $W$ tests are
+separate screens, without a joint likelihood.
+\item \textbf{Flavour: required separately.} For each visible scalar and
+$\ell=\mu,\tau$, compare
+$\BR(\Upsilon(1S)\to\gamma h_i)\BR(h_i\to\ell^+\ell^-)$ with the
+strongest available individual Belle/BaBar 90\% CL curve. The nominal
+windows are $[0.212,9.2]\GeV$ and $[3.55,9.2]\GeV$, respectively, also
+restricted to each digitised curve's coverage. The supplied tau curves start
+near $3.83\GeV$. Interpolation is linear in mass and logarithmic in the
+limit, with no extrapolation. Covered ratios must be at most one.
+These prompt, narrow-resonance limits use the implemented production factor
+$F_{bS}=\frac23[1-(M_i/m_\Upsilon)^6]$, $m_b=4.18\GeV$,
+$m_\Upsilon=9.46040\GeV$, $\alpha^{-1}=137.035999084$ and
+$\BR(\Upsilon\to e^+e^-)=0.0239$. There is no extra lifetime acceptance cut.
+Outside coverage or at zero production, the test is a non-veto; missing
+required decay information is unassessed. In this branch it constrains a
+light $h_2$. The source identified by the implementation is
+\href{https://arxiv.org/abs/2112.11852}{Belle, arXiv:2112.11852}.
+\end{itemize}
+\textit{Implementation:} \code{test_trsm_higgstools.py},
+\code{generate_trsm_info.py}, \code{singlet_EWPO.py},
+\code{trsm_constraint_profile.py} and \code{trsm_flavour.py}.
+
+\section{Dark-matter constraints}
+\begin{itemize}
+\item \textbf{Successful micrOMEGAs calculation: required.} The reference
+backend is 7.1.4. Solver failures or invalid physical outputs give an unknown
+aggregate DM verdict. Virtual $W/Z$ decays are enabled in the reference
+configuration. The abundance fraction is
+$\xi=\min(1,\Omega h^2/0.12)$; scattering predictions scale with $\xi$ and
+annihilation signals with $\xi^2$.
+\item \textbf{Relic abundance: required upper bound.}
+Require $0\leq\Omega h^2\leq0.121$. Underabundance is allowed; there is no
+positive lower bound and no requirement that $h_3$ supply all DM.
+The $0.12$ rescaling reference differs from the $0.121$ acceptance limit.
+The freeze-out diagnostic is $T_f=M_3/X_f$ when $X_f>0$ is available.
+\item \textbf{Spin-independent direct detection: required.}
+The default is the LZ WS2024 observed power-constrained 90\% CL elastic
+isoscalar per-nucleon limit, from the
+\href{https://doi.org/10.17182/hepdata.155182.v2/t1}{published numerical table}
+associated with \href{https://arxiv.org/abs/2410.17036}{arXiv:2410.17036}.
+The code compares the micrOMEGAs neutron SI cross section with
+\[
+ \xi\,\sigma_n^{\rm SI}\leq L_{\rm LZ}(M_3).
+\]
+The 26-point table covers $9$--$10000\GeV$, with log--log interpolation
+and $1\,\mathrm{cm}^2=10^{36}\,\mathrm{pb}$. No extrapolation is performed.
+For positive $\xi$, points below $9\GeV$ have an unavailable DD assessment
+and cannot supply a DM pass. At $\xi=0$, finite scattering is a non-veto.
+\code{dm_dir_det} is the unscaled cross section and
+\code{dm_dir_det_limit} is $L_{\rm LZ}/\xi$; the comparison must not rescale
+both again. The optional LZ2026 approximation is not used in this campaign.
+\item \textbf{Gamma-ray lines: exclusion screen.} Compare each usable
+line flux with the stored Fermi-LAT R16 limit:
+\[
+ \max_a\frac{\xi^2\Phi_a}{L_{\rm R16}(E_{\gamma,a})}\leq1.
+\]
+The tabulated energy range is $0.214$--$462\GeV$, with log--log
+interpolation and no extrapolation. The line energies are $E_\gamma=M_3$
+for $\gamma\gamma$ and $M_3(1-m_Y^2/(4M_3^2))$ for $\gamma Y$.
+The driver integrates $0.5^\circ$ patches inside a $16^\circ$ circular
+region, excluding $|b|<5^\circ$ when $|l|>6^\circ$, and includes photon
+multiplicity. It uses the largest individual ratio rather than combining
+nearby lines. This is the implemented line-flux approximation, rather than
+a full ROI likelihood. With no usable line, the result is a documented
+non-veto. The printed continuum flux supplies no additional exclusion.
+\item \textbf{CMB energy injection: enabled and required.} The reference
+uses the built-in Planck2018 spectral-deposition calculation with
+$p_{\rm ann}^{\max}=3.2\times10^{-28}\,
+\mathrm{cm}^3\mathrm{s}^{-1}\mathrm{GeV}^{-1}$ and
+$\xi^2R_{\rm CMB}^{\rm raw}\leq1$. This is the micrOMEGAs low-velocity
+$s$-wave approximation; the spectrum uses the default
+$v_0=\sqrt3\,v_{\rm rot}/c$, with $v_{\rm rot}=220\,\mathrm{km/s}$.
+An unavailable enabled CMB calculation cannot supply a pass. The
+\href{https://arxiv.org/abs/1807.06209}{Planck 2018 cosmological-parameter analysis}
+provides the observational context.
+\item \textbf{Aggregate DM decision.} With a successful solver, combine
+the relic, direct-detection and enabled CMB passes with the absence of a
+line exclusion. A known exclusion makes \code{dm=False}; otherwise a
+missing required result gives \code{dm=None}. Equality at the listed
+upper limits passes. The plotting suite uses the stored aggregate decision.
+\end{itemize}
+\textit{Implementation:} \code{test_trsm_DM.py},
+\code{trsm_direct_detection.py}, \code{trsm_cmb.py}, \code{DM/main.c}
+and \code{DM/data/lz2024/observed-si-v2.json}.
+
+\section{Thermal diagnostics and interpretation of plot 97}
+\begin{itemize}
+\item \textbf{EWPT entry gate.} Run BSMPT when tree theory passes and
+the experimental subset is not explicitly false. The general gate permits
+an unknown experimental assessment, and does not require DM or flavour.
+The reference campaign has 31,204 eligible points; all explicitly pass
+the experimental and flavour tests.
+\item \textbf{Stars in plot 34b and CalcGW plots.} A star denotes a
+successful stored EW-entry diagnostic with
+$|w_{1,\rm false}|<5\GeV\leq|w_{1,\rm true}|$ and
+$\Delta v_{\rm EW}(T_c)/T_c>1$. Equality at one does not qualify.
+Every transition marker from that scan point has a star in the CalcGW
+panels. A star identifies the parent point; the particular transition
+producing the plotted GW signal need not itself be EW entry.
+\item \textbf{Qualitative thermal flags: separate from viability.}
+The baryogenesis-candidate flag requires the strong critical EW entry
+above. The qualitative GW-candidate flag requires an available FOPT with
+total field-space jump $\Delta\phi/T>1$ at $T_c$, $T_n$ or $T_p$.
+These flags do not calculate a baryon asymmetry or determine a LISA signal.
+Percolation, completion, equilibrium $Z_2$ restoration near freeze-out,
+VEV changes over $[T_f/2,2T_f]$, and corresponding coupling proxies are
+stored diagnostics; they are not additional cuts in $V$.
+\item \textbf{Native CalcGW predictions.} The saved enrichment evaluates
+the EWPT-eligible points with $T_{\max}=1000\GeV$, $T_*=T_p$,
+$v_w=0.95$ and $\epsilon_{\rm turb}=0.1$. A plotted pair must have
+successful native GW and requested-temperature statuses and successful
+NLO stability, tracing and coexistence assessments, with finite
+$\alpha>0$, $T_*>0$ and $\beta/H_*\geq1$. Nonpositive values cannot appear
+on logarithmic axes. Failures are not zero-signal predictions.
+All successful phase pairs are shown, without selecting a cosmological
+transition history. See \href{https://arxiv.org/abs/2404.19037}{the BSMPT v3 paper}.
+\item \textbf{Plot 97 includes experimental constraints in this campaign.}
+There are 20,763 points with 34,227 successful transition pairs. Every such
+point passes \code{thc}, HiggsBounds, HiggsSignals, EWPO, the applicable
+$W$ test and flavour. The all-points CalcGW panel adds no further
+full-viability cut. The version labelled full viability leaves 431 points
+and 647 transition pairs. Among the other successful points, 19,927 fail
+DM and 405 have unknown DM status.
+\item \textbf{LISA SNR interpretation.} The stored total-spectrum SNR uses
+three years of integration and a sensitivity-weighted frequency integral
+of the squared GW spectrum. The line SNR$=5$ is the requested sensitivity
+reference; it is neither an additional scan cut nor a claim of a
+five-standard-deviation discovery. The new plot 97b shows the same values
+with $1\leq\mathrm{SNR}\leq100$, in both selections.
+\item \textbf{Result in the saved sample.} No transition reaches SNR$=5$.
+The largest SNR is $1.5344$, at $M_2=401.3081\GeV$ and
+$M_3=62.5575\GeV$; this point has a star and fails DM. It is the only
+transition in the 1--100 view. The largest fully viable SNR is
+$4.4912\times10^{-11}$, so that zoom is empty. Seven successful-GW points
+carry the plot-34b star; none pass full viability.
+\end{itemize}
+\textit{Implementation and evidence:} \code{trsm_gw.py},
+\code{reprocess_trsm_gw.py}, \code{plot_trsm_constraint_suite.py} and
+the source audit, reference metadata and LISA summary in
+\code{validation/collaborator-update-20261029/}.
+
+\section{The two new scan profiles}
+\begin{itemize}
+\item Profile A: independent $M_2,M_3\in[4,1000]\GeV$;
+\code{config/odysseus-m2-m3-4-1000.json}.
+\item Profile B: independent $M_2\in[4,200]\GeV$ and
+$M_3\in[4,65]\GeV$;
+\code{config/odysseus-m2-4-200-m3-4-65.json}.
+\item Both use the reference seeds 66662--66761 in new output directories,
+100 concurrent workers, and 1,000 \code{evo & thc} passes per seed.
+They preserve $v_s\in[50,500]\GeV$, $k_1\in[0.9,1]$ with both mixing-angle
+signs, $\lambda_X\in[0,10]$, and independent signs with uniform
+$\log_{10}(|K_{133}|/\mathrm{GeV})\in[-4,3]$ and
+$\log_{10}(|K_{233}|/\mathrm{GeV})\in[-3,5]$.
+The portal quartics are derived from these trilinears.
+\item EWPT and the original MadGraph channels \code{gg_heta0} and
+\code{pp_eta0Z} remain enabled, with MadGraph restricted to full viability.
+Workers use one native thread each. CalcGW and the additional $hh$ and
+loop-induced $Zh_2$ enrichments remain separate saved-point operations,
+as in the original campaign. The launch commands are in
+\code{docs/parallel-campaigns.md}.
+\end{itemize}
+
+% Generated by tools/export_higgstools_tables.py; do not edit rows manually.
+\section{HiggsTools analyses in the installed datasets}
+\label{sec:catalogue}
+The installed datasets contain 310 HiggsBounds limits and 22 HiggsSignals measurement files. The HiggsBounds table lists the 31 IDs with a nonzero selection count in the reference campaign; rows with a zero count are omitted. All HiggsSignals measurement files are listed. Each row is one provider ID; several rows may refer to the same experimental paper. These are the datasets used by the reference campaign, rather than a claim to include later experimental results.
+\begin{itemize}
+\item \code{hbdataset} revision \code{3539f9adf3724f8752701208bf059d1658824cd2}.\newline SHA256: \code{c7e4070faac4e5846cb89a7f3cc7718686e58b82604f0c6659b93a0d2a39d0b2}.
+\item \code{hsdataset} revision \code{3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1}.\newline SHA256: \code{36076ada7b6dbd807b34e813c047d6f0859cfbcf5bcef91f752bcc9ba95496f3}.
+\item Scope A: the input topology can be nonzero in this adapter. Mass, width, kinematic and model-likeness conditions still determine applicability at each point; an A label does not assert sensitivity or exclusion throughout either scan rectangle.
+\item The domain is HiggsTools' own grid description. Masses are in GeV; width coordinates and other qualifications follow the linked implementation. Long decimal endpoints are displayed to six significant figures; the exported JSON catalogue keeps the original strings. The table does not extrapolate a limit outside its applicability region.
+\item Process notation follows HiggsTools: H denotes a neutral scalar; ggH and vbfH denote gluon fusion and vector-boson fusion; HW, HZ, Htt and bbH denote associated production; eeHZ denotes LEP Higgsstrahlung; inv denotes invisible decay; gam denotes a photon. The symbol > separates production and decay, and comma-separated entries form an analysis combination.
+\item X1, X2 and X3 and the corresponding M1, M2 and M3 in the provider descriptions label the parent and daughter roles of that search. They are not fixed identifications with the model's $h_1,h_2,h_3$ or their masses. HiggsBounds tests allowed particle assignments.
+\end{itemize}
+The final column counts distinct reference-campaign points for which the analysis was selected for at least one scalar by expected sensitivity, using all 591,340 saved rows. A zero count does not mean a search is inapplicable; only selected limits, not every tested limit, are recorded exhaustively. There are 31 different selected IDs.
+\begin{landscape}
+\subsection{HiggsBounds searches selected in the reference campaign}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{21mm}p{75mm}p{48mm}p{27mm}p{29mm}r@{}}
+\toprule ID / scope & Search process & Provider domain & Experiment / $\mathcal{L}$ [fb$^{-1}$] & Reference & Selected\\\midrule\endhead
+\code{220910910}\newline A & \code{LHC13 [H]->X1->(X2->[tautau])(X3->[bb])} & \mbox{\code{M1=(251, 1600)}}\newline \mbox{\code{M2=M3=(125, 125)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2209.10910}{\code{2209.10910}} & 20,420\\
+\code{231115956}\newline A & \code{LHC13 [H]->X1->(X2->[bb])(X3->[bb, tautau, gamgam])} & \mbox{\code{M1=(251, 5000)}}\newline \mbox{\code{M2=M3=(125, 125)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2311.15956}{\code{2311.15956}} & 21,248\\
+\code{240213358}\newline A & \code{LHC13 [H]->X1->(X2->[bb])(X3->[mumu, tautau])} & \mbox{\code{M1=(125, 125)}}\newline \mbox{\code{M2=M3=(12, 60)}} & CMS\newline 138 & \href{https://arxiv.org/abs/2402.13358}{\code{2402.13358}} & 18,813\\
+\code{240316926}\newline A & \code{LHC13 [H]->X1->(X2->[bb])(X3->[bb, tautau, gamgam, WW])} & \mbox{\code{M1=(260, 4000)}}\newline \mbox{\code{M2=M3=(125, 125)}} & CMS\newline 138 & \href{https://arxiv.org/abs/2403.16926}{\code{2403.16926}} & 48,638\\
+\code{2110003131}\newline A & \code{LHC13 [H, vbfH, HZ, HW]->X1->(X2->[mumu])(X3->[bb])} & \mbox{\code{M1=(125, 125)}}\newline \mbox{\code{M2=M3=(16, 62)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2110.00313}{\code{2110.00313}} & 3\\
+\code{151006534}\newline A & \code{LHC8 [ggH]->X1->(X2->[tautau])(X3->[tautau])} & \mbox{\code{M1=(125, 125)}}\newline \mbox{\code{M2=M3=(4, 8)}} & CMS\newline 19.7 & \href{https://arxiv.org/abs/1510.06534}{\code{1510.06534}} & 1,114\\
+\code{13003}\newline A & \code{LHC8 [H>WW]} & \mbox{\code{M=(110, 600)}} & CMS\newline 24.4 & \href{https://gitlab.com/higgsbounds/hbdataset/-/blob/3539f9adf3724f8752701208bf059d1658824cd2/neutral/WW/H_LHC8_CMS_24.json}{\code{CMS-PAS-HIG-13-003}} & 1,333\\
+\code{13121129}\newline A & \code{LHC8 [ggH,vbfH,HW,HZ]>[WW]} & \mbox{\code{M=(110, 600)}} & CMS\newline 24.3 & \href{https://arxiv.org/abs/1312.1129}{\code{1312.1129}} & 4,897\\
+\code{2109060552}\newline A & \code{LHC13 [vbfH>WW]} & \mbox{\code{M=(1000, 4500)}} & CMS\newline 137 & \href{https://arxiv.org/abs/2109.06055}{\code{2109.06055}} & 8,664\\
+\code{1804019391}\newline A & \code{LHC13 [vbfH,H]>[ZZ]} & \mbox{\code{M=(130, 3000)}}\newline \mbox{\code{Gam/M=(0, 0.3)}} & CMS\newline 35.9 & \href{https://arxiv.org/abs/1804.01939}{\code{1804.01939}} & 11,548\\
+\code{13125353}\newline A & \code{LHC8 [vbfH,HW,Htt,H,HZ]>[ZZ]} & \mbox{\code{M=(110, 1000)}} & CMS\newline 24.8 & \href{https://arxiv.org/abs/1312.5353}{\code{1312.5353}} & 268\\
+\code{2009147911}\newline A & \code{LHC13 [ggH>ZZ]} & \mbox{\code{M=(400, 2000)}}\newline \mbox{\code{Gam/M=(0, 0.15)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2009.14791}{\code{2009.14791}} & 40,736\\
+\code{2009147912}\newline A & \code{LHC13 [ggH>ZZ]} & \mbox{\code{M=(210, 400)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2009.14791}{\code{2009.14791}} & 73,798\\
+\code{206022}\newline A & \code{LEP [eeHZ>none]} & \mbox{\code{M=(1, 100)}} & OPAL\newline 0.77 & \href{https://arxiv.org/abs/hep-ex/0206022}{\code{hep-ex/0206022}} & 3,294\\
+\code{14096212}\newline A & \code{LHC8 [HW,HZ]>[bb]} & \mbox{\code{M=(110, 140)}} & ATLAS\newline 25 & \href{https://arxiv.org/abs/1409.6212}{\code{1409.6212}} & 5,271\\
+\code{3060332}\newline A & \code{LEP [eeHZ>bb]} & \mbox{\code{M=(12, 120)}} & LEPComb\newline 2.5 & \href{https://arxiv.org/abs/hep-ex/0306033}{\code{hep-ex/0306033}} & 14,363\\
+\code{1810118221}\newline A & \code{LHC13 [ggH>bb]} & \mbox{\code{M=(50, 350)}} & CMS\newline 35.9 & \href{https://arxiv.org/abs/1810.11822}{\code{1810.11822}} & 35\\
+\code{1808023801}\newline A & \code{LHC13 [H]>[WW,ZZ]} & \mbox{\code{M=(300, 3000)}} & ATLAS\newline 36.1 & \href{https://arxiv.org/abs/1808.02380}{\code{1808.02380}} & 103,650\\
+\code{150400936}\newline A & \code{LHC8 [vbfH,HW,Htt,H,HZ]>[WW,ZZ]} & \mbox{\code{M=(145, 1000)}} & CMS\newline 24.8 & \href{https://arxiv.org/abs/1504.00936}{\code{1504.00936}} & 2,398\\
+\code{2004146362}\newline A & \code{LHC13 [vbfH]>[WW,ZZ]} & \mbox{\code{M=(300, 5000)}} & ATLAS\newline 139 & \href{https://arxiv.org/abs/2004.14636}{\code{2004.14636}} & 46,146\\
+\code{12045}\newline A & \code{LHC8 [vbfH,HW,Htt,H,HZ]>[bb,tautau,WW,ZZ,gamgam]} & \mbox{\code{M=(110, 600)}} & CMS\newline 17.3 & \href{https://gitlab.com/higgsbounds/hbdataset/-/blob/3539f9adf3724f8752701208bf059d1658824cd2/neutral/combinations/comb_LHC8_CMS_17.json}{\code{CMS-PAS-HIG-12-045}} & 337,338\\
+\code{240518149}\newline A & \code{LHC13 [vbfH,HW,Htt,H,HZ]>[gamgam]} & \mbox{\code{M=(70, 110)}} & CMS\newline 132 & \href{https://arxiv.org/abs/2405.18149}{\code{2405.18149}} & 12,827\\
+\code{230110731}\newline A & \code{LHC13 [HW,Htt,H,HZ]>[inv]} & \mbox{\code{M=(125, 125)}} & ATLAS\newline 164 & \href{https://arxiv.org/abs/2301.10731}{\code{2301.10731}} & 215,728\\
+\code{1809059372}\newline A & \code{LHC13 [vbfH,H]>[inv]} & \mbox{\code{M=(110, 1000)}} & CMS\newline 35.9 & \href{https://arxiv.org/abs/1809.05937}{\code{1809.05937}} & 132,490\\
+\code{1809059371}\newline A & \code{LHC13 [vbfH,HW,H,HZ]>[inv]} & \mbox{\code{M=(125, 125)}} & CMS\newline 62.8 & \href{https://arxiv.org/abs/1809.05937}{\code{1809.05937}} & 7,021\\
+\code{501033}\newline A & \code{LEP [eeHZ>inv]} & \mbox{\code{M=(50, 110)}} & L3\newline 0.63 & \href{https://arxiv.org/abs/hep-ex/0501033}{\code{hep-ex/0501033}} & 4,996\\
+\code{107032}\newline A & \code{LEP [eeHZ>inv]} & \mbox{\code{M=(90, 118)}} & LEPComb\newline 0.87 & \href{https://arxiv.org/abs/hep-ex/0107032}{\code{hep-ex/0107032}} & 2,206\\
+\code{7070373}\newline A & \code{LEP [eeHZ>inv]} & \mbox{\code{M=(5, 115)}} & OPAL\newline 0.66 & \href{https://arxiv.org/abs/0707.0373}{\code{0707.0373}} & 4,969\\
+\code{180906682}\newline A & \code{LHC13 [vbfH>inv]} & \mbox{\code{M=(75, 3000)}} & ATLAS\newline 36.1 & \href{https://arxiv.org/abs/1809.06682}{\code{1809.06682}} & 145\\
+\code{180306553}\newline A & \code{2d likelihood {LHC13 [ggH>tautau], LHC13 [bbH>tautau]}} & \mbox{\code{M=(90, 3200)}} & CMS\newline 35.9 & \href{https://arxiv.org/abs/1803.06553}{\code{1803.06553}} & 85\\
+\code{14029}\newline A & \code{2d likelihood {LHC8 [ggH>tautau], LHC8 [bbH>tautau]}} & \mbox{\code{M=(90, 1000)}} & CMS\newline 24.6 & \href{https://gitlab.com/higgsbounds/hbdataset/-/blob/3539f9adf3724f8752701208bf059d1658824cd2/neutral/tautau/LLH_LHC8_CMS_20.json}{\code{CMS-PAS-HIG-14-029}} & 1,297\\
+\bottomrule\end{longtable}\end{landscape}\normalsize
+\begin{landscape}
+\subsection{HiggsSignals measurements}
+All files below enter the HiggsSignals likelihood. The submeasurement count identifies the number of channels or bins in each file; correlations are supplied by the dataset.
+\small
+\begin{longtable}{@{}p{25mm}p{100mm}p{35mm}p{32mm}r@{}}
+\toprule ID & Measurement file / channel & Experiment / $\mathcal{L}$ [fb$^{-1}$] & Reference & Bins\\\midrule\endhead
+\code{180809054} & \code{h125/WW_H_LHC13_ATLAS_36.json} & ATLAS LHC13\newline 36.1 & \href{https://arxiv.org/abs/1808.09054}{\code{1808.09054}} & 2\\
+\code{200701984} & \code{h125/WW_H_LHC13_CMS_137.json} & CMS LHC13\newline 137 & \href{https://arxiv.org/abs/2007.01984}{\code{2007.01984}} & 5\\
+\code{190310052} & \code{h125/WW_VH_LHC13_ATLAS_36.json} & ATLAS LHC13\newline 36.1 & \href{https://arxiv.org/abs/1903.10052}{\code{1903.10052}} & 2\\
+\code{200403447} & \code{h125/ZZ_4l_STXS_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://arxiv.org/abs/2004.03447}{\code{2004.03447}} & 12\\
+\code{210304956} & \code{h125/ZZ_4l_STXS_LHC13_CMS_137.json} & CMS LHC13\newline 137 & \href{https://arxiv.org/abs/2103.04956}{\code{2103.04956}} & 19\\
+\code{211106712} & \code{h125/bb_Htt_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://arxiv.org/abs/2111.06712}{\code{2111.06712}} & 1\\
+\code{180808242} & \code{h125/bb_LHC13_CMS_102.json} & CMS LHC13\newline 102.1 & \href{https://arxiv.org/abs/1808.08242}{\code{1808.08242}} & 5\\
+\code{200702873} & \code{h125/bb_VH_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://arxiv.org/abs/2007.02873}{\code{2007.02873}} & 5\\
+\code{201108280} & \code{h125/bb_vbfH_LHC13_ATLAS_126.json} & ATLAS LHC13\newline 126 & \href{https://arxiv.org/abs/2011.08280}{\code{2011.08280}} & 1\\
+\code{2021021} & \code{h125/cc_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://gitlab.com/higgsbounds/hsdataset/-/blob/3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1/h125/cc_LHC13_ATLAS_139.json}{\code{ATLAS-CONF-2021-021}} & 1\\
+\code{191201662} & \code{h125/cc_LHC13_CMS_36.json} & CMS LHC13\newline 35.9 & \href{https://arxiv.org/abs/1912.01662}{\code{1912.01662}} & 2\\
+\code{220700348} & \code{h125/gamgam_STXS_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://arxiv.org/abs/2207.00348}{\code{2207.00348}} & 28\\
+\code{210306956} & \code{h125/gamgam_STXS_LHC13_CMS_137.json} & CMS LHC13\newline 137 & \href{https://arxiv.org/abs/2103.06956}{\code{2103.06956}} & 17\\
+\code{1812251} & \code{h125/mass_LHC13_LHCComb_36.json} & LHCComb LHC13\newline 36 & \href{https://gitlab.com/higgsbounds/hsdataset/-/blob/3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1/h125/mass_LHC13_LHCComb_36.json}{\code{dataset entry}} & 1\\
+\code{200707830} & \code{h125/mumu_LHC13_ATLAS_139.json} & ATLAS LHC13\newline 139 & \href{https://arxiv.org/abs/2007.07830}{\code{2007.07830}} & 1\\
+\code{200904363} & \code{h125/mumu_LHC13_CMS_137.json} & CMS LHC13\newline 137 & \href{https://arxiv.org/abs/2009.04363}{\code{2009.04363}} & 4\\
+\code{160602266} & \code{h125/run1_rates_LHC8_LHCComb_25.json} & LHCComb LHC8\newline 25 & \href{https://arxiv.org/abs/1606.02266}{\code{1606.02266}} & 20\\
+\code{220412957} & \code{h125/tautau_CMS_STXS_139ifb_LHC13_CMS_138.json} & CMS LHC13\newline 138 & \href{https://arxiv.org/abs/2204.12957}{\code{2204.12957}} & 16\\
+\code{211004836} & \code{h125/tautau_CP_LHC13_CMS_137.json} & CMS LHC13\newline 137 & \href{https://arxiv.org/abs/2110.04836}{\code{2110.04836}} & 3\\
+\code{181108856} & \code{h125/tautau_H_LHC13_ATLAS_36.json} & ATLAS LHC13\newline 36.1 & \href{https://arxiv.org/abs/1811.08856}{\code{1811.08856}} & 2\\
+\code{2019045} & \code{h125/ttH_lep_LHC13_ATLAS_80.json} & ATLAS LHC13\newline 80 & \href{https://gitlab.com/higgsbounds/hsdataset/-/blob/3c6c2538d9ba0549ea0559cf9b38c18eb80c3af1/h125/ttH_lep_LHC13_ATLAS_80.json}{\code{ATLAS-CONF-2019-045}} & 6\\
+\code{180305485} & \code{h125/ttH_lep_LHC13_CMS_36.json} & CMS LHC13\newline 35.9 & \href{https://arxiv.org/abs/1803.05485}{\code{1803.05485}} & 6\\
+\bottomrule\end{longtable}\end{landscape}\normalsize
+
+\end{document}

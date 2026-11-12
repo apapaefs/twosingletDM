@@ -1,0 +1,33 @@
+Constraint audit, 2026-09-23 — captured test-result excerpt
+Host: manto
+Working directory: /Users/apapaefs/Projects/TwoSingletDM
+Commit: b7b0d934fe85a45842174af28cf03005f41fbda4
+Full remote log: /tmp/constraint-audit-tests-20260923.log
+
+Command:
+PYTHONDONTWRITEBYTECODE=1 trsmdm/bin/python -W ignore::ResourceWarning -m unittest -b test_trsm_theory_constraints_unit test_trsm_evolution_unit test_singlet_EWPO test_trsm_higgstools_invisible test_trsm_invisible_widths test_trsm_dm_model_normalization test_trsm_DM_unit test_trsm_direct_detection test_trsm_cmb test_trsm_micromegas test_ewpt_entry_criterion test_ewpt_x_history test_dm_thermal_relic_diagnostic test_trsm_ewpt_runner test_generate_trsm_points_runner test_plot_trsm_constraint_suite
+
+HiggsPredictions warnings: Di-higgs non resonant ggF and VBF production cross sections are not computed.
+
+======================================================================
+FAIL: test_disabled_does_not_add_columns_or_change_results (test_trsm_cmb.TestCMBPhysics.test_disabled_does_not_add_columns_or_change_results)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/apapaefs/Projects/TwoSingletDM/test_trsm_cmb.py", line 91, in test_disabled_does_not_add_columns_or_change_results
+    self.assertEqual(output_columns({}, planck_cmb=True), output_columns({}) + list(CMB_COLUMNS))
+AssertionError: Lists differ: ['M2'[2076 chars]2', 'dm_cmb_enabled', 'dm_cmb_available', 'dm_[836 chars]ate'] != ['M2'[2076 chars]2', 'ewpt_ew_entry_true_over_T', 'ewpt_ew_entr[836 chars]ded']
+
+First differing element 103:
+'dm_cmb_enabled'
+'ewpt_ew_entry_true_over_T'
+
+Diff is 3624 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 242 tests in 8.077s
+
+FAILED (failures=1, skipped=1)
+HiggsSignals chi-sq. for SM= 152.5488683543418
+
+Exit status: 1
+Summary: 240 passed, 1 failed, 1 skipped.

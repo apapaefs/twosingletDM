@@ -8,6 +8,7 @@ from trsm_theory_diagnostics import THEORY_COLUMNS
 from trsm_constraint_profile import PROFILE_COLUMNS
 from ewpt_assessment import STATUS_COLUMNS
 from trsm_flavour import FLAVOUR_COLUMNS
+from trsm_mg5_rates import ADDITIONAL_RATE_COLUMNS
 
 V2_COLUMNS = list(PROFILE_COLUMNS) + list(THEORY_COLUMNS) + list(STATUS_COLUMNS) + [
     "dm_solver_error", "dm_calculation_status", "dm_assessment_reason",
@@ -133,7 +134,8 @@ def output_columns(mg5xsecs, *, planck_cmb=False):
     if mg5xsecs is None:
         mg5xsecs = {}
     cmb_columns = list(CMB_COLUMNS) if planck_cmb else []
-    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs) + cmb_columns + list(EW_ENTRY_COLUMNS) + V2_COLUMNS + list(FLAVOUR_COLUMNS)
+    extra_rates = list(ADDITIONAL_RATE_COLUMNS) if "gg_eta0Z" in mg5xsecs else []
+    return POINT_COLUMNS + DM_EXCLUSION_COLUMNS + EWPT_COLUMNS + HIGGSTOOLS_COLUMNS + mg5_columns(mg5xsecs) + cmb_columns + list(EW_ENTRY_COLUMNS) + V2_COLUMNS + list(FLAVOUR_COLUMNS) + extra_rates
 
 
 def output_row(point_info, mg5xsecs=None, *, planck_cmb=False):
@@ -147,6 +149,8 @@ def output_row(point_info, mg5xsecs=None, *, planck_cmb=False):
     values.extend(point_info.get(column) for column in EW_ENTRY_COLUMNS)
     values.extend(point_info.get(column) for column in V2_COLUMNS)
     values.extend(point_info.get(column) for column in FLAVOUR_COLUMNS)
+    if "gg_eta0Z" in mg5xsecs:
+        values.extend(point_info.get(column) for column in ADDITIONAL_RATE_COLUMNS)
     return "\t".join(format_output_value(value) for value in values)
 
 

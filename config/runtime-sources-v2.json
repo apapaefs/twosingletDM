@@ -26,6 +26,7 @@
     "hh": {"directory": "gg_hh_twoscalar", "generate": "g g > h h [noborn=QCD]"},
     "hhh": {"directory": "gg_hhh_twoscalar", "generate": "g g > h h h [noborn=QCD]"},
     "gg_heta0": {"directory": "gg_heta0", "generate": "g g > h eta0 [noborn=QCD]"},
-    "pp_eta0Z": {"directory": "pp_eta0Z", "generate": "p p > eta0 z"}
+    "pp_eta0Z": {"directory": "pp_eta0Z", "generate": "p p > eta0 z"},
+    "gg_eta0Z": {"directory": "gg_eta0Z", "generate": "g g > eta0 z [noborn=QCD]"}
   }
 }
