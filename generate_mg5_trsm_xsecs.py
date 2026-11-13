@@ -9,6 +9,7 @@ from math import floor, log10
 from pathlib import Path
 
 from tools.madloop_build import validate_madloop
+from trsm_mg5_pool import process_workspace, validate_pool
 
 
 # MG5/aMC subdirectory.  Override this for installations outside the project.
@@ -61,7 +62,7 @@ def _process_directory(process, mgloc):
     return process_dir, madevent
 
 
-def mg5_runtime_receipt(processes, mgloc=None):
+def mg5_runtime_receipt(processes, mgloc=None, *, include_pool=True):
     """Check selected installations without changing their mutable run cards."""
     root = Path(MGLocation if mgloc is None else mgloc).expanduser().resolve()
     selected = list(dict.fromkeys(processes))
@@ -96,8 +97,13 @@ def mg5_runtime_receipt(processes, mgloc=None):
     for path in files:
         with path.open("rb") as stream:
             hashes[str(path.relative_to(root))] = hashlib.file_digest(stream, "sha256").hexdigest()
-    return {"location": str(root), "processes": installations, "sources_sha256": hashes,
-            "cores": os.environ.get("TRSM_MG5_CORES"), "locking": "exclusive_per_process_directory"}
+    receipt = {"location": str(root), "processes": installations, "sources_sha256": hashes,
+               "cores": os.environ.get("TRSM_MG5_CORES"), "locking": "exclusive_per_process_directory"}
+    if include_pool:
+        pool = validate_pool(receipt, {p: ProcLocation[p] for p in selected}, mg5_runtime_receipt)
+        if pool is not None:
+            receipt["pool"] = pool
+    return receipt
 
 
 def _run_name(runnum, m2, w2, m3, w3, lambdas):
@@ -266,8 +272,8 @@ def _integrated_weight(lhefile):
     raise ValueError(f"No Integrated weight entry was found in {lhefile}")
 
 
-def read_files(runnum, LambdasArray, m2, w2, m3, w3, process, nruns):
-    process_dir, _madevent = _process_directory(process, MGLocation)
+def read_files(runnum, LambdasArray, m2, w2, m3, w3, process, nruns, *, mgloc=None):
+    process_dir, _madevent = _process_directory(process, MGLocation if mgloc is None else mgloc)
     X = []
     Z = []
     XSEC = {}
@@ -309,10 +315,19 @@ def get_mg5_xsec(
     rounded_w2 = round_sig(w2, 4)
     rounded_m3 = round_sig(m3, 4)
     rounded_w3 = round_sig(w3, 4)
+    with process_workspace(process, MGLocation, ProcLocation) as location:
+        return _get_mg5_xsec_in_workspace(
+            process, runnum, rounded_lambdas, k1, k2, k3, rounded_m2,
+            rounded_w2, rounded_m3, rounded_w3, ecm, w1, k233, location)
+
+
+def _get_mg5_xsec_in_workspace(process, runnum, rounded_lambdas, k1, k2, k3,
+                              rounded_m2, rounded_w2, rounded_m3, rounded_w3,
+                              ecm, w1, k233, location):
     drive_mg(
         process,
         runnum,
-        MGLocation,
+        location,
         round_sig(k1, 4),
         round_sig(k2, 4),
         round_sig(k3, 4),
@@ -337,6 +352,7 @@ def get_mg5_xsec(
         rounded_w3,
         process,
         1,
+        mgloc=location,
     )
     if not cross_sections:
         raise RuntimeError(f"MG5 returned no cross section for process {process!r}")

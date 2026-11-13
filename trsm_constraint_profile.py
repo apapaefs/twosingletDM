@@ -72,7 +72,7 @@ def physics_manifest(micromegas_executable, calctemps_executable=None, minima_ex
         "ewpt_assessment", "ewpt_entry_criterion", "ewpt_equilibrium", "ewpt_x_history",
         "dm_thermal_relic_diagnostic", "reevaluate_trsm_dm_higgs", "reprocess_trsm_ewpt",
         "run_trsm_seed_campaign", "trsm_parallel", "mg5_process_runner", "generate_mg5_trsm_xsecs",
-        "trsm_flavour", "reevaluate_trsm_flavour", "trsm_paths")
+        "trsm_flavour", "reevaluate_trsm_flavour", "trsm_paths", "trsm_mg5_pool")
     paths = [root/(name+".py") for name in source_names] + list((root/"DM/models/h4GOn").glob("*.mdl"))
     paths += [root / "tools/madloop_build.py"]
     paths += [root/"DM/main.c", root/"DM/trsm_loop.c", root/"DM/models/lanhep_mdl/TRSM_mixed.mdl"]

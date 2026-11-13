@@ -169,6 +169,40 @@ the follow-up is repeated; incompatible inputs or settings produce an error.
 These are execution options and do not change the scan's physics fingerprint.
 `--aggregate-only` never launches CalcGW.
 
+### Independent MadGraph process pool
+
+`TRSM_MG5_POOL_ROOT` enables a pool of private compiled process directories.
+Each process leases its own available slot, so 16 slots give 16 concurrent
+calculations for each of `gg_heta0`, `pp_eta0Z`, and `gg_eta0Z`. The driver holds
+the lease through result reading. Cards, integration files, and generated
+events are private; physics inputs, rounding, integration accuracy, and the
+one-core-per-invocation setting are unchanged. Without this environment
+variable, the original shared-directory behavior applies.
+
+With scans using the source processes stopped, prepare the pool once:
+
+```bash
+python tools/setup_mg5_pool.py \
+  --source "$TRSM_MG5_LOCATION" \
+  --output ../mg5-pool-16 --slots 16
+export TRSM_MG5_POOL_ROOT="$(cd ../mg5-pool-16 && pwd)"
+```
+
+The setup copies compiled files without historical events or integration
+directories and checks every copy against the reference process/model hashes.
+It refuses an existing destination or an active source process. New campaigns
+inherit the environment variable; preflight records and validates the pool.
+
+For an existing campaign, preserve its source checkout and checkpoints.
+The source-hash guard requires an explicit operational transition when adding
+this implementation. `tools/migrate_mg5_pool_campaign.py` accepts exact
+before/after hashes only for the pool driver and its source accounting,
+requires a passing native serial/pooled comparison, checks every saved data
+prefix and seed configuration, and backs up metadata before recording the
+transition. Any other physics/source/runtime change is rejected. Resume the
+same campaign afterwards with the pool environment set; CalcGW remains the
+configured follow-up.
+
 Each profile uses the original seeds 66662--66761 in a **new directory**,
 100 single-thread workers, and 1,000 `evo & thc` passes per seed. Thus each
 targets 100,000 such passes; the number of raw draws can be larger. The
