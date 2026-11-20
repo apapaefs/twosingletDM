@@ -1,0 +1,60 @@
+{
+  "schema": "trsm_sidm_lower_limits_v1",
+  "units": "sigma/m in cm^2/g; velocities in km/s",
+  "conventions": {
+    "evaluation": "Model value is <sigma_V v^n>/<v^n> over f(v) ~ v^2 exp(-v^2/(4 sigma_1D^2)), with sigma_1D = sqrt(pi)/4 times the mean relative velocity and n = moment, on a logarithmic grid of mean relative velocities across mean_relative_velocity_range_kms. The requirement has to hold over the whole range, so the smallest value is compared with minimum_cm2_g.",
+    "velocity": "Ren et al. (arXiv:1808.05695) use <sigma v_rel> = sigma (4/sqrt(pi)) sigma_v0 with sigma_v0 the one-dimensional dark-matter velocity dispersion, i.e. n = 1 and <v> = 4 sigma_v0/sqrt(pi). Tulin & Yu (arXiv:1705.02358, Table I) quote v_rel without a precise definition; it is treated here as the mean relative velocity.",
+    "status": "These are not exclusion limits. They are the cross sections for which self-interactions produce the cores inferred in dwarf and low-surface-brightness galaxies. The analyses assume that all of the dark matter is self-interacting and a constant sigma/m."
+  },
+  "sets": {
+    "default": "Cores in dwarf and LSB spiral galaxies, sigma/m >~ 1 cm^2/g at v_rel = 30-200 km/s (Tulin & Yu, Table I).",
+    "all": "Every entry: also the SPARC rotation-curve sample mapped to relative velocities, and the too-big-to-fail values."
+  },
+  "requirements": [
+    {
+      "id": "cores_tulin_yu2018",
+      "label": "Cores in dwarf and LSB spiral galaxies (Tulin & Yu 2018, Table I)",
+      "minimum_cm2_g": 1.0,
+      "mean_relative_velocity_range_kms": [30.0, 200.0],
+      "moment": 1,
+      "reference": "arXiv:1705.02358",
+      "doi": "10.1016/j.physrep.2017.11.004",
+      "sets": ["default", "all"],
+      "notes": "Table I row 'Cores in spiral galaxies (dwarf/LSB)': sigma/m >~ 1 cm^2/g at v_rel = 30-200 km/s from rotation curves. Text: 'Dwarf and LSB galaxies favor cross sections of at least 1 cm^2/g to produce large enough core radii'. Caption: the values 'assume constant sigma/m' and 'may be interpreted as a function of collisional velocity v_rel provided sigma/m is not steeply velocity-dependent'."
+    },
+    {
+      "id": "rotation_curves_ren2019",
+      "label": "SPARC rotation curves (Ren et al. 2019; Kamada et al. 2017)",
+      "minimum_cm2_g": 1.0,
+      "mean_relative_velocity_range_kms": [29.0, 430.0],
+      "moment": 1,
+      "reference": "arXiv:1808.05695",
+      "doi": "10.1103/PhysRevX.9.031020",
+      "sets": ["all"],
+      "velocity_assumed": true,
+      "notes": "Ren et al. fix sigma/m = 3 cm^2/g for 135 SPARC galaxies with V_f from 20 to 300 km/s and state that the results 'remain the same qualitatively for other values larger than ~1 cm^2/g on galaxy scales'; they do not fit a lower limit, and fits of high-surface-brightness galaxies are insensitive to sigma/m. Kamada et al. (arXiv:1611.02716) fix the same 3 cm^2/g for 30 galaxies with V_f in the 25-300 km/s range and note that sigma/m ~ 1 also gives good fits for V_f >~ 200 km/s. The velocity range is an assumption of this table: <v> = (4/sqrt(pi)) sigma_v0 = 1.44 V_f, using sigma_v0 = 0.64 V_max (Yang & Yu, arXiv:2205.03392) and V_max = V_f."
+    },
+    {
+      "id": "tbtf_milky_way_tulin_yu2018",
+      "label": "Too-big-to-fail, Milky Way (Tulin & Yu 2018, Table I)",
+      "minimum_cm2_g": 0.6,
+      "mean_relative_velocity_range_kms": [50.0, 50.0],
+      "moment": 1,
+      "reference": "arXiv:1705.02358",
+      "doi": "10.1016/j.physrep.2017.11.004",
+      "sets": ["all"],
+      "notes": "Table I: sigma/m >~ 0.6 cm^2/g at v_rel = 50 km/s from stellar dispersions."
+    },
+    {
+      "id": "tbtf_local_group_tulin_yu2018",
+      "label": "Too-big-to-fail, Local Group (Tulin & Yu 2018, Table I)",
+      "minimum_cm2_g": 0.5,
+      "mean_relative_velocity_range_kms": [50.0, 50.0],
+      "moment": 1,
+      "reference": "arXiv:1705.02358",
+      "doi": "10.1016/j.physrep.2017.11.004",
+      "sets": ["all"],
+      "notes": "Table I: sigma/m >~ 0.5 cm^2/g at v_rel = 50 km/s from stellar dispersions."
+    }
+  ]
+}

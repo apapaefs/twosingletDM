@@ -1,0 +1,209 @@
+{
+  "schema": "trsm_sidm_limits_v1",
+  "units": "sigma/m in cm^2/g; velocities in km/s",
+  "conventions": {
+    "maxwell": "Model value is <sigma_V v^n>/<v^n> over f(v) ~ v^2 exp(-v^2/(4 sigma_1D^2)), with sigma_1D = sqrt(pi)/4 times mean_relative_velocity_kms and n = moment. n = 1 is the definition sigma/m = <sigma v>/(m <v>) of Sagunski et al. (arXiv:2006.12515, Eq. 6).",
+    "fixed": "Model value is sigma_V(v) on a logarithmic grid over velocity_range_kms, combined with 'combine' (min is the conservative choice when the paper gives no single velocity).",
+    "sigma_V": "Viscosity cross section normalised to equal the total cross section for isotropic scattering (Yang & Yu, arXiv:2205.03392, Eq. 2.5). All limits below were derived for velocity-independent isotropic scattering."
+  },
+  "sets": {
+    "default": "Group and cluster core limits of Sagunski et al. and the revised merging-cluster limit of Wittman et al.",
+    "stringent": "default plus the tighter cluster limits (Andrade et al., Eckert et al., Harvey et al. 2019) and the Bullet Cluster limit of Randall et al.",
+    "dwarf": "Dwarf-galaxy limits only. They assume a velocity-independent cross section, depend on the halo modelling, and conflict with analyses that prefer 20-150 cm^2/g in the same class of galaxies (Correa, arXiv:2007.02958). Not part of any other set.",
+    "all": "Every entry."
+  },
+  "limits": [
+    {
+      "id": "groups_sagunski2021",
+      "label": "Galaxy groups, core densities (Sagunski et al. 2021)",
+      "limit_cm2_g": 1.1,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 1150.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2006.12515",
+      "journal": "JCAP 01 (2021) 024",
+      "sets": [
+        "default",
+        "stringent",
+        "all"
+      ],
+      "notes": "Limit with adiabatic contraction, adopted by the authors as conservative (0.9 for NFW only). Mean scattering velocity <v> = 4 sigma_0/sqrt(pi) of about 1150 km/s. Measured value 0.5 +- 0.2."
+    },
+    {
+      "id": "clusters_sagunski2021",
+      "label": "Galaxy clusters, core densities (Sagunski et al. 2021)",
+      "limit_cm2_g": 0.35,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 1900.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2006.12515",
+      "journal": "JCAP 01 (2021) 024",
+      "sets": [
+        "default",
+        "stringent",
+        "all"
+      ],
+      "notes": "Limit with adiabatic contraction (0.28 for NFW only). <v> = 4 sigma_0/sqrt(pi) of about 1900 km/s. Measured value 0.19 +- 0.09."
+    },
+    {
+      "id": "mergers_wittman2018",
+      "label": "Merging clusters, DM-galaxy offsets (Wittman et al. 2018)",
+      "limit_cm2_g": 2.0,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "fixed",
+        "velocity_range_kms": [
+          500.0,
+          4000.0
+        ],
+        "combine": "min"
+      },
+      "reference": "arXiv:1701.05877",
+      "journal": "ApJ 869 (2018) 104",
+      "sets": [
+        "default",
+        "stringent",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "The paper quotes 'relaxes the upper limit to <~ 2' (1.71 for the full sample, 2.27 for the reviewed subsample) and no collision velocity. The range 500-4000 km/s is the one Tulin & Yu (arXiv:1705.02358, Table I) assign to substructure mergers; the smallest model value in the range is used. Supersedes 0.47 of Harvey et al. 2015 (arXiv:1503.07675). The authors advise caution with this limit."
+    },
+    {
+      "id": "clusters_andrade2022",
+      "label": "Cluster strong lensing cores (Andrade et al. 2022)",
+      "limit_cm2_g": 0.13,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 1458.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2012.06611",
+      "journal": "MNRAS 510, 54",
+      "sets": [
+        "stringent",
+        "all"
+      ],
+      "notes": "Eight clusters with average relative velocity 1458 (+80 -81) km/s, defined as 4 sigma_0/sqrt(pi) for a Maxwellian. For a velocity-dependent model the authors interpret the result as a velocity-averaged transfer cross section."
+    },
+    {
+      "id": "clusters_eckert2022",
+      "label": "X-COP cluster density profiles (Eckert et al. 2022)",
+      "limit_cm2_g": 0.19,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 1000.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2205.01123",
+      "journal": "A&A 666 (2022) A41",
+      "sets": [
+        "stringent",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "Quoted 'at collision velocity ~1000 km/s' without a definition; treated here as a mean relative velocity."
+    },
+    {
+      "id": "bcg_wobble_harvey2019",
+      "label": "BCG wobbles in cluster cores (Harvey et al. 2019)",
+      "limit_cm2_g": 0.39,
+      "confidence_level": "95%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 1500.0,
+        "moment": 1
+      },
+      "reference": "arXiv:1812.06981",
+      "journal": "MNRAS 488 (2019) 1572",
+      "sets": [
+        "stringent",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "The paper gives no velocity. 1500 km/s is the cluster-core velocity of Tulin & Yu (arXiv:1705.02358, Table I). The authors note the measured offsets are close to the simulation softening length."
+    },
+    {
+      "id": "bullet_randall2008",
+      "label": "Bullet Cluster, DM-galaxy offset (Randall et al. 2008)",
+      "limit_cm2_g": 1.25,
+      "confidence_level": "68%",
+      "measure": {
+        "type": "fixed",
+        "velocity_range_kms": [
+          3100.0,
+          4700.0
+        ],
+        "combine": "min"
+      },
+      "reference": "arXiv:0704.0261",
+      "journal": "ApJ 679 (2008) 1173",
+      "sets": [
+        "stringent",
+        "all"
+      ],
+      "notes": "68% CL. Randall et al. use the 4700 km/s shock velocity and test 3100 km/s; Robertson et al. (arXiv:1605.04307) find a halo relative velocity of 3900 km/s, call this constraint 'strongly overstated' and find sigma/m = 2 compatible with the observed offset. The 0.7 limit from the mass-to-light ratio is not used."
+    },
+    {
+      "id": "draco_read2018",
+      "label": "Draco central density (Read et al. 2018)",
+      "limit_cm2_g": 0.57,
+      "confidence_level": "99%",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 58.0,
+        "moment": 1
+      },
+      "reference": "arXiv:1805.06934",
+      "sets": [
+        "dwarf",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "0.32 at 95% CL. The paper states no velocity; 58 km/s is the mean relative velocity Correa (arXiv:2007.02958) gives for Draco. The authors caution that the bound may not extrapolate to velocity-dependent cross sections. Correa prefers 20-30 cm^2/g for the same galaxy."
+    },
+    {
+      "id": "segue1_hayashi2021",
+      "label": "Segue 1 (Hayashi et al. 2021)",
+      "limit_cm2_g": 0.086,
+      "confidence_level": "2 sigma",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 10.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2008.02529",
+      "sets": [
+        "dwarf",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "The paper gives 'typical DM velocities of the UFDs, v = O(10) km/s' with v = 4 sigma_0/sqrt(pi); 10 km/s is used. The limits depend on priors and on the simple SIDM halo model."
+    },
+    {
+      "id": "willman1_hayashi2021",
+      "label": "Willman 1 (Hayashi et al. 2021)",
+      "limit_cm2_g": 0.39,
+      "confidence_level": "2 sigma",
+      "measure": {
+        "type": "maxwell",
+        "mean_relative_velocity_kms": 10.0,
+        "moment": 1
+      },
+      "reference": "arXiv:2008.02529",
+      "sets": [
+        "dwarf",
+        "all"
+      ],
+      "velocity_assumed": true,
+      "notes": "See Segue 1."
+    }
+  ]
+}
