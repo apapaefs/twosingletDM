@@ -597,11 +597,11 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             data.derived["indirect"].tolist(),
             [
                 "unavailable",
-                "unavailable",
+                "outside coverage",
                 "allowed",
                 "allowed",
                 "excluded",
-                "unavailable",
+                "outside coverage",
                 "allowed",
                 "allowed",
             ],
@@ -611,6 +611,35 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
         self.assertTrue(math.isnan(indirect[1]))
         self.assertEqual(indirect[2], 0.25)
         self.assertNotEqual(data.derived["indirect"][0], "allowed")
+
+    def test_indirect_coverage_and_failed_assessments_are_independent_of_dd(self):
+        cases = [
+            (50, True, False, "allowed"), (50, True, True, "excluded"),
+            (464, False, False, "unavailable"), (464, True, False, "allowed"),
+            (470, False, False, "outside coverage"), (470, False, "nan", "DM unavailable"),
+            (0.2, False, False, "outside coverage"),
+        ]
+        rows = []
+        for mass, available, excluded, _ in cases:
+            row = list(ROWS[0])
+            for key, value in (("M3", mass), ("dm_direct_detection_excluded", "nan"),
+                               ("dm_indirect_available", available), ("dm_indirect_detection_excluded", excluded),
+                               ("dm_indirect_ratio", 2.0 if excluded is True else 0.2)):
+                row[HEADER.index(key)] = value
+            rows.append(row)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "coverage.tsv"
+            write_fixture(path, rows=rows)
+            data = self.plotter.load_scan(path)
+            categories, styles = self.plotter.category_styles(data, "indirect")
+            summary = {row.metric: row.count for row in self.plotter.build_summary(data)}
+        self.assertEqual(list(categories), [case[-1] for case in cases])
+        self.assertEqual(styles["outside coverage"].display, "Outside Fermi-LAT coverage")
+        self.assertEqual(summary["indirect_outside_coverage"], 2)
+        self.assertEqual(summary["indirect_unavailable"], 1)
+        self.assertEqual(summary["indirect_dm_unavailable"], 1)
+        self.assertAlmostEqual(data.f("indirect_ratio_available")[1], 2.0)
+        self.assertTrue(math.isnan(data.f("indirect_ratio_available")[4]))
 
     def test_unavailable_dm_component_results_are_never_counted_as_passing(self):
         unavailable = list(ROWS[0])
@@ -1688,7 +1717,8 @@ class TestPlotTRSMConstraintSuite(unittest.TestCase):
             self.assertEqual(by_metric["dm_failure_relic_only"].count, 1)
             self.assertEqual(by_metric["dm_failure_direct_only"].count, 1)
             self.assertEqual(by_metric["dm_failure_relic_and_direct"].count, 2)
-            self.assertEqual(by_metric["indirect_unavailable"].count, 3)
+            self.assertEqual(by_metric["indirect_unavailable"].count, 1)
+            self.assertEqual(by_metric["indirect_outside_coverage"].count, 2)
             self.assertEqual(by_metric["indirect_allowed"].count, 4)
             self.assertEqual(by_metric["indirect_excluded"].count, 1)
             self.assertEqual(by_metric["m3_above_nominal_max"].count, 1)

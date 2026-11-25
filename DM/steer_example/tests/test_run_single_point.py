@@ -61,6 +61,33 @@ class ExampleTests(unittest.TestCase):
         self.assertFalse(self.args('--micromegas-version', '6').planck_cmb)
         self.assertTrue(self.args('--micromegas-version', '6', '--planck-cmb').planck_cmb)
 
+    def test_saved_gamma_line_metadata_distinguishes_legacy_output(self):
+        config = single.metadata(self.args(), replay=True)['indirect_detection']
+        self.assertEqual(config['line_source'], 'channels_reported_in_raw_log')
+        self.assertEqual(config['line_combination'], 'fermi_r16_separate_lines_v1')
+        for index, (marker, coverage) in enumerate((
+            ('', 'unspecified_channel_coverage'),
+            ('TRSM_zgamma_line_v1 {}', 'zgamma_reported_in_range_fluxes'),
+            ('TRSM_fermi_line_output_v2 all_physical_line_energies', 'all_physical_line_energies'),
+        )):
+            folder = f'case-{index}'
+            self.evaluate(RAW + marker + '\n', name=folder)
+            result = json.loads((self.root / folder / 'result_1.json').read_text())
+            self.assertEqual(result['invocation']['line_output'], coverage)
+
+    def test_native_configuration_requires_zgamma_capability(self):
+        driver = self.root / 'driver'
+        def configure(payload):
+            driver.write_text(f'#!{sys.executable}\nprint({json.dumps(payload)!r})\n')
+            driver.chmod(0o755)
+            args = single.parse_args(['--card', str(self.card), '--micromegas-main', str(driver), '--no-planck-cmb'])
+            return single.configure(args)
+        baseline = {'physics_version': 'trsm_constraints_v2', 'loop_hook': True}
+        with self.assertRaisesRegex(ValueError, 'Z gamma loop ratio'):
+            configure(baseline)
+        self.assertEqual(configure({**baseline, 'zgamma_line': 'trsm_loop_ratio_v1'}).capabilities['zgamma_line'],
+                         'trsm_loop_ratio_v1')
+
     def test_explicit_sm_conflict_is_not_silently_ignored(self):
         self.card.write_text(self.card.read_text().replace('125.09', '125.1'))
         with self.assertRaisesRegex(ValueError, 'shared v2'):
@@ -150,9 +177,11 @@ class ExampleTests(unittest.TestCase):
         self.assertIn('exceeded', invocation['error'])
 
     def test_dd_coverage_and_relic_boundary(self):
-        # A valid low-mass CMB result must not invent DD table coverage.
         low = RAW.replace('MX = 50', 'MX = 5').replace('"MX":50', '"MX":5').replace('"ratio_raw":8', '"ratio_raw":0.1')
         row = self.evaluate(low, name='low')
+        self.assertFalse(row['dm_direct_detection_excluded'])
+        self.assertTrue(row['dm_passed'])
+        row = self.evaluate(low, '--limit-model', 'lz-ws2024-observed-v2', name='low_old')
         self.assertIsNone(row['dm_direct_detection_excluded'])
         self.assertFalse(row['dm_cmb_excluded'])
         self.assertIsNone(row['dm_passed'])

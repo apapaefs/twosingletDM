@@ -36,7 +36,8 @@ from matplotlib.colors import (
 )
 from matplotlib.lines import Line2D
 from plot_trsm_flavour import derive_flavour, render_flavour
-from trsm_inputs import M1 as INPUT_M1, VEV as INPUT_VEV
+from test_trsm_DM import FERMI_LAT_R16_LINE_LIMITS
+from trsm_inputs import M1 as INPUT_M1, MZ, VEV as INPUT_VEV
 
 
 NOMINAL_MASS_GAP_GEV = 125.0
@@ -2317,18 +2318,27 @@ def indirect_categories(
     available: np.ndarray,
     excluded: np.ndarray,
     dm_result_available: np.ndarray | None = None,
+    mass_gev: np.ndarray | None = None,
 ) -> np.ndarray:
+    """Use the availability of the indirect verdict, independently of other DM constraints."""
     available = np.asarray(available, dtype=bool)
     excluded = np.asarray(excluded, dtype=bool)
-    if dm_result_available is None:
-        dm_result_available = np.ones(available.shape, dtype=bool)
-    dm_result_available = np.asarray(dm_result_available, dtype=bool)
-    if not (available.shape == excluded.shape == dm_result_available.shape):
+    verdict_available = (np.ones(available.shape, dtype=bool) if dm_result_available is None
+                         else np.asarray(dm_result_available, dtype=bool))
+    mass_gev = np.full(available.shape, np.nan) if mass_gev is None else np.asarray(mass_gev, dtype=float)
+    if not (available.shape == excluded.shape == verdict_available.shape == mass_gev.shape):
         raise ValueError("Indirect-category arrays must have identical shapes")
-    categories = np.full(available.shape, "unavailable", dtype=object)
-    categories[~dm_result_available] = "DM unavailable"
-    categories[dm_result_available & available & ~excluded] = "allowed"
-    categories[dm_result_available & available & excluded] = "excluded"
+    categories = np.full(available.shape, "DM unavailable", dtype=object)
+    no_limit = verdict_available & ~available & ~excluded
+    categories[no_limit] = "unavailable"
+    # Historical logs can omit Z gamma. Without a line record the edge band
+    # is ambiguous. Only label masses outside both channels as outside coverage.
+    emin, emax = FERMI_LAT_R16_LINE_LIMITS[0][0], FERMI_LAT_R16_LINE_LIMITS[-1][0]
+    max_zgamma_mass = (emax + math.hypot(emax, MZ)) / 2.0
+    outside = (mass_gev < emin) | (mass_gev > max_zgamma_mass)
+    categories[no_limit & outside] = "outside coverage"
+    categories[verdict_available & available & ~excluded] = "allowed"
+    categories[verdict_available & available & excluded] = "excluded"
     return categories
 
 
@@ -2551,8 +2561,12 @@ def load_scan(
     direct_pass = direct_available & ~bools["dm_direct_detection_excluded"]
     relic_ratio = safe_ratio(floats["dm_omega"], floats["dm_relic_upper_limit"])
     direct_ratio = safe_ratio(floats["dm_dir_det"], floats["dm_dir_det_limit"])
+    indirect_verdict_available = (
+        nullable_available["dm_indirect_available"] & nullable_available["dm_indirect_detection_excluded"]
+        & (bools["dm_indirect_available"] | ~bools["dm_indirect_detection_excluded"])
+    )
     indirect_ratio = np.where(
-        dm_result_available
+        indirect_verdict_available
         & bools["dm_indirect_available"]
         & np.isfinite(floats["dm_indirect_ratio"])
         & (floats["dm_indirect_ratio"] > 0.0),
@@ -2610,10 +2624,7 @@ def load_scan(
         "direct_pass": direct_pass,
         "relic_available": relic_available,
         "direct_available": direct_available,
-        "indirect_verdict_available": (
-            nullable_available["dm_indirect_available"]
-            & nullable_available["dm_indirect_detection_excluded"]
-        ),
+        "indirect_verdict_available": indirect_verdict_available,
         "cmb_verdict_available": nullable_available["dm_cmb_excluded"],
         "dm_result_available": dm_result_available,
         "ewpt_x_broken_at_or_after_freezeout_available": nullable_available[
@@ -2631,9 +2642,8 @@ def load_scan(
             indirect_excluded=bools["dm_indirect_detection_excluded"],
         ),
         "indirect": indirect_categories(
-            bools["dm_indirect_available"],
-            bools["dm_indirect_detection_excluded"],
-            dm_result_available,
+            bools["dm_indirect_available"], bools["dm_indirect_detection_excluded"],
+            indirect_verdict_available, floats["M3"],
         ),
         "relic_ratio": relic_ratio,
         "direct_ratio": direct_ratio,
@@ -2957,7 +2967,11 @@ def category_styles(data: ScanData, scheme: str):
             [
                 (
                     "unavailable",
-                    CategoryStyle("Indirect unavailable", "#BDBDBD", "o", 8.0, 0.18, 1.0),
+                    CategoryStyle("No usable line recorded", "#CC79A7", "s", 14.0, 0.55, 1.5),
+                ),
+                (
+                    "outside coverage",
+                    CategoryStyle("Outside Fermi-LAT coverage", "#999999", "o", 8.0, 0.4, 1.0),
                 ),
                 (
                     "allowed",
@@ -2969,7 +2983,7 @@ def category_styles(data: ScanData, scheme: str):
                 ),
                 (
                     "DM unavailable",
-                    CategoryStyle("DM evaluation unavailable", "#4D4D4D", "P", 34.0, 0.9, 4.0),
+                    CategoryStyle("Indirect assessment missing or failed", "#4D4D4D", "P", 34.0, 0.9, 4.0),
                 ),
             ]
         )
@@ -4338,7 +4352,7 @@ def constraint_bar_metrics(data: ScanData):
         ("Direct-detection pass", int(np.count_nonzero(data.b("direct_pass"))), "#0072B2", ""),
         (
             "Indirect result available",
-            int(np.count_nonzero(data.b("dm_indirect_available"))),
+            int(np.count_nonzero(data.b("dm_indirect_available") & data.b("indirect_verdict_available"))),
             "#56B4E9",
             "//",
         ),
@@ -5497,6 +5511,7 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
     for category, metric_name in (
         ("DM unavailable", "dm_unavailable"),
         ("unavailable", "unavailable"),
+        ("outside coverage", "outside_coverage"),
         ("allowed", "allowed"),
         ("excluded", "excluded"),
     ):
@@ -5505,7 +5520,13 @@ def build_summary(data: ScanData, skipped_figures: Iterable[tuple[str, str]] = (
                 f"indirect_{metric_name}",
                 int(np.count_nonzero(data.derived["indirect"] == category)),
                 n,
-                "Indirect-detection availability/status",
+                {
+                    "DM unavailable": "A usable pair of indirect-assessment flags is missing",
+                    "unavailable": "No line limit recorded, and the mass alone does not establish the reason",
+                    "outside coverage": "Recorded non-veto with both photon energies outside the Fermi-LAT table",
+                    "allowed": "Covered by a line limit and below or at the bound",
+                    "excluded": "Covered by a line limit and above the bound",
+                }[category],
             )
         )
 

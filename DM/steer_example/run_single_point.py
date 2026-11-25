@@ -17,9 +17,9 @@ from dataclasses import asdict, dataclass
 from _bootstrap import repository_root
 REPO_ROOT = repository_root()
 
-from test_trsm_DM import DMPoint, test_dm, write_micromegas_card
+from test_trsm_DM import DMPoint, indirect_detection_configuration, test_dm, write_micromegas_card
 from trsm_cmb import add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
-from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, load_si_limit_table
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, PUBLISHED_LIMIT_TABLES, load_si_limit_table
 from trsm_inputs import (ABUNDANCE_REFERENCE, PHYSICS_VERSION, RELIC_UPPER_LIMIT,
                          json_safe, micromegas_sm_inputs, sm_inputs)
 from trsm_micromegas import (DEFAULT_MICROMEGAS_VERSION, default_micromegas_main,
@@ -118,8 +118,8 @@ def add_physics_arguments(parser):
     parser.add_argument('--relic-upper-limit', type=float, default=RELIC_UPPER_LIMIT,
                         help='Relic-density upper cut (default: %(default)s); abundance reference remains 0.12')
     parser.add_argument('--limit-model', default=DEFAULT_LIMIT_MODEL,
-                        choices=(DEFAULT_LIMIT_MODEL, 'legacy-output', 'lz2025-source'))
-    parser.add_argument('--limit-table', type=Path, help='Explicit normalized SI table (default: LZ WS2024)')
+                        choices=(*PUBLISHED_LIMIT_TABLES, 'legacy-output', 'lz2025-source'))
+    parser.add_argument('--limit-table', type=Path, help='Override the default observed LZ SI limits')
     parser.add_argument('--timeout', type=float, default=600, help='Seconds allowed per native point')
 
 
@@ -133,8 +133,8 @@ def configure(args, *, replay=False):
         raise ValueError('--relic-upper-limit must be finite and positive')
     if args.limit_table and args.limit_model != DEFAULT_LIMIT_MODEL:
         raise ValueError('Use either --limit-table or a historical --limit-model')
-    args.si_table = (load_si_limit_table(args.limit_table or DEFAULT_LIMIT_TABLE)
-                     if args.limit_model == DEFAULT_LIMIT_MODEL else None)
+    table_path = args.limit_table or PUBLISHED_LIMIT_TABLES.get(args.limit_model)
+    args.si_table = load_si_limit_table(table_path) if table_path else None
     args.micromegas_main = Path(args.micromegas_main or os.environ.get('MICROMEGAS_MAIN') or
                                default_micromegas_main(args.micromegas_version)).expanduser().resolve()
     args.capabilities = None
@@ -164,6 +164,7 @@ def metadata(args, *, replay=False):
         'backend_version_requested': args.micromegas_version,
         'executable': None if replay else str(args.micromegas_main),
         'executable_sha256': None if replay else sha256(args.micromegas_main),
+        'indirect_detection': indirect_detection_configuration(replay=replay, rescale=not args.no_rescale),
         'driver_capabilities': args.capabilities, 'sm_inputs': sm_inputs(),
         'relic_upper_limit': args.relic_upper_limit, 'abundance_reference': ABUNDANCE_REFERENCE,
         'rescale': not args.no_rescale, 'planck_cmb': {
@@ -259,6 +260,12 @@ def evaluate_point(point, args, output_dir, *, runner=None, raw_output=None, raw
         stderr = ''
         invocation = {'mode': 'raw_output_replay', 'source': str(raw_source) if raw_source else None,
                       'returncode': None, 'error': None}
+    if 'TRSM_fermi_line_output_v2 all_physical_line_energies' in raw_output.splitlines():
+        invocation['line_output'] = 'all_physical_line_energies'
+    elif 'TRSM_zgamma_line_v1 ' in raw_output:
+        invocation['line_output'] = 'zgamma_reported_in_range_fluxes'
+    else:
+        invocation['line_output'] = 'unspecified_channel_coverage'
     invocation['card_sha256'] = sha256(card)
     (output_dir / f'OUT_mO_{stem}').write_text(raw_output)
     (output_dir / f'ERR_mO_{stem}').write_text(stderr)
@@ -300,7 +307,10 @@ def print_summary(row):
     print(f"Point {row['index']}: Omega={row.get('dm_omega')}  Xf={row.get('dm_xf')}  Tf={row.get('dm_freezeout_temperature_GeV')} GeV")
     for label, key in (('Relic density', 'relic'), ('Direct detection', 'direct_detection'),
                        ('Gamma lines', 'indirect_detection')):
-        print(f"  {label}: {verdict(row.get('dm_' + key + '_excluded'))}")
+        status = verdict(row.get('dm_' + key + '_excluded'))
+        if key == 'indirect_detection' and row.get('dm_indirect_available') is False and row.get('dm_indirect_detection_excluded') is False:
+            status = 'no usable line limit'
+        print(f"  {label}: {status}")
     print(f"  Planck CMB: raw={row.get('dm_cmb_ratio_raw')}  xi={row.get('dm_cmb_abundance_fraction')}  rescaled={row.get('dm_cmb_ratio')}  {verdict(row.get('dm_cmb_excluded')) if row.get('dm_cmb_enabled') else 'disabled'} ({row['dm_cmb_status']})")
     print('  DM:', 'unassessed' if row['dm_passed'] is None else 'pass' if row['dm_passed'] else 'excluded',
           '|', row.get('dm_assessment_reason', ''))
@@ -340,7 +350,8 @@ def main(argv=None):
         write_json(args.output_dir / f'metadata_{point.index}.json', metadata(args, replay=replay))
         print_summary(row)
         print('Saved:', args.output_dir.resolve() / f'result_{point.index}.json')
-        return 1 if row.get('dm_calculation_status') != 'success' or (args.planck_cmb and not row['dm_cmb_available']) else 0
+        return int(row.get('dm_calculation_status') != 'success' or row.get('dm_indirect_detection_excluded') is None
+                   or (args.planck_cmb and not row['dm_cmb_available']))
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1

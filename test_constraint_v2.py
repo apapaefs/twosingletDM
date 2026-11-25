@@ -62,7 +62,8 @@ class ConstraintV2Tests(unittest.TestCase):
     def test_DD_units_boundaries_continuity(self):
         table=load_si_limit_table(DEFAULT_LIMIT_TABLE)
         self.assertAlmostEqual(table.upper_limit_pb(40)/2.1816833824484827e-12,1)
-        self.assertTrue(math.isnan(direct_detection_base_limit(8.9999)))
+        self.assertTrue(math.isnan(direct_detection_base_limit(2.9999)))
+        self.assertTrue(math.isfinite(direct_detection_base_limit(3)))
         self.assertTrue(math.isfinite(direct_detection_base_limit(9)))
         self.assertTrue(math.isfinite(direct_detection_base_limit(10000)))
         self.assertTrue(math.isnan(direct_detection_base_limit(10000.01)))

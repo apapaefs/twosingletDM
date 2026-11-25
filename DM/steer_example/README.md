@@ -71,7 +71,9 @@ To run the relic/DD/gamma workflow without CMB, add `--no-planck-cmb` to the
 it disabled and accepts `--planck-cmb` explicitly. `--no-rescale` disables
 abundance rescaling for DD, gamma lines and CMB. `--relic-upper-limit` remains
 available; its default is 0.121 and the v2 abundance reference remains 0.12.
-The current SI limit is the observed LZ WS2024 table. These physics defaults
+The default uses the observed LZ light-DM limit for $3\le M_X<9$ GeV and
+the WS2024 limit for $9\le M_X\le10{,}000$ GeV. Use
+`--limit-model lz-ws2024-observed-v2` to reproduce the old coverage. These physics defaults
 differ from historical releases; see [the model change audit](../models/changes-v2.md)
 and [the constraint prescription](../../docs/constraints-v2.md).
 

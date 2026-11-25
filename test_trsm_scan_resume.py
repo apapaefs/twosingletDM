@@ -408,6 +408,40 @@ class TestGeneratorResume(unittest.TestCase):
         generator.run_random_vxzero_scan(runtime)
         return path
 
+    def test_resume_checks_fermi_prescription_and_rebuilt_driver_before_writing(self):
+        generator = load_generator_module()
+        configure_numeric_stubs(generator)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            directory = Path(tmpdir)
+            driver = directory / "TRSM-main"
+            driver.write_text("original build")
+            # Exercise a real fingerprint and the same executable path across rebuilds.
+            generator.micromegas_configuration = lambda args: {"version": "7.1.4", "executable": str(driver)}
+            scan = self._run_fake_campaign(generator, directory, 2)
+            metadata_path = scan.with_suffix(".metadata.json")
+            metadata = json.loads(metadata_path.read_text())
+            before = scan.read_bytes()
+            args = generator.parse_args(["--resume-from", str(scan), "--nrandom", "3"])
+            checkpoint = generator.checkpoint_path(scan)
+            checkpoint.unlink()  # The checkpoint-less adoption route also requires compatible physics.
+            for prescription in (None, {"line_combination": "fermi_r16_gaussian_template_overlap_v1"}):
+                updated = dict(metadata)
+                if prescription is None:
+                    updated.pop("indirect_detection")
+                else:
+                    updated["indirect_detection"] = prescription
+                metadata_path.write_text(json.dumps(updated))
+                with self.assertRaisesRegex(CampaignStateError, "saved Fermi-LAT line prescription"):
+                    generator.prepare_campaign_runtime(metadata["run_tag"], args)
+                self.assertEqual(scan.read_bytes(), before)
+                self.assertFalse(checkpoint.exists())
+            metadata_path.write_text(json.dumps(metadata))
+            driver.write_text("rebuilt driver at the same path")
+            with self.assertRaisesRegex(CampaignStateError, "executable checksum"):
+                generator.prepare_campaign_runtime(metadata["run_tag"], args)
+            self.assertEqual(scan.read_bytes(), before)
+            self.assertFalse(checkpoint.exists())
+
     def test_interrupted_prefix_then_resume_matches_uninterrupted_output(self):
         generator = load_generator_module()
         configure_numeric_stubs(generator)

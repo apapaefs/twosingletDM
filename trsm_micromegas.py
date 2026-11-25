@@ -6,6 +6,7 @@ import os
 
 DEFAULT_MICROMEGAS_VERSION = "7.1.4"
 MICROMEGAS_VERSIONS = ("6.1.15", "7.1.4")
+ZGAMMA_DRIVER_METHOD = "trsm_loop_ratio_v1"
 
 
 def normalize_micromegas_version(value):
@@ -46,6 +47,9 @@ def _capabilities(path, mtime, size, virtual_off):
     except ValueError as error: raise ValueError('A rebuilt TRSM driver with v2 capabilities is required: '+path) from error
     if payload.get('physics_version')!='trsm_constraints_v2' or payload.get('loop_hook') is not True:
         raise ValueError('Constraint v2 requires a rebuilt TRSM driver with the corrected loop hook: '+path)
+    if payload.get('zgamma_line') != ZGAMMA_DRIVER_METHOD:
+        raise ValueError('The two-line Fermi-LAT assessment requires a TRSM driver '
+                         'rebuilt with the Z gamma loop ratio: ' + path)
     return payload
 
 

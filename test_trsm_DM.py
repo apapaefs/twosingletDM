@@ -7,11 +7,11 @@ import re
 import subprocess
 import tempfile
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from trsm_micromegas import default_micromegas_main, require_v2_capability
-from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, SILimitTable, load_si_limit_table
+from trsm_micromegas import ZGAMMA_DRIVER_METHOD, default_micromegas_main, require_v2_capability
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, PUBLISHED_LIMIT_TABLES, SILimitTable, load_si_limit_table
 from trsm_inputs import RELIC_UPPER_LIMIT, ABUNDANCE_REFERENCE, micromegas_sm_inputs, nullable_and
 from trsm_cmb import (
     CMBSignal, CMBLimitResult, assess_cmb_limit, cmb_diagnostics,
@@ -181,12 +181,13 @@ class MicromegasResult:
     solver_error: int | None = None
     inputs: dict | None = None
     hook_calls: tuple | None = None
+    indirect_error: str | None = None
 
 
 @dataclass(frozen=True)
 class IndirectLimitResult:
     available: bool
-    excluded: bool
+    excluded: bool | None
     channels_seen: int
     channels_used: int
     max_ratio: float
@@ -212,7 +213,7 @@ class DMSummary:
             return None
         verdicts = [not self.relic_excluded,
                     None if self.direct_detection_excluded is None else not self.direct_detection_excluded,
-                    not self.indirect_limit.excluded]
+                    None if self.indirect_limit.excluded is None else not self.indirect_limit.excluded]
         if self.cmb_limit is not None:
             verdicts.append(self.cmb_limit.passed if self.cmb_limit.signal.available else None)
         return nullable_and(verdicts)
@@ -247,28 +248,40 @@ def find_number(pattern, text, label):
     return float(match.group(1))
 
 
-def parse_indirect_line_channels(text):
+def parse_indirect_line_output(text):
     channels = []
+    error = None
     for line in text.splitlines():
+        if "Skipping loop-derived photon-line channel Z A:" in line:
+            error = "invalid Z gamma annihilation rate"
+        elif "calcSpectrum: non-finite annihilation data" in line:
+            error = "non-finite annihilation channel data"
+        elif "vSigmaCh is not available after calcSpectrum" in line and error is None:
+            error = "annihilation channel list unavailable"
+        elif "at least one photon-line channel failed validity checks" in line and error is None:
+            error = "invalid photon-line calculation"
         if "FermiLAT_line_channel" not in line:
             continue
         energy_match = re.search(rf"E_gamma=({NUMBER_PATTERN})", line)
         flux_match = re.search(rf"Phi_R16=({NUMBER_PATTERN})", line)
-        if energy_match is None or flux_match is None:
-            continue
-        channels.append(
-            IndirectLineChannel(
-                energy_gev=float(energy_match.group(1)),
-                flux_cm2_s=float(flux_match.group(1)),
-            )
-        )
-    return tuple(channels)
+        if energy_match is not None and flux_match is not None:
+            energy, flux = float(energy_match.group(1)), float(flux_match.group(1))
+            if math.isfinite(energy) and energy > 0 and math.isfinite(flux) and flux >= 0:
+                channels.append(IndirectLineChannel(energy, flux))
+                continue
+        error = "invalid photon-line energy or flux"
+    return tuple(channels), error
+
+
+def parse_indirect_line_channels(text):
+    return parse_indirect_line_output(text)[0]
 
 
 def fermi_lat_r16_line_limit(energy_gev):
     limits = FERMI_LAT_R16_LINE_LIMITS
     if (
         not limits
+        or not math.isfinite(energy_gev)
         or energy_gev < limits[0][0]
         or energy_gev > limits[-1][0]
     ):
@@ -297,12 +310,78 @@ def relic_density_fraction(omega, relic_upper_limit=ABUNDANCE_REFERENCE):
     return min(1.0, omega / relic_upper_limit)
 
 
+# Fermi-LAT energy resolution sigma_E/E: acceptance-weighted 68% containment
+# half-width for P8R3_SOURCE_V3, front+back (LAT performance page,
+# https://www.slac.stanford.edu/exp/glast/groups/canda/lat_Performance.htm,
+# table gEdispAve68Energy_P8R3_SOURCE_V3TotalFB.txt, read 2026-11-25).
+# Energies converted from MeV to GeV. The R16 line search (arXiv:1506.00013)
+# uses P8_CLEAN events, whose resolution Pass 8 did not change significantly;
+# this table is the published proxy for its sigma_E.
+FERMI_LAT_ENERGY_RESOLUTION_68 = (
+    (0.0990467529297, 0.196611484094),
+    (0.175711532593, 0.16598511808),
+    (0.311716888428, 0.140163937243),
+    (0.55299395752, 0.117784631732),
+    (0.981025878906, 0.100976257548),
+    (1.74036572266, 0.0888580488192),
+    (3.08745458984, 0.0778048777078),
+    (5.47722558594, 0.0682766684841),
+    (9.7167421875, 0.0632673773133),
+    (17.2377558594, 0.062184419579),
+    (30.580234375, 0.0630786801038),
+    (54.250140625, 0.0666649070925),
+    (96.241171875, 0.0727496049536),
+    (170.734375, 0.0804665341422),
+    (302.88728125, 0.0888698056022),
+    (537.33, 0.0988887978791),
+    (953.2375625, 0.123330158236),
+)
+
+INDIRECT_LINE_PRESCRIPTION = "fermi_r16_separate_lines_v1"
+
+
+def fermi_lat_energy_resolution(energy_gev):
+    """Relative 68% energy resolution sigma_E/E, linear in log(E)."""
+    table = FERMI_LAT_ENERGY_RESOLUTION_68
+    if not table[0][0] <= energy_gev <= table[-1][0]:
+        raise ValueError(f"No Fermi-LAT energy resolution at E={energy_gev:g} GeV")
+    for (e0, r0), (e1, r1) in zip(table, table[1:]):
+        if energy_gev <= e1:
+            t = math.log(energy_gev / e0) / math.log(e1 / e0)
+            return r0 + t * (r1 - r0)
+    return table[-1][1]
+
+
+def line_template_overlap(test_energy_gev, line_energy_gev):
+    """Fraction of a line at E' that a single-line fit at E attributes to E.
+
+    The Fermi-LAT limit L(E) bounds the amplitude of one line template, the
+    energy dispersion D(E'|E) of a monochromatic line at E. Each line found by
+    the driver is smeared by the same dispersion, so a second line closer than
+    about sigma_E feeds the template at E. In the background-dominated regime
+    the fitted amplitude is the projection of the signal on the template,
+        n_hat(E) = sum_a Phi_a <D_E, D_Ea> / <D_E, D_E>.
+    For Gaussian dispersion of width sigma_E(E) this weight is
+        exp[-(E - E_a)^2 / (4 sigma_E^2)],
+    equal to 1 for coincident lines and negligible beyond a few sigma_E.
+    """
+    sigma = fermi_lat_energy_resolution(test_energy_gev) * test_energy_gev
+    return math.exp(-((test_energy_gev - line_energy_gev) ** 2) / (4.0 * sigma * sigma))
+
+
 def assess_indirect_limit(
     channels,
     omega=None,
     relic_upper_limit=RELIC_UPPER_LIMIT,
     rescale=True,
+    combine_lines=False,
 ):
+    """Compare each covered line to the R16 limit at its own photon energy.
+
+    The optional Gaussian overlap estimate projects all supplied line fluxes
+    onto each covered line energy. It is a diagnostic for unresolved lines.
+    The reported flux precedes the abundance rescaling in either mode.
+    """
     abundance_fraction = None
     if omega is not None:
         if not math.isfinite(omega) or omega < 0.0:
@@ -310,68 +389,66 @@ def assess_indirect_limit(
         if rescale:
             abundance_fraction = relic_density_fraction(omega)
 
-    best = IndirectLimitResult(
-        available=False,
-        excluded=False,
-        channels_seen=0,
-        channels_used=0,
-        max_ratio=0.0,
-        energy_gev=math.nan,
-        flux_cm2_s=math.nan,
-        limit_cm2_s=math.nan,
-    )
-    channels_used = 0
-
-    for channel in channels:
-        limit = fermi_lat_r16_line_limit(channel.energy_gev)
+    def rescaled_limit(energy_gev):
+        limit = fermi_lat_r16_line_limit(energy_gev)
         if abundance_fraction is not None:
-            if abundance_fraction > 0.0:
-                limit /= abundance_fraction**2
-            else:
-                limit = math.inf
-        if (
-            not math.isfinite(limit)
-            or limit <= 0.0
-            or not math.isfinite(channel.flux_cm2_s)
-            or channel.flux_cm2_s < 0.0
-        ):
-            continue
+            limit = limit / abundance_fraction**2 if abundance_fraction > 0.0 else math.inf
+        return limit
 
-        channels_used += 1
-        ratio = channel.flux_cm2_s / limit
-        if not best.available or ratio > best.max_ratio:
-            best = IndirectLimitResult(
-                available=True,
-                excluded=ratio > 1.0,
-                channels_seen=len(channels),
-                channels_used=channels_used,
-                max_ratio=ratio,
-                energy_gev=channel.energy_gev,
-                flux_cm2_s=channel.flux_cm2_s,
-                limit_cm2_s=limit,
-            )
+    physical = [channel for channel in channels
+                if math.isfinite(channel.energy_gev) and channel.energy_gev > 0.0
+                and math.isfinite(channel.flux_cm2_s) and channel.flux_cm2_s >= 0.0]
+    usable = [channel for channel in physical if math.isfinite(rescaled_limit(channel.energy_gev))]
 
-    if best.available:
+    if not usable:
         return IndirectLimitResult(
-            available=True,
-            excluded=best.max_ratio > 1.0,
+            available=False,
+            excluded=False,
             channels_seen=len(channels),
-            channels_used=channels_used,
-            max_ratio=best.max_ratio,
-            energy_gev=best.energy_gev,
-            flux_cm2_s=best.flux_cm2_s,
-            limit_cm2_s=best.limit_cm2_s,
+            channels_used=0,
+            max_ratio=0.0,
+            energy_gev=math.nan,
+            flux_cm2_s=math.nan,
+            limit_cm2_s=math.nan,
         )
+
+    if combine_lines:
+        candidates = [
+            (a.energy_gev,
+             sum(b.flux_cm2_s * line_template_overlap(a.energy_gev, b.energy_gev) for b in physical))
+            for a in usable
+        ]
+    else:
+        candidates = [(c.energy_gev, c.flux_cm2_s) for c in usable]
+
+    best = None
+    for energy, flux in candidates:
+        limit = rescaled_limit(energy)
+        ratio = flux / limit
+        if best is None or ratio > best[0]:
+            best = (ratio, energy, flux, limit)
+    ratio, energy, flux, limit = best
     return IndirectLimitResult(
-        available=False,
-        excluded=False,
+        available=True,
+        excluded=ratio > 1.0,
         channels_seen=len(channels),
-        channels_used=0,
-        max_ratio=0.0,
-        energy_gev=math.nan,
-        flux_cm2_s=math.nan,
-        limit_cm2_s=math.nan,
+        channels_used=len(usable),
+        max_ratio=ratio,
+        energy_gev=energy,
+        flux_cm2_s=flux,
+        limit_cm2_s=limit,
     )
+
+
+def indirect_detection_configuration(*, replay=False, rescale=True):
+    """Provenance of the standard separate-line assessment."""
+    return {
+        "limit": "Fermi-LAT R16 95% CL line-flux upper limits, arXiv:1506.00013",
+        "energy_range_GeV": [FERMI_LAT_R16_LINE_LIMITS[0][0], FERMI_LAT_R16_LINE_LIMITS[-1][0]],
+        "line_combination": INDIRECT_LINE_PRESCRIPTION,
+        "line_source": "channels_reported_in_raw_log" if replay else ZGAMMA_DRIVER_METHOD,
+        "abundance_rescaling": "min(1, Omega_h2 / 0.12)^2" if rescale else "1",
+    }
 
 
 def parse_micromegas_output(text):
@@ -395,11 +472,13 @@ def parse_micromegas_output(text):
         mdm = float(inputs["MX"])
 
     hook = re.search(r"TRSM_loop_hook_v2 relic_calls=(\d+) indirect_calls=(\d+)",text)
+    channels, indirect_error = parse_indirect_line_output(text)
     return MicromegasResult(
         mdm=mdm,
         omega=omega,
         dir_det=neutron_cross_section,
-        indirect_line_channels=parse_indirect_line_channels(text),
+        indirect_line_channels=channels,
+        indirect_error=indirect_error,
         cmb_signal=parse_cmb_signal(text),
         xf=xf,
         solver_error=int(error_match.group(1)) if error_match else None,
@@ -447,10 +526,10 @@ def neutron_si_cross_section(text):
 def direct_detection_base_limit(mdm, model=DEFAULT_LIMIT_MODEL, limit_table=None):
     if not math.isfinite(mdm) or mdm <= 0.0:
         raise ValueError("Dark matter mass must be finite and positive")
-    if limit_table is None and model == DEFAULT_LIMIT_MODEL:
-        limit_table = load_si_limit_table(DEFAULT_LIMIT_TABLE)
+    if limit_table is None and model in PUBLISHED_LIMIT_TABLES:
+        limit_table = load_si_limit_table(PUBLISHED_LIMIT_TABLES[model])
     if limit_table is not None:
-        if model != DEFAULT_LIMIT_MODEL:
+        if model != DEFAULT_LIMIT_MODEL and not (model in PUBLISHED_LIMIT_TABLES and model == limit_table.label):
             raise ValueError("Do not combine a tabulated SI limit with another limit model")
         if not limit_table.masses_gev[0] <= mdm <= limit_table.masses_gev[-1]:
             return math.nan
@@ -551,6 +630,12 @@ def summarize_dm_result(
         relic_upper_limit,
         rescale=rescale,
     )
+    # A valid line above its limit already excludes the point. Otherwise a
+    # failed second line prevents an allowed or out-of-coverage verdict.
+    if result.indirect_error and not indirect_limit.excluded:
+        indirect_limit = replace(indirect_limit, available=False, excluded=None,
+                                 max_ratio=math.nan, energy_gev=math.nan,
+                                 flux_cm2_s=math.nan, limit_cm2_s=math.nan)
     return DMSummary(
         point=point,
         result=result,
@@ -610,8 +695,14 @@ def dm_info_string(summary):
             f"  CMBStatus={cmb.signal.status} CMBRatioRaw={format_value(cmb.signal.ratio_raw)} "
             f"CMBFraction={format_value(cmb.fraction)} CMBRatio={format_value(cmb.ratio)}\n"
         )
+    if summary.result.solver_error != 0:
+        reasons.append("micrOMEGAs solver failed or its status is missing")
+    elif summary.result.indirect_error:
+        reasons.append(summary.result.indirect_error)
+    elif not summary.indirect_limit.available:
+        reasons.append("no usable Fermi-LAT line limit")
     if not reasons:
-        reasons.append("all DM checks passed")
+        reasons.append("all assessed DM checks passed")
 
     return (
         f"DM check: {('Pass' if summary.passed else 'Fail') if summary.passed is not None else 'Unassessed'}\n"
@@ -646,7 +737,8 @@ def dm_exclusion_info(summary, relic_upper_limit, limit_model, rescale):
         "dm_loop_hook_indirect_calls": summary.result.hook_calls[1] if summary.result.hook_calls else None,
         "dm_calculation_status": "success" if summary.result.solver_error == 0 else "solver_unassessed",
         "dm_assessment_reason": ("darkOmega failed or status missing" if summary.result.solver_error != 0 else
-                                 "DD outside table coverage" if summary.direct_detection_excluded is None else "assessed"),
+                                 summary.result.indirect_error or
+                                 ("DD outside table coverage" if summary.direct_detection_excluded is None else "assessed")),
         "dm_direct_detection_available": summary.direct_detection_excluded is not None,
         "dm_actual_inputs": json.dumps(summary.result.inputs, sort_keys=True, separators=(",", ":")) if summary.result.inputs else None,
         "dm_h1_width_GeV": (summary.result.inputs or {}).get("width_h1"),

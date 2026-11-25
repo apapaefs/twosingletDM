@@ -6,24 +6,26 @@ the neutron SI cross section in pb and the existing approximately isoscalar
 Higgs-portal treatment. The same comparison works with micrOMEGAs 6.1.15 and
 7.1.4; it does not change micrOMEGAs' built-in experimental likelihood routines.
 
-The v2 default is the **LZ WS2024 observed, power-constrained 90% CL SI table**
-from [HEPData 155182, version 2, table 1](https://doi.org/10.17182/hepdata.155182.v2/t1),
-associated with the published [LZ analysis](https://arxiv.org/abs/2410.17036v3).
-Both the production scan and `DM/steer_example/` load
-[`data/lz2024/observed-si-v2.json`](data/lz2024/observed-si-v2.json) automatically.
-It contains 26 mass points from 9 to 10,000 GeV and selects the `limit` column.
-The original HEPData YAML, its checksum and representative numerical checks
-are documented in [the table README](data/lz2024/README.md).
+The default uses the LZ observed 90% CL elastic SI limits per nucleon.
+From 3 GeV up to 9 GeV the code uses the light-DM limit tabulated at thirteen masses. From 9 through 10,000 GeV it uses the 26 points of the WS2024 search. Both sources supply the observed column named `limit`. [Light-DM result](https://arxiv.org/abs/2512.08065v3) and [numerical data](https://doi.org/10.17182/hepdata.167350.v3/t1). [WS2024 result](https://arxiv.org/abs/2410.17036v3) and [numerical data](https://doi.org/10.17182/hepdata.155182.v2/t1).
 
-Verify the saved YAML checksum and every normalized table entry with:
+Both the production scan and the standalone example read the [combined table](data/lz2025/observed-si-with-ws2024.json).
+Each release uses log–log interpolation between its own mass points. The light-DM limit approaches
+$1.1123993\times10^{-46}\,\mathrm{cm}^2$ from below 9 GeV. At exactly 9 GeV the WS2024
+curve starts at $9.7974841\times10^{-47}\,\mathrm{cm}^2$. The comparison always uses one
+experimentally reported upper bound at each mass.
+
+The following checks compare the normalized values to both original releases.
 
 ```bash
 ../runtime-v2/venv/bin/python DM/tools/verify_lz2024.py
+../runtime-v2/venv/bin/python -m unittest test_trsm_direct_detection.TestPublishedLZLimits
 ```
 
-The inherited `lz2025-source` and `legacy-output` fits remain available through
-explicit historical options in the DM provider and standalone example. New
-default runs use the verified table.
+To reproduce the earlier v2 prescription, pass
+`--dm-limit-table DM/data/lz2024/observed-si-v2.json` to the generator.
+The reevaluation tool and standalone example also accept the historical model
+name `lz-ws2024-observed-v2`. The `lz2025-source` and `legacy-output` options select historical fits.
 
 ## LZ September 2026: temporary approximation available
 
@@ -42,7 +44,7 @@ and assumes a limit proportional to DM mass from 400 to 4000 GeV. This mass
 dependence is an approximation, not a digitized LZ mass curve. Select it with
 `--dm-limit-table DM/data/lz2026/lz2026-figs7-highmass-approx.json`; for a random
 scan also set `--m3-min 400 --m3-max 4000`. Its provenance is stored in the scan
-metadata. The default remains the verified WS2024 table.
+metadata.
 
 Download the complete YAML archive for the record, including `submission.yaml`
 and all data tables. The needed result is the **observed upper endpoint** of the
@@ -65,7 +67,7 @@ conversion factor discussed below Eq. (6) is not applied to scalar TRSM DM.
 
 ## Using a verified table
 
-The verified WS2024 table is selected automatically. To choose an alternative
+The two published LZ curves are selected automatically. To choose an alternative
 release that has been checked and converted to per-nucleon cross sections,
 select its normalized JSON file with:
 
@@ -74,7 +76,7 @@ select its normalized JSON file with:
   --micromegas-version 7 --dm-limit-table /path/to/verified-si-limits.json
 ```
 
-The table uses schema `trsm_si_upper_limit_v1` and these required fields:
+Single-release tables use the following fields.
 
 | Field | Value |
 | --- | --- |
@@ -89,14 +91,18 @@ The table uses schema `trsm_si_upper_limit_v1` and these required fields:
 | `points` | List of objects with numeric `mass_GeV` and `upper_limit` |
 
 At least two points are required, in strictly increasing mass order, with finite
-positive upper bounds. An optional `provenance` object records digitization or
+positive upper bounds. A table spanning two releases uses the
+`trsm_piecewise_si_upper_limit_v1` schema. At the common mass,
+`upper_limit_from_below` supplies the endpoint for interpolation from lower masses, and
+`upper_limit` applies at the common mass and starts the next interval.
+An optional `provenance` object records digitization or
 approximation details and is preserved in scan metadata. A HEPData YAML export is **not** this
 normalized JSON file; its columns and operator conventions must be reviewed
 before conversion.
 
 The scan converts cm^2 to pb and interpolates linearly in log(mass) and
-log(cross section). Outside table coverage, DD is unassessed and the point is
-retained; there is no extrapolation or fallback to another experiment.
+log(cross section). The code writes points outside table coverage with an
+unavailable base limit.
 The abundance fraction is xi = min(1, Omega/0.12): within table coverage, the SI
 cross-section limit is divided by xi, with an infinite limit for xi = 0.
 The separate relic-density upper cut is 0.121. Gamma-line and enabled CMB signals

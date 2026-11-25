@@ -151,7 +151,8 @@ changing only the requested mass bounds:
 Both use independent uniform masses, logarithmic `K133`/`K233` magnitudes with
 independent signs, `vs = 50--500 GeV`, `k1 = 0.9--1`, and `lX = 0--10`.
 The base-10 trilinear exponent ranges are `[-4, 3]` and `[-3, 5]` in GeV.
-The micrOMEGAs 7.1.4, Planck CMB and LZ WS2024 prescriptions are unchanged.
+The original campaigns used micrOMEGAs 7.1.4, Planck CMB and LZ WS2024.
+New campaigns using the default DD table also apply the LZ light-DM limit below 9 GeV.
 EWPT uses `thigh = 1000 GeV`; the optional Eq. (4.18) preselection is disabled.
 MG5 evaluates the original `gg_heta0` and `pp_eta0Z` channels for fully viable
 points. Both mass profiles now enable `run_calcgw`: after all seeds complete

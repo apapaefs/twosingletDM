@@ -68,6 +68,47 @@ void trsm_loop_set_stage(int);
 void trsm_loop_report(void);
 double trsm_loop_sigma(double,int);
 void trsm_loop_probe(double);
+double trsm_loop_zgamma_ratio(double);
+
+/* Sum gammaFluxGC over small Galactic-coordinate rectangles to approximate the
+   Fermi-LAT R16 ROI: sqrt(l^2+b^2)<16 deg, excluding |b|<5 deg and |l|>6 deg.
+   gammaFluxGC is linear in N_gamma*sigmaV. Compute the common factor once
+   for this model point and multiply each physical line by its photon rate. */
+static double fermiR16FluxPerSigmaV(void)
+{
+  const double deg = M_PI/180.0;
+  const double rGC = 16.0*deg;       /* Fermi R16 radius */
+  const double maskB = 5.0*deg;      /* Galactic-plane mask |b| < 5 deg */
+  const double maskL = 6.0*deg;      /* mask applies only for |l| > 6 deg */
+  const double step = 0.5*deg;       /* numerical patch size for ROI sum */
+  double l, b, lineFlux = 0.0;
+
+  for (l = -rGC; l < rGC; l += step) {
+    for (b = -rGC; b < rGC; b += step) {
+      double lc = l + 0.5*step;
+      double bc = b + 0.5*step;
+
+      if (sqrt(lc*lc + bc*bc) > rGC) continue;
+      if (fabs(bc) < maskB && fabs(lc) > maskL) continue;
+
+      lineFlux += gammaFluxGC(l, b, step, step, 1.0);
+    }
+  }
+  return lineFlux;
+}
+
+/* Print every line so a diagnostic at a covered energy can include photons
+   from a nearby line outside the table. Keep the historical total in range. */
+static double printFermiR16Line(const char *p3, const char *p4, double energy,
+                                double sigmaV, int photons, double fluxPerSigmaV)
+{
+  double weighted = photons * sigmaV;
+  double flux = weighted * fluxPerSigmaV;
+  printf("FermiLAT_line_channel %s %s: E_gamma=%.17E[GeV], "
+         "sigmaV=%.17E[cm^3 s^-1], N_gamma*sigmaV=%.17E[cm^3 s^-1], "
+         "Phi_R16=%.17E[cm^-2 s^-1]\n", p3, p4, energy, sigmaV, weighted, flux);
+  return energy >= 0.214 && energy <= 462.0 ? flux : 0.0;
+}
 
 static void isolate_loop_workspace(void)
 {
@@ -92,7 +133,8 @@ int main(int argc,char** argv)
             "\"method\":\"micromegas_planck2018_swave_v1\","
             "\"pann_limit_cm3_s_GeV\":3.2e-28,\"spectrum_key\":7,"
             "\"spectra_flag\":%d,\"vrot_km_s\":%.17g,"
-            "\"vz_decay\":%d,\"vw_decay\":%d},\"physics_version\":\"trsm_constraints_v2\",\"loop_hook\":true}\n",SpectraFlag,vRot,virtual_enabled,virtual_enabled);
+            "\"vz_decay\":%d,\"vw_decay\":%d},\"physics_version\":\"trsm_constraints_v2\",\"loop_hook\":true,"
+            "\"zgamma_line\":\"trsm_loop_ratio_v1\"}\n",SpectraFlag,vRot,virtual_enabled,virtual_enabled);
      return 0;
    }
    if(argc>2)
@@ -438,13 +480,11 @@ printf("\n==== Indirect detection =======\n");
     int foundLine = 0;
     int invalidLine = 0;
     double totalLineFluxR16 = 0.0;
+    double fluxPerSigmaV = -1.0;
+    double sigmaVAA = 0.0;   /* XX -> A A, the source of the derived Z A line */
+    int nativeZA = 0;        /* set if the model itself supplies XX -> Z A */
 
-    const double deg = M_PI/180.0;
-    const double rGC = 16.0*deg;       /* Fermi R16 radius */
-    const double maskB = 5.0*deg;      /* Galactic-plane mask |b| < 5 deg */
-    const double maskL = 6.0*deg;      /* mask applies only for |l| > 6 deg */
-    const double step = 0.5*deg;       /* numerical patch size for ROI sum */
-
+    printf("TRSM_fermi_line_output_v2 all_physical_line_energies\n");
     printf("\nFermi-LAT gamma-line flux estimate using R16 ROI approximation\n");
     printf("ROI: sqrt(l^2+b^2)<16 deg, excluding |b|<5 deg and |l|>6 deg\n");
 
@@ -460,12 +500,8 @@ printf("\n==== Indirect detection =======\n");
         int nGamma = 0;
         char *xParticle = NULL;
         double sigmaVChannel;
-        double sigmaVPhotonWeighted;
         double mX = 0.0;
         double eGamma;
-        double lineFlux = 0.0;
-
-        double l, b;
 
         /* Fermi-LAT line limits are for monochromatic 2-body lines.
           Skip 3-body gamma radiation such as XX -> A W+ W-. */
@@ -483,7 +519,6 @@ printf("\n==== Indirect detection =======\n");
         foundLine = 1;
 
         sigmaVChannel = sigmaV * vSigmaCh[ch].weight;
-        sigmaVPhotonWeighted = nGamma * sigmaVChannel;
 
         if (nGamma == 1) {
           if (xParticle == NULL) {
@@ -503,8 +538,10 @@ printf("\n==== Indirect detection =======\n");
           }
 
           eGamma = Mcdm * (1.0 - mX*mX/(4.0*Mcdm*Mcdm));
+          if (strcmp(xParticle, "Z") == 0) nativeZA = 1;
         } else if (nGamma == 2) {
           eGamma = Mcdm;
+          sigmaVAA += sigmaVChannel;
         } else {
           invalidLine = 1;
           printf("Skipping photon-line channel %s %s: unexpected photon count %d.\n",
@@ -512,34 +549,34 @@ printf("\n==== Indirect detection =======\n");
           continue;
         }
 
-        if (eGamma < 0.214 || eGamma > 462) {
-          printf("Photon-line channel %s %s has E_gamma=%.17E GeV, outside "
-                "Fermi-LAT table range 0.214-462 GeV. Flux not printed for limits.\n",
-                p3, p4, eGamma);
-          continue;
+        if (fluxPerSigmaV < 0.0) fluxPerSigmaV = fermiR16FluxPerSigmaV();
+        totalLineFluxR16 += printFermiR16Line(p3, p4, eGamma, sigmaVChannel,
+                                             nGamma, fluxPerSigmaV);
+      }
+
+      /* XX -> Z A: the model has no h_i Z gamma vertex, so this channel is not
+         in vSigmaCh. It proceeds through the same h1/h2 s-channel as XX -> A A,
+         so sigmaV(Z A) = R(2 Mcdm) sigmaV(A A), with R from trsm_loop.c.
+         One photon per annihilation, E_gamma = Mcdm (1 - MZ^2/(4 Mcdm^2)).
+         Evaluated at s = 4 Mcdm^2; the halo velocity changes R negligibly. */
+      if (sigmaVAA > 0.0 && !nativeZA) {
+        double mZ = findValW("MZ");
+        double ratioZA = trsm_loop_zgamma_ratio(2.0*Mcdm);
+
+        if (!isfinite(ratioZA) || ratioZA < 0.0) {
+          invalidLine = 1;
+          printf("Skipping loop-derived photon-line channel Z A: "
+                "invalid sigmaV(Z A)/sigmaV(A A)=%.17E.\n", ratioZA);
+        } else if (ratioZA > 0.0) {
+          double sigmaVZA = ratioZA * sigmaVAA;
+          double eGammaZA = Mcdm * (1.0 - mZ*mZ/(4.0*Mcdm*Mcdm));
+
+          printf("TRSM_zgamma_line_v1 {\"ratio_ZA_over_AA\":%.17g,"
+                "\"E_gamma_GeV\":%.17g,\"sigma_v_cm3_s\":%.17g}\n",
+                ratioZA, eGammaZA, sigmaVZA);
+          totalLineFluxR16 += printFermiR16Line("Z", "A", eGammaZA, sigmaVZA,
+                                               1, fluxPerSigmaV);
         }
-
-        /* Sum gammaFluxGC over small Galactic-coordinate rectangles to approximate
-          the Fermi R16 ROI mask. gammaFluxGC returns integrated flux [cm^-2 s^-1]
-          when passed an integrated line cross section [cm^3 s^-1]. */
-        for (l = -rGC; l < rGC; l += step) {
-          for (b = -rGC; b < rGC; b += step) {
-            double lc = l + 0.5*step;
-            double bc = b + 0.5*step;
-
-            if (sqrt(lc*lc + bc*bc) > rGC) continue;
-            if (fabs(bc) < maskB && fabs(lc) > maskL) continue;
-
-            lineFlux += gammaFluxGC(l, b, step, step, sigmaVPhotonWeighted);
-          }
-        }
-
-        totalLineFluxR16 += lineFlux;
-
-        printf("FermiLAT_line_channel %s %s: E_gamma=%.17E[GeV], "
-              "sigmaV=%.17E[cm^3 s^-1], N_gamma*sigmaV=%.17E[cm^3 s^-1], "
-              "Phi_R16=%.17E[cm^-2 s^-1]\n",
-              p3, p4, eGamma, sigmaVChannel, sigmaVPhotonWeighted, lineFlux);
       }
 
       if (!foundLine) {
@@ -551,9 +588,8 @@ printf("\n==== Indirect detection =======\n");
         printf("FermiLAT_total_line_flux_R16 = %.17E[cm^-2 s^-1]\n",
               totalLineFluxR16);
       } else {
-        printf("FermiLAT_line_flux_R16 could not be calculated properly: "
-              "line channels were found, but none were inside the usable "
-              "Fermi-LAT 0.214-462 GeV energy range or passed validity checks.\n");
+        printf("No positive integrated line flux in the Fermi-LAT "
+               "0.214-462 GeV energy range.\n");
       }
 
       if (invalidLine) {

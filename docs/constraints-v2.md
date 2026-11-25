@@ -44,7 +44,7 @@ Approximate resonance sampling means **2 M3 ≈ M1 or 2 M3 ≈ M2**. The separat
 
 ## Experimental prescriptions
 
-- The default observed SI table is the [published LZ WS2024 release](https://doi.org/10.17182/hepdata.155182.v2/t1), with original and normalized data in `DM/data/lz2024`. It is a power-constrained observed 90% CL, per-nucleon isoscalar limit. Use log-log interpolation over 9–10,000 GeV; no extrapolation. DD outside coverage is unassessed. The explicit 2026 approximate-table option is retained.
+- Direct detection uses the observed 90% CL elastic isoscalar SI upper limit per nucleon. The light-DM analysis covers $3\le M_3<9$ GeV and WS2024 covers $9\le M_3\le10{,}000$ GeV. The code interpolates logarithmically within each release and reports an unavailable base limit outside both ranges. [Light-DM data](https://doi.org/10.17182/hepdata.167350.v3/t1) and [WS2024 data](https://doi.org/10.17182/hepdata.155182.v2/t1).
 - The relic upper bound is **0.121**, with abundance reference **0.12**. Rescaling is ξ = min(1, Ωh²/0.12), linear for DD and squared for gamma lines and CMB. The inherited Fermi R16 line prescription remains; its coverage/availability is recorded. CMB is enabled by default with version 7 and uses the backend's low-velocity s-wave prescription.
 - HiggsSignals uses the **same widths/BR pipeline for the SM reference and scan points**. The rule remains Δχ² < 4 relative to that reference. It is a fixed screening prescription, not a profiled multi-parameter 95% confidence region.
 - The correlated STU fit remains the Jens Erler private-communication input dated 16 May 2025, with χ² <= 7.82. Its oblique-parameter normalization retains alpha(0) = 7.2973525693e-3. The input fit is not authenticated as a public likelihood.
