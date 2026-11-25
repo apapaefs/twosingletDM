@@ -1088,8 +1088,58 @@ the full viability selection.
 
 The dark-matter check combines the relic-density upper bound, the rescaled
 direct-detection limit, and the Fermi-LAT R16 gamma-line indirect limit parsed
-from `FermiLAT_line_channel` lines in the micrOMEGAs output. Scan files include
-the corresponding diagnostics:
+from `FermiLAT_line_channel` lines in the micrOMEGAs output. The model has no
+`h_i Z gamma` vertex, so the driver derives the `Z A` line from the `A A` channel:
+both go through the same `h1/h2` s-channel, so
+`sigmaV(Z A) = R(2 MX) sigmaV(A A)`, where `R = Gamma(h*->Z gamma)/Gamma(h*->gamma gamma)`
+at one loop (`trsm_loop_zgamma_ratio` in `DM/trsm_loop.c`, hep-ph/0503172). It has
+one photon at `E_gamma = MX (1 - MZ^2/(4 MX^2))`; `TRSM_zgamma_line_v1` records R.
+
+### Overlapping gamma-ray lines
+
+**Why lines must be combined.** The Fermi-LAT limit `L(E)` bounds the flux of a
+*single* line template: the LAT energy dispersion of a monochromatic line at `E`,
+with a 68% half-width `sigma_E` of 6-10% of `E` between 1 and 500 GeV. The LAT
+cannot separate two lines closer than about `sigma_E`. Their photons fill the same
+template, and a fit at `E` measures their summed flux. Comparing each line with
+`L(E)` on its own therefore underestimates the signal. The `gamma gamma` and
+`Z gamma` lines are `MZ^2/(4 MX)` apart: about 3 `sigma_E` at `MX = 100 GeV`,
+1.2 `sigma_E` at 150 GeV and below 0.7 `sigma_E` above 200 GeV. From about
+150 GeV up, the LAT sees one line, carrying up to `1 + R/2` times the
+`gamma gamma` flux.
+
+**What the screen does** (`assess_indirect_limit` in `test_trsm_DM.py`). In the
+background-dominated regime, the line amplitude fitted at `E` is the projection of
+the signal on the template at `E`. For Gaussian dispersion, a line at `E'`
+contributes with weight
+
+```text
+w(E, E') = exp[-(E - E')^2 / (4 sigma_E(E)^2)]
+```
+
+(`line_template_overlap`). This is 1 for coincident lines and below 1e-6 beyond
+7.5 `sigma_E`. The test is
+
+```text
+max over lines a of   xi^2 * sum_b w(E_a, E_b) Phi_b / L_R16(E_a)  <=  1
+```
+
+- An isolated line gives exactly the previous separate-line ratio.
+  `assess_indirect_limit(..., combine_lines=False)` reproduces the old screen
+  for comparisons.
+- Testing only at the line energies never overstates the signal. A continuous
+  energy scan, as Fermi-LAT performs, could find a larger response between two
+  lines: at most 14% for equal fluxes about 2 `sigma_E` apart, and at most 4% for
+  the `gamma gamma`/`Z gamma` pair.
+- `sigma_E(E)/E` is the acceptance-weighted 68% half-width for P8R3_SOURCE_V3
+  (front+back), from the LAT performance tables (`FERMI_LAT_ENERGY_RESOLUTION_68`).
+  The line search (arXiv:1506.00013) used P8_CLEAN events, whose resolution
+  Pass 8 did not change significantly, with a triple-Gaussian dispersion
+  resolved by EDISP type. The single Gaussian is an approximation to that.
+- The driver does not print lines above 462 GeV. For `462 < MX < 466 GeV` the
+  `gamma gamma` flux is therefore missing from the `Z gamma` test there.
+
+Scan files include the corresponding diagnostics:
 
 ```text
 dm_indirect_available
@@ -1100,11 +1150,25 @@ dm_indirect_ratio
 dm_indirect_detection_excluded
 ```
 
-`dm_indirect_ratio` is `dm_indirect_flux / dm_indirect_limit`; values above 1
-fail the dark-matter check. For an underabundant candidate with
-`xi = Omega / 0.121`, the direct-detection rate is rescaled by `xi` and the
-annihilation line flux by `xi^2` (implemented equivalently by dividing the
-experimental line-flux limit by `xi^2`).
+`dm_indirect_energy` is the line energy with the largest ratio, and
+`dm_indirect_flux` is the overlap-weighted flux there. `dm_indirect_ratio` is
+`dm_indirect_flux / dm_indirect_limit`; values above 1 fail the dark-matter
+check. For an underabundant candidate with `xi = min(1, Omega h^2 / 0.12)`, the
+direct-detection rate is rescaled by `xi` and the annihilation line flux by
+`xi^2` (implemented equivalently by dividing the experimental line-flux limit by
+`xi^2`). Scan, reevaluation and single-point metadata record the prescription
+under `indirect_detection`.
+
+To re-evaluate on existing points from an old run through the new cod that includes the Z\gamma line, use reevaluate_trsm_dm_higgs.py:
+
+python reevaluate_trsm_dm_higgs.py old.dat --output old_zg.dat \
+  --micromegas-version 7 --micromegas-main /path/to/rebuilt/micromegas_7.1.4/TRSM/main
+
+What it recomputes: for every row of the old file, the Higgs widths, HiggsTools and the whole DM block (relic density, direct detection, gamma lines with Zγ and combination, CMB). The pass/fail columns are rebuilt from those results.
+What it reuses: theory constraints, RG running, electroweak precision, flavour and the phase-transition results are taken from the input. Neither patch affects them.
+Output: a new file with its own metadata; the old file isn't touched. --resume works if it gets interrupted.
+You need the rebuilt driver. The Zγ line comes from the patched main.c, so the micrOMEGAs build must include the first patch.
+Cost: micrOMEGAs and HiggsTools run once per row. For a big campaign, you can first cut the input down to the rows you care about, for example the ones that pass everything except DM.
 
 An explicitly selected `--dm-limit-table /path/to/verified-si-limits.json`
 replaces the inherited `lz2025-source` direct-detection fit with a published

@@ -89,6 +89,7 @@ def install_stub_modules():
     test_trsm_dm = types.ModuleType("test_trsm_DM")
     test_trsm_dm.print_dm_info = lambda *args, **kwargs: None
     test_trsm_dm.test_dm = lambda *args, **kwargs: (False, {}, {})
+    test_trsm_dm.indirect_detection_configuration = lambda: {"line_combination": "stub"}
     stubs["test_trsm_DM"] = test_trsm_dm
 
     prettytable = types.ModuleType("prettytable")

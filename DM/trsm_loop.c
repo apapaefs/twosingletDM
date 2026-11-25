@@ -53,6 +53,67 @@ double complex trsm_loop_coefficient(double q, int channel)
 double trsm_loop_abs(double q, double channel)
 { return cabs(trsm_loop_coefficient(q,(int)channel)); }
 
+/* h* -> Z gamma at one loop: Djouadi, Phys. Rept. 457 (2008) 1,
+ * hep-ph/0503172, Sec. 2.3. The model has no h_i Z gamma vertex, so
+ * micrOMEGAs never generates XX -> Z A. Both XX -> A A and XX -> Z A go through
+ * the same h1/h2 propagators and doublet projections, so their ratio is the
+ * SM-like width ratio at m_h* = q, independent of the TRSM couplings.
+ * triangle() is f and zg_g() is g, both with argument tau = q^2/(4 m^2).
+ */
+static double complex zg_g(double tau)
+{
+  if(tau <= 1) return sqrt(1/tau-1)*asin(sqrt(tau));
+  double a=2*acosh(sqrt(tau));
+  return 0.5*sqrt(1-1/tau)*(a-I*M_PI);
+}
+/* I_1, I_2 with a = 4 m^2/q^2 and b = 4 m^2/MZ^2. */
+static double complex zg_I1(double a, double b)
+{
+  double d=a-b;
+  return a*b/(2*d) + a*a*b*b/(2*d*d)*(triangle(1/a)-triangle(1/b))
+         + a*a*b/(d*d)*(zg_g(1/a)-zg_g(1/b));
+}
+static double complex zg_I2(double a, double b)
+{ return -a*b/(2*(a-b))*(triangle(1/a)-triangle(1/b)); }
+
+/* Amplitude sum of Djouadi's H -> Z gamma width, with the masses of
+ * trsm_loop_coefficient. */
+static double complex zgamma_amplitude(double q)
+{
+  double mw=findValW("MW"), mz=findValW("MZ"), sw2=pow(findValW("SW"),2);
+  double cw2=1-sw2, cw=sqrt(cw2), s=q*q;
+  double masses[6]={findValW("Mu"),findValW("Md"),MqEff(0.096,q),McEff(q),MbEff(q),findValW("Mtp")};
+  double charges[6]={2.0/3,-1.0/3,-1.0/3,2.0/3,-1.0/3,2.0/3};
+  double isospin[6]={0.5,-0.5,-0.5,0.5,-0.5,0.5};
+  double leptons[3]={0.000510998928,findValW("Mm"),findValW("Ml")};
+  double complex sum=0;
+  for(int i=0;i<6;i++) if(masses[i]>0)
+  { double m2=masses[i]*masses[i];
+    sum += 3*charges[i]*(2*isospin[i]-4*charges[i]*sw2)/cw
+           *(zg_I1(4*m2/s,4*m2/(mz*mz))-zg_I2(4*m2/s,4*m2/(mz*mz))); }
+  for(int i=0;i<3;i++)
+  { double m2=leptons[i]*leptons[i];
+    sum += -(-1+4*sw2)/cw*(zg_I1(4*m2/s,4*m2/(mz*mz))-zg_I2(4*m2/s,4*m2/(mz*mz))); }
+  double a=4*mw*mw/s, b=4*mw*mw/(mz*mz);
+  sum += cw*(4*(3-sw2/cw2)*zg_I2(a,b) + ((1+2/a)*sw2/cw2-(5+2/a))*zg_I1(a,b));
+  return sum;
+}
+
+/* sigma v(XX -> Z A) / sigma v(XX -> A A) = Gamma(h*->Z A)/Gamma(h*->A A) at
+ * m_h* = q. Uses the GF-scheme relation sqrt(2) GF MW^2 = pi alpha/SW^2 of the
+ * model inputs. Returns 0 below the Z A threshold.
+ */
+double trsm_loop_zgamma_ratio(double q)
+{
+  double mz=findValW("MZ"), sw2=pow(findValW("SW"),2), s=q*q;
+  if(!(q > mz)) return 0;
+  double vev=2*findValW("MW")*findValW("SW")/findValW("EE"), ee=findValW("EE");
+  double complex agg=-trsm_loop_coefficient(q,22)*32*M_PI*M_PI*vev/(ee*ee);
+  double denominator=pow(cabs(agg),2);
+  if(!(denominator > 0)) return NAN;
+  return 2/sw2*pow(1-mz*mz/s,3)*pow(cabs(zgamma_amplitude(q)),2)/denominator;
+}
+
 void trsm_loop_set_widths(double h1, double h2) { widths[0]=h1; widths[1]=h2; }
 void trsm_loop_set_stage(int stage) { loop_stage=stage; }
 void trsm_loop_report(void)

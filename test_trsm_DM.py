@@ -297,12 +297,90 @@ def relic_density_fraction(omega, relic_upper_limit=ABUNDANCE_REFERENCE):
     return min(1.0, omega / relic_upper_limit)
 
 
+# Fermi-LAT energy resolution sigma_E/E: acceptance-weighted 68% containment
+# half-width for P8R3_SOURCE_V3, front+back (LAT performance page,
+# https://www.slac.stanford.edu/exp/glast/groups/canda/lat_Performance.htm,
+# table gEdispAve68Energy_P8R3_SOURCE_V3TotalFB.txt, read 2026-11-25).
+# Energies converted from MeV to GeV. The R16 line search (arXiv:1506.00013)
+# uses P8_CLEAN events, whose resolution Pass 8 did not change significantly;
+# this table is the published proxy for its sigma_E.
+FERMI_LAT_ENERGY_RESOLUTION_68 = (
+    (0.0990467529297, 0.196611484094),
+    (0.175711532593, 0.16598511808),
+    (0.311716888428, 0.140163937243),
+    (0.55299395752, 0.117784631732),
+    (0.981025878906, 0.100976257548),
+    (1.74036572266, 0.0888580488192),
+    (3.08745458984, 0.0778048777078),
+    (5.47722558594, 0.0682766684841),
+    (9.7167421875, 0.0632673773133),
+    (17.2377558594, 0.062184419579),
+    (30.580234375, 0.0630786801038),
+    (54.250140625, 0.0666649070925),
+    (96.241171875, 0.0727496049536),
+    (170.734375, 0.0804665341422),
+    (302.88728125, 0.0888698056022),
+    (537.33, 0.0988887978791),
+    (953.2375625, 0.123330158236),
+)
+
+INDIRECT_LINE_PRESCRIPTION = "fermi_r16_gaussian_template_overlap_v1"
+
+
+def fermi_lat_energy_resolution(energy_gev):
+    """Relative 68% energy resolution sigma_E/E, linear in log(E)."""
+    table = FERMI_LAT_ENERGY_RESOLUTION_68
+    if not table[0][0] <= energy_gev <= table[-1][0]:
+        raise ValueError(f"No Fermi-LAT energy resolution at E={energy_gev:g} GeV")
+    for (e0, r0), (e1, r1) in zip(table, table[1:]):
+        if energy_gev <= e1:
+            t = math.log(energy_gev / e0) / math.log(e1 / e0)
+            return r0 + t * (r1 - r0)
+    return table[-1][1]
+
+
+def line_template_overlap(test_energy_gev, line_energy_gev):
+    """Fraction of a line at E' that a single-line fit at E attributes to E.
+
+    The Fermi-LAT limit L(E) bounds the amplitude of one line template, the
+    energy dispersion D(E'|E) of a monochromatic line at E. Each line found by
+    the driver is smeared by the same dispersion, so a second line closer than
+    about sigma_E feeds the template at E. In the background-dominated regime
+    the fitted amplitude is the projection of the signal on the template,
+        n_hat(E) = sum_a Phi_a <D_E, D_Ea> / <D_E, D_E>.
+    For Gaussian dispersion of width sigma_E(E) this weight is
+        exp[-(E - E_a)^2 / (4 sigma_E^2)],
+    equal to 1 for coincident lines and negligible beyond a few sigma_E.
+    """
+    sigma = fermi_lat_energy_resolution(test_energy_gev) * test_energy_gev
+    return math.exp(-((test_energy_gev - line_energy_gev) ** 2) / (4.0 * sigma * sigma))
+
+
 def assess_indirect_limit(
     channels,
     omega=None,
     relic_upper_limit=RELIC_UPPER_LIMIT,
     rescale=True,
+    combine_lines=True,
 ):
+    """Fermi-LAT R16 gamma-line screen.
+
+    With combine_lines (the default), lines that overlap within the LAT energy
+    resolution are added before the comparison, weighted by
+    line_template_overlap. This matters for XX -> gamma gamma and XX -> Z gamma,
+    whose energies differ by MZ^2/(4 M3). Their overlap weight is 0.13 at
+    M3 = 100 GeV, 0.71 at 150 GeV and above 0.9 from 200 GeV. The test
+    statistic is
+        max_a  xi^2 sum_b w(E_a, E_b) Phi_b / L_R16(E_a),
+    evaluated at the line energies E_a. An isolated line gives exactly
+    xi^2 Phi_a / L_R16(E_a), as in the separate-line screen
+    (combine_lines=False). Testing only at line energies never overstates the
+    combined signal. A continuous energy scan could find a slightly larger
+    response between two lines: at most 14% for equal fluxes about
+    2 sigma_E apart, and at most 4% for the gamma-gamma/Z-gamma pair here.
+    The reported flux is the overlap-weighted sum at the reported energy,
+    without the xi^2 factor.
+    """
     abundance_fraction = None
     if omega is not None:
         if not math.isfinite(omega) or omega < 0.0:
@@ -310,25 +388,16 @@ def assess_indirect_limit(
         if rescale:
             abundance_fraction = relic_density_fraction(omega)
 
-    best = IndirectLimitResult(
-        available=False,
-        excluded=False,
-        channels_seen=0,
-        channels_used=0,
-        max_ratio=0.0,
-        energy_gev=math.nan,
-        flux_cm2_s=math.nan,
-        limit_cm2_s=math.nan,
-    )
-    channels_used = 0
-
-    for channel in channels:
-        limit = fermi_lat_r16_line_limit(channel.energy_gev)
+    def rescaled_limit(energy_gev):
+        limit = fermi_lat_r16_line_limit(energy_gev)
         if abundance_fraction is not None:
-            if abundance_fraction > 0.0:
-                limit /= abundance_fraction**2
-            else:
-                limit = math.inf
+            limit = limit / abundance_fraction**2 if abundance_fraction > 0.0 else math.inf
+        return limit
+
+    # A line is usable if its flux is valid and the limit exists at its energy.
+    usable = []
+    for channel in channels:
+        limit = rescaled_limit(channel.energy_gev)
         if (
             not math.isfinite(limit)
             or limit <= 0.0
@@ -336,42 +405,58 @@ def assess_indirect_limit(
             or channel.flux_cm2_s < 0.0
         ):
             continue
+        usable.append(channel)
 
-        channels_used += 1
-        ratio = channel.flux_cm2_s / limit
-        if not best.available or ratio > best.max_ratio:
-            best = IndirectLimitResult(
-                available=True,
-                excluded=ratio > 1.0,
-                channels_seen=len(channels),
-                channels_used=channels_used,
-                max_ratio=ratio,
-                energy_gev=channel.energy_gev,
-                flux_cm2_s=channel.flux_cm2_s,
-                limit_cm2_s=limit,
-            )
-
-    if best.available:
+    if not usable:
         return IndirectLimitResult(
-            available=True,
-            excluded=best.max_ratio > 1.0,
+            available=False,
+            excluded=False,
             channels_seen=len(channels),
-            channels_used=channels_used,
-            max_ratio=best.max_ratio,
-            energy_gev=best.energy_gev,
-            flux_cm2_s=best.flux_cm2_s,
-            limit_cm2_s=best.limit_cm2_s,
+            channels_used=0,
+            max_ratio=0.0,
+            energy_gev=math.nan,
+            flux_cm2_s=math.nan,
+            limit_cm2_s=math.nan,
         )
+
+    if combine_lines:
+        candidates = [
+            (a.energy_gev,
+             sum(b.flux_cm2_s * line_template_overlap(a.energy_gev, b.energy_gev) for b in usable))
+            for a in usable
+        ]
+    else:
+        candidates = [(c.energy_gev, c.flux_cm2_s) for c in usable]
+
+    best = None
+    for energy, flux in candidates:
+        limit = rescaled_limit(energy)
+        ratio = flux / limit
+        if best is None or ratio > best[0]:
+            best = (ratio, energy, flux, limit)
+    ratio, energy, flux, limit = best
     return IndirectLimitResult(
-        available=False,
-        excluded=False,
+        available=True,
+        excluded=ratio > 1.0,
         channels_seen=len(channels),
-        channels_used=0,
-        max_ratio=0.0,
-        energy_gev=math.nan,
-        flux_cm2_s=math.nan,
-        limit_cm2_s=math.nan,
+        channels_used=len(usable),
+        max_ratio=ratio,
+        energy_gev=energy,
+        flux_cm2_s=flux,
+        limit_cm2_s=limit,
     )
+
+
+def indirect_detection_configuration():
+    """Provenance of the gamma-line screen, for scan and reevaluation metadata."""
+    return {
+        "limit": "Fermi-LAT R16 95% CL line-flux upper limits, arXiv:1506.00013",
+        "energy_range_GeV": [FERMI_LAT_R16_LINE_LIMITS[0][0], FERMI_LAT_R16_LINE_LIMITS[-1][0]],
+        "line_combination": INDIRECT_LINE_PRESCRIPTION,
+        "energy_resolution": "P8R3_SOURCE_V3 acceptance-weighted 68% half-width, front+back",
+        "line_overlap_weight": "exp(-(E_a - E_b)^2 / (4 sigma_E(E_a)^2)), tested at line energies",
+        "abundance_rescaling": "min(1, Omega_h2 / 0.12)^2",
+    }
 
 
 def parse_micromegas_output(text):

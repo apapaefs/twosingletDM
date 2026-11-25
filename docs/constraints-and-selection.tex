@@ -516,23 +516,61 @@ high-mass approximation and historical fitted providers are not the default
 WS2024 prescription and must be identified from the saved metadata.
 
 \subsection{Gamma-ray lines}
-The retained indirect-detection screen compares the individual line fluxes
-with the tabulated Fermi-LAT R16 line limit:
+The driver supplies photon-containing two-body annihilation channels, with
+$E_\gamma=M_3$ for $\gamma\gamma$ and $E_\gamma=M_3(1-m_Y^2/(4M_3^2))$ for
+$\gamma Y$. The model has no $h_iZ\gamma$ vertex, so micrOMEGAs never generates
+$XX\to Z\gamma$. The driver derives this line from the $\gamma\gamma$
+channel, since both proceed through the same $h_1$/$h_2$ $s$-channel:
+$\langle\sigma v\rangle_{Z\gamma}=R\,\langle\sigma v\rangle_{\gamma\gamma}$, with
+$R=\Gamma(h^*\to Z\gamma)/\Gamma(h^*\to\gamma\gamma)$ at one loop and
+$m_{h^*}=2M_3$ (\code{trsm_loop_zgamma_ratio}; Djouadi, hep-ph/0503172).
+It contributes one photon at $E_\gamma=M_3(1-m_Z^2/(4M_3^2))$.
+The driver approximates the R16 region using $0.5^\circ$ patches inside
+$\sqrt{l^2+b^2}\le16^\circ$, excluding $|b|<5^\circ$ with $|l|>6^\circ$,
+and weights each line flux $\Phi_a$ by its photon multiplicity. \src{D}
+
+\paragraph{Why overlapping lines are combined.}
+The Fermi-LAT limit $L_{\rm R16}(E)$ bounds the flux of a \emph{single}
+line template: the LAT energy dispersion of a monochromatic line at $E$.
+Its 68\% half-width $\sigma_E$ is 6--10\% of $E$ between $1$ and
+$500\GeV$. Two lines closer than about $\sigma_E$ fill the same template,
+so a fit at $E$ measures their summed flux, and testing each line on its
+own underestimates the signal. The $\gamma\gamma$ and $Z\gamma$ lines are
+$m_Z^2/(4M_3)$ apart: $2.8\,\sigma_E$ at $M_3=100\GeV$, $1.2\,\sigma_E$
+at $150\GeV$ and less than $0.7\,\sigma_E$ above $200\GeV$. Above about
+$150\GeV$ the LAT therefore sees one line, with up to $1+R/2$ times the
+$\gamma\gamma$ flux.
+
+\paragraph{Prescription.}
+For a background-dominated fit, the amplitude fitted at $E$ is the
+projection of the signal on the template at $E$. A line at $E'$ with
+Gaussian dispersion contributes with the normalized overlap
+\begin{equation}
+ w(E,E')=\exp\!\left[-\frac{(E-E')^2}{4\sigma_E(E)^2}\right],
+\end{equation}
+which is 1 for coincident lines and below $10^{-6}$ beyond $7.5\,\sigma_E$.
+The screen is
 \begin{equation}
  R_{\rm line}=\max_{a\,\mathrm{usable}}
- \frac{\xi^2\Phi_a}{L_{\rm R16}(E_{\gamma,a})}\le1.
+ \frac{\xi^2\sum_b w(E_{\gamma,a},E_{\gamma,b})\,\Phi_b}{L_{\rm R16}(E_{\gamma,a})}\le1,
 \end{equation}
-The energy coverage is $0.214$--$462\GeV$, with log--log interpolation
-and no extrapolation. The driver supplies photon-containing two-body
-annihilation channels, with $E_\gamma=M_3$ for $\gamma\gamma$ and
-$E_\gamma=M_3(1-m_Y^2/(4M_3^2))$ for $\gamma Y$.
-The implementation takes the largest individual line ratio; it does not
-sum nearby line fluxes into a new combined bound. The driver approximates
-the R16 region using $0.5^\circ$ patches inside
-$\sqrt{l^2+b^2}\le16^\circ$, excluding $|b|<5^\circ$ with
-$|l|>6^\circ$, and weights the flux by photon multiplicity.
-This is the retained line-flux prescription, not a published-ROI likelihood
-evaluation. \src{D}
+with log--log interpolation of $L_{\rm R16}$ over $0.214$--$462\GeV$ and no
+extrapolation. An isolated line gives exactly the separate-line ratio
+$\xi^2\Phi_a/L_{\rm R16}(E_{\gamma,a})$ used before
+(\code{combine_lines=False}). Testing only at the line energies never
+overstates the signal. A continuous scan could find a response between two
+lines that is larger by at most 14\% for equal fluxes about $2\sigma_E$
+apart, and by at most 4\% for the $\gamma\gamma$/$Z\gamma$ pair.
+$\sigma_E(E)/E$ is the acceptance-weighted 68\% half-width for
+P8R3\_SOURCE\_V3, front+back, from the LAT performance tables. The line
+search (arXiv:1506.00013) used P8\_CLEAN events, whose resolution Pass~8 did
+not change significantly, with a triple-Gaussian dispersion resolved by
+EDISP type. The single Gaussian approximates that. Lines above $462\GeV$ are
+not printed by the driver, so for $462<M_3\lesssim466\GeV$ the
+$\gamma\gamma$ flux does not enter the $Z\gamma$ test.
+\code{dm_indirect_flux} stores the overlap-weighted flux at
+\code{dm_indirect_energy}. This remains a line-flux approximation, not a
+published-ROI likelihood evaluation. \src{D}
 
 If no usable line is found, the code stores
 \code{dm_indirect_available=False} and

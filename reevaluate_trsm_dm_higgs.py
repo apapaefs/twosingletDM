@@ -963,10 +963,12 @@ def resolve_evaluation_configuration(args):
     table_path=args.dm_limit_table or (DEFAULT_LIMIT_TABLE if model==DEFAULT_LIMIT_MODEL else None)
     table=load_si_limit_table(table_path) if table_path else None
     dd_configuration=table.metadata() if table else {"model":model}
+    from test_trsm_DM import indirect_detection_configuration
     configuration = {"physics_version":PHYSICS_VERSION,
                      "physics_manifest":physics_manifest(backend["executable"]),
                      "micromegas":backend,"direct_detection":dd_configuration,
-                     "planck_cmb":cmb_configuration(args)}
+                     "planck_cmb":cmb_configuration(args),
+                     "indirect_detection":indirect_detection_configuration()}
     return configuration, table, model
 
 

@@ -692,7 +692,7 @@ from scan_output import output_columns as scan_output_columns
 from scan_output import write_valid_point as write_valid_point_file
 from trsm_flavour import generated_flavour_updates, unassessed_flavour, flavour_configuration
 from test_trsm_theory_constraints import * # unitarity/boundedness from below
-from test_trsm_DM import print_dm_info, test_dm # micrOMEGAs dark matter check for the vx=0 branch
+from test_trsm_DM import print_dm_info, test_dm, indirect_detection_configuration # micrOMEGAs dark matter check for the vx=0 branch
 from prettytable import PrettyTable
 from singlet_EWPO import * # Electroweak Precision Observables
 
@@ -2453,6 +2453,7 @@ def build_scan_metadata(
         "micromegas": micromegas_configuration(args),
         "direct_detection": direct_detection_configuration(args),
         "planck_cmb": cmb_configuration(args),
+        "indirect_detection": indirect_detection_configuration(),
         "flavour": flavour_configuration(),
         "variable_ranges": variable_ranges,
         "fixed_parameters": fixed_parameters,
