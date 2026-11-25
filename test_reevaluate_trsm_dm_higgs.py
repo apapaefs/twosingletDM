@@ -212,7 +212,7 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             args = self.module.parse_args([str(source), "--output", str(output), "--micromegas-main", str(driver)])
             config, recovered, _ = self.module.resolve_evaluation_configuration(args)
             self.assertNotEqual(recovered.sha256, table.sha256)
-            self.assertTrue(recovered.model_id.startswith("table:lz-ws2024-observed-v2:"))
+            self.assertTrue(recovered.model_id.startswith("table:lz-ws2025-lowmass-ws2024:"))
             self.assertTrue(config["planck_cmb"]["enabled"])
             table_path.unlink()
             self.module.resolve_evaluation_configuration(args)
@@ -237,6 +237,29 @@ class TestReevaluateTRSMDMHiggs(unittest.TestCase):
             changed = {**config, "micromegas": {"version": "7.1.4", "executable": "/test/main"}}
             with self.assertRaisesRegex(self.module.ReEvaluationError, "configuration"):
                 self.module.reevaluate(source, output, evaluator, resume=True, evaluation_configuration=changed)
+
+    def test_resume_restores_saved_dd_table_or_fit_without_a_cli_override(self):
+        from test_trsm_cmb import capable_driver
+        from trsm_direct_detection import PUBLISHED_LIMIT_TABLES
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "old.dat"
+            driver = capable_driver(Path(tmp) / "main")
+            external = Path(tmp) / "external.json"
+            old_label = "lz-ws2024-observed-v2"
+            external.write_bytes(PUBLISHED_LIMIT_TABLES[old_label].read_bytes())
+            for i, options in enumerate((["--dm-limit-model", old_label],
+                                         ["--dm-limit-table", str(external)],
+                                         ["--dm-limit-model", "lz2025-source"])):
+                output = Path(tmp) / f"out-{i}.dat"
+                args = [str(source), "--output", str(output), "--micromegas-main", str(driver)]
+                chosen, _, _ = self.module.resolve_evaluation_configuration(self.module.parse_args(args + options))
+                self.module.create_checkpoint(self.module.checkpoint_path(output),
+                                              {"evaluation_configuration": chosen}).close()
+                resumed, _, _ = self.module.resolve_evaluation_configuration(self.module.parse_args(args + ["--resume"]))
+                self.assertEqual(resumed["direct_detection"], chosen["direct_detection"])
+                with self.assertRaisesRegex(self.module.ReEvaluationError, "direct-detection configuration"):
+                    self.module.resolve_evaluation_configuration(self.module.parse_args(
+                        args + ["--resume", "--dm-limit-model", "legacy-output"]))
 
     def test_reevaluation_defaults_overrides_and_outdated_driver_preflight(self):
         from test_trsm_cmb import capable_driver

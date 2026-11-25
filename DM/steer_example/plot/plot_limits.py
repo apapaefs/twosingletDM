@@ -22,17 +22,24 @@ def main(argv=None):
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if args.kind == 'direct':
         table = load_si_limit_table(args.limit_table)
-        x, y = table.masses_gev, [v * 1e-36 for v in table.limits_pb]
+        curves = [[]]
+        for i, (mass, limit) in enumerate(zip(table.masses_gev, table.limits_pb)):
+            if table.limits_from_below_pb and table.limits_from_below_pb[i] != limit:
+                curves[-1].append((mass, table.limits_from_below_pb[i] * 1e-36))
+                curves.append([])
+            curves[-1].append((mass, limit * 1e-36))
         name = 'a_dirdet_limit_curve'
         xlabel, ylabel, title = 'DM mass [GeV]', 'SI upper limit per nucleon [cm²]', table.label + ' (90% CL)'
     else:
-        x, y = zip(*FERMI_LAT_R16_LINE_LIMITS)
+        curves = [FERMI_LAT_R16_LINE_LIMITS]
         name = 'a_indirect_limit_curve'
         xlabel, ylabel, title = 'Photon energy [GeV]', 'Line flux upper limit [cm⁻² s⁻¹]', 'Fermi-LAT R16 gamma-line limit'
     (args.output_dir / (name + '.dat')).write_text(
-        f'# {xlabel}\t{ylabel}\n' + ''.join(f'{a:.17g}\t{b:.17g}\n' for a, b in zip(x, y)))
+        f'# {xlabel}\t{ylabel}\n' + '\n'.join(
+            ''.join(f'{a:.17g}\t{b:.17g}\n' for a, b in curve) for curve in curves))
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.loglog(x, y, '.-', lw=1)
+    for curve in curves:
+        ax.loglog(*zip(*curve), '.-', lw=1)
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
     ax.grid(alpha=.2)
     fig.tight_layout()

@@ -27,7 +27,7 @@ def capable_driver(path, **overrides):
     capability = dict(method=CMB_METHOD, pann_limit_cm3_s_GeV=3.2e-28,
                       spectrum_key=7, spectra_flag=0, vrot_km_s=220, vz_decay=0, vw_decay=0)
     capability.update(overrides)
-    payload = json.dumps({"schema": "trsm_driver_capabilities_v1", "physics_version":"trsm_constraints_v2", "loop_hook":True, "planck_cmb": capability})
+    payload = json.dumps({"schema": "trsm_driver_capabilities_v1", "physics_version":"trsm_constraints_v2", "loop_hook":True, "zgamma_line":"trsm_loop_ratio_v1", "planck_cmb": capability})
     path.write_text(f"#!{sys.executable}\nprint({payload!r})\n")
     path.chmod(0o755)
     return path

@@ -9,9 +9,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_LIMIT_MODEL = "lz-ws2024-observed-v2"
-DEFAULT_LIMIT_TABLE = Path(__file__).resolve().parent / "DM/data/lz2024/observed-si-v2.json"
+DATA_DIR = Path(__file__).resolve().parent / "DM/data"
+DEFAULT_LIMIT_MODEL = "lz-ws2025-lowmass-ws2024"
+DEFAULT_LIMIT_TABLE = DATA_DIR / "lz2025/observed-si-with-ws2024.json"
+PUBLISHED_LIMIT_TABLES = {
+    DEFAULT_LIMIT_MODEL: DEFAULT_LIMIT_TABLE,
+    "lz-ws2024-observed-v2": DATA_DIR / "lz2024/observed-si-v2.json",
+}
 SI_TABLE_SCHEMA = "trsm_si_upper_limit_v1"
+PIECEWISE_SI_TABLE_SCHEMA = "trsm_piecewise_si_upper_limit_v1"
 
 
 @dataclass(frozen=True)
@@ -24,6 +30,7 @@ class SILimitTable:
     masses_gev: tuple[float, ...]
     limits_pb: tuple[float, ...]
     provenance_json: str | None = None
+    limits_from_below_pb: tuple[float, ...] = ()
 
     @property
     def model_id(self):
@@ -43,10 +50,11 @@ class SILimitTable:
         if self.masses_gev[index] == mass_gev:
             return self.limits_pb[index]
         low, high = self.masses_gev[index - 1:index + 1]
+        upper = (self.limits_from_below_pb or self.limits_pb)[index]
         weight = math.log(mass_gev / low) / math.log(high / low)
         return math.exp(
             (1 - weight) * math.log(self.limits_pb[index - 1])
-            + weight * math.log(self.limits_pb[index])
+            + weight * math.log(upper)
         )
 
     def metadata(self):
@@ -67,6 +75,8 @@ class SILimitTable:
         }
         if self.provenance_json is not None:
             metadata["provenance"] = json.loads(self.provenance_json)
+        if self.limits_from_below_pb:
+            metadata["interpolation"] = "piecewise log-log within each release"
         return metadata
 
 
@@ -91,8 +101,8 @@ def load_si_limit_table(path):
     path = Path(path).expanduser().resolve()
     raw = path.read_bytes()
     data = json.loads(raw)
-    if not isinstance(data, dict) or data.get("schema") != SI_TABLE_SCHEMA:
-        raise ValueError(f"SI limit table must use schema {SI_TABLE_SCHEMA}")
+    if not isinstance(data, dict) or data.get("schema") not in (SI_TABLE_SCHEMA, PIECEWISE_SI_TABLE_SCHEMA):
+        raise ValueError(f"Unknown SI limit table schema (expected {SI_TABLE_SCHEMA} or {PIECEWISE_SI_TABLE_SCHEMA})")
     for key, expected in (
         ("confidence_level", 0.9),
         ("interaction", "elastic_isoscalar_si"),
@@ -120,7 +130,8 @@ def load_si_limit_table(path):
     points = data.get("points")
     if not isinstance(points, list) or len(points) < 2:
         raise ValueError("SI table requires at least two mass/upper-limit points")
-    masses, limits = [], []
+    masses, limits, from_below = [], [], []
+    unit_to_pb = 1e36 if unit == "cm2" else 1
     for index, point in enumerate(points):
         if not isinstance(point, dict):
             raise ValueError(f"SI table point {index} must be an object")
@@ -130,10 +141,15 @@ def load_si_limit_table(path):
             raise ValueError("SI table masses must be strictly increasing")
         masses.append(mass)
         # 1 pb = 10^-36 cm^2. micrOMEGAs prints nucleon cross sections in pb.
-        limits.append(_positive_number(limit * (1e36 if unit == "cm2" else 1), "Limit in pb"))
+        limits.append(_positive_number(limit * unit_to_pb, "Limit in pb"))
+        if "upper_limit_from_below" in point and (index == 0 or data["schema"] != PIECEWISE_SI_TABLE_SCHEMA):
+            raise ValueError("A limit from below requires an interior boundary in a piecewise table")
+        if data["schema"] == PIECEWISE_SI_TABLE_SCHEMA:
+            left = _positive_number(point.get("upper_limit_from_below", limit), "Limit from below")
+            from_below.append(_positive_number(left * unit_to_pb, "Limit from below in pb"))
     return SILimitTable(
         label, source.strip(), path, hashlib.sha256(raw).hexdigest(), unit,
-        tuple(masses), tuple(limits), provenance_json,
+        tuple(masses), tuple(limits), provenance_json, tuple(from_below),
     )
 
 

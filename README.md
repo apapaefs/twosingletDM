@@ -7,8 +7,10 @@ Use [constraint pipeline v2](docs/constraints-v2.md) and the
 [next-scan readiness report](docs/next-scan-readiness-v2.md) for the active
 `vx=0` scan. The versioned configuration is
 [`config/next-scan-v2.json`](config/next-scan-v2.json).
-It uses micrOMEGAs 7.1.4, the observed LZ WS2024 numerical table and BSMPT 3.2.1.
-All evaluated points are retained. DM, global-vacuum and RG results define
+It uses micrOMEGAs 7.1.4 and BSMPT 3.2.1. For spin-independent direct detection,
+new scans use the observed LZ low-mass limit from 3 GeV up to 9 GeV and the
+WS2024 limit from 9 through 10,000 GeV. See the [LZ data sources](DM/direct-detection.md).
+The scan writes every evaluated point. DM, global-vacuum and RG results define
 independent subsets; they do not gate EWPT exploration. Baryogenesis and GW
 candidate flags follow the separate criteria documented there. Older workflow
 examples below retain historical conventions where they differ from v2.
@@ -1086,95 +1088,75 @@ output/trsm_points_<run-tag>_dm_failed.dat
 The usual `trsm_points_<run-tag>.dat` file remains reserved for points that pass
 the full viability selection.
 
-The dark-matter check combines the relic-density upper bound, the rescaled
-direct-detection limit, and the Fermi-LAT R16 gamma-line indirect limit parsed
-from `FermiLAT_line_channel` lines in the micrOMEGAs output. The model has no
-`h_i Z gamma` vertex, so the driver derives the `Z A` line from the `A A` channel:
-both go through the same `h1/h2` s-channel, so
-`sigmaV(Z A) = R(2 MX) sigmaV(A A)`, where `R = Gamma(h*->Z gamma)/Gamma(h*->gamma gamma)`
-at one loop (`trsm_loop_zgamma_ratio` in `DM/trsm_loop.c`, hep-ph/0503172). It has
-one photon at `E_gamma = MX (1 - MZ^2/(4 MX^2))`; `TRSM_zgamma_line_v1` records R.
+### Fermi-LAT gamma-ray lines
 
-### Overlapping gamma-ray lines
+The production scan tests the predicted flux from each two-body photon line
+against the Fermi-LAT R16 upper limit at its own energy. For `XX -> gamma gamma`
+there are two photons at `E_gamma = MX`. For `XX -> Z gamma` there is one photon at
+`E_gamma = MX - MZ²/(4 MX)`, above threshold `MX > MZ/2`. In this model both
+amplitudes contain the same coherent sum of the two scalar propagators. The
+driver thus obtains the second annihilation rate by multiplying the first by
+the one-loop SM width ratio `Gamma(h* -> Z gamma) / Gamma(h* -> gamma gamma)`
+at `m_h* = 2 MX`. The corresponding photon-flux ratio is half the width ratio.
+[One-loop widths](https://arxiv.org/abs/hep-ph/0503172)
 
-**Why lines must be combined.** The Fermi-LAT limit `L(E)` bounds the flux of a
-*single* line template: the LAT energy dispersion of a monochromatic line at `E`,
-with a 68% half-width `sigma_E` of 6-10% of `E` between 1 and 500 GeV. The LAT
-cannot separate two lines closer than about `sigma_E`. Their photons fill the same
-template, and a fit at `E` measures their summed flux. Comparing each line with
-`L(E)` on its own therefore underestimates the signal. The `gamma gamma` and
-`Z gamma` lines are `MZ^2/(4 MX)` apart: about 3 `sigma_E` at `MX = 100 GeV`,
-1.2 `sigma_E` at 150 GeV and below 0.7 `sigma_E` above 200 GeV. From about
-150 GeV up, the LAT sees one line, carrying up to `1 + R/2` times the
-`gamma gamma` flux.
+For each covered line `a`, the code evaluates `xi² Phi_a / L_R16(E_a)`, where
+`xi = min(1, Omega h² / 0.12)` for abundance rescaling. The largest ratio is
+stored as `dm_indirect_ratio`. A value above one excludes the point in the
+line test. The winning line sets `dm_indirect_energy`, `dm_indirect_flux`
+(before rescaling), and `dm_indirect_limit` (after division by `xi²`).
+The Fermi-LAT publication supplies single-line limits. This scan does not
+assign a joint confidence level to the two comparisons.
+[Fermi-LAT analysis, Appendix B](https://arxiv.org/abs/1506.00013)
 
-**What the screen does** (`assess_indirect_limit` in `test_trsm_DM.py`). In the
-background-dominated regime, the line amplitude fitted at `E` is the projection of
-the signal on the template at `E`. For Gaussian dispersion, a line at `E'`
-contributes with weight
+The tabulated photon energies span 0.214–462 GeV. Just above `MX = 462 GeV`
+the lower-energy Z gamma line still has a limit, up to `MX ≈ 466.46 GeV`.
+If a successful calculation has no usable line, it stores
+`dm_indirect_available=False` and `dm_indirect_detection_excluded=False`.
+Other DM constraints still apply. A failed micrOMEGAs calculation has
+unavailable component results and cannot qualify a point as passing.
+The indirect-status plot labels a recorded non-veto outside both channels’
+energy coverage as “Outside Fermi-LAT coverage”. It labels other non-vetoes
+with no usable flux limit as “No usable line recorded”. This includes older
+outputs in the 462–466.46 GeV interval when their line content is unknown.
+Rows with missing indirect verdicts are shown separately. If the driver
+reports a line calculation error, an independent covered line above its limit
+still excludes the point. Otherwise the indirect verdict is unassessed.
 
-```text
-w(E, E') = exp[-(E - E')^2 / (4 sigma_E(E)^2)]
-```
+The lines approach each other at high mass. As an experimental variation,
+`assess_indirect_limit(channels, omega, combine_lines=True)` estimates their
+overlap using a single Gaussian with width taken from the P8R3_SOURCE_V3
+resolution table. At each covered line energy `E` it weights every physical
+line at `E'` by `exp[-(E - E')² / (4 sigma_E(E)²)]`. This includes photons
+from a nearby line outside the table without extrapolating a limit to that
+line. Fermi-LAT used P8_CLEAN data and energy-dispersion models for each event
+type. The Gaussian variation has no calibrated joint confidence level.
+[Fermi-LAT energy dispersion and fits, Sections IV–V](https://arxiv.org/abs/1506.00013)
 
-(`line_template_overlap`). This is 1 for coincident lines and below 1e-6 beyond
-7.5 `sigma_E`. The test is
+New native evaluations require a driver advertising `zgamma_line=trsm_loop_ratio_v1`.
+The scan and reevaluation metadata record the separate-line prescription under
+`indirect_detection`. Replaying an older raw log uses the line fluxes that
+were written to that file. To obtain a missing line from the saved parameters,
+run the rebuilt driver on the original points in a new output file.
 
-```text
-max over lines a of   xi^2 * sum_b w(E_a, E_b) Phi_b / L_R16(E_a)  <=  1
-```
-
-- An isolated line gives exactly the previous separate-line ratio.
-  `assess_indirect_limit(..., combine_lines=False)` reproduces the old screen
-  for comparisons.
-- Testing only at the line energies never overstates the signal. A continuous
-  energy scan, as Fermi-LAT performs, could find a larger response between two
-  lines: at most 14% for equal fluxes about 2 `sigma_E` apart, and at most 4% for
-  the `gamma gamma`/`Z gamma` pair.
-- `sigma_E(E)/E` is the acceptance-weighted 68% half-width for P8R3_SOURCE_V3
-  (front+back), from the LAT performance tables (`FERMI_LAT_ENERGY_RESOLUTION_68`).
-  The line search (arXiv:1506.00013) used P8_CLEAN events, whose resolution
-  Pass 8 did not change significantly, with a triple-Gaussian dispersion
-  resolved by EDISP type. The single Gaussian is an approximation to that.
-- The driver does not print lines above 462 GeV. For `462 < MX < 466 GeV` the
-  `gamma gamma` flux is therefore missing from the `Z gamma` test there.
-
-Scan files include the corresponding diagnostics:
-
-```text
-dm_indirect_available
-dm_indirect_energy
-dm_indirect_flux
-dm_indirect_limit
-dm_indirect_ratio
-dm_indirect_detection_excluded
-```
-
-`dm_indirect_energy` is the line energy with the largest ratio, and
-`dm_indirect_flux` is the overlap-weighted flux there. `dm_indirect_ratio` is
-`dm_indirect_flux / dm_indirect_limit`; values above 1 fail the dark-matter
-check. For an underabundant candidate with `xi = min(1, Omega h^2 / 0.12)`, the
-direct-detection rate is rescaled by `xi` and the annihilation line flux by
-`xi^2` (implemented equivalently by dividing the experimental line-flux limit by
-`xi^2`). Scan, reevaluation and single-point metadata record the prescription
-under `indirect_detection`.
-
-To re-evaluate on existing points from an old run through the new cod that includes the Z\gamma line, use reevaluate_trsm_dm_higgs.py:
-
+```bash
 python reevaluate_trsm_dm_higgs.py old.dat --output old_zg.dat \
-  --micromegas-version 7 --micromegas-main /path/to/rebuilt/micromegas_7.1.4/TRSM/main
+  --micromegas-version 7 --micromegas-main /path/to/rebuilt/micromegas_7.1.4/TRSM/main \
+  --dm-limit-table DM/data/lz2025/observed-si-with-ws2024.json
+```
 
-What it recomputes: for every row of the old file, the Higgs widths, HiggsTools and the whole DM block (relic density, direct detection, gamma lines with Zγ and combination, CMB). The pass/fail columns are rebuilt from those results.
-What it reuses: theory constraints, RG running, electroweak precision, flavour and the phase-transition results are taken from the input. Neither patch affects them.
-Output: a new file with its own metadata; the old file isn't touched. --resume works if it gets interrupted.
-You need the rebuilt driver. The Zγ line comes from the patched main.c, so the micrOMEGAs build must include the first patch.
-Cost: micrOMEGAs and HiggsTools run once per row. For a big campaign, you can first cut the input down to the rows you care about, for example the ones that pass everything except DM.
+The explicit table selects both LZ releases when updating a historical scan.
+The command reruns Higgs widths, HiggsTools and the DM checks for each row.
+It copies the saved theory, electroweak, flavour and phase-transition results.
+The new evaluation can be resumed with `--resume`. To extend an existing
+scan with `--resume-from`, the saved Fermi prescription and micrOMEGAs
+executable checksum must match. Use its original code and binary to extend
+a historical campaign under its original assumptions.
 
-An explicitly selected `--dm-limit-table /path/to/verified-si-limits.json`
-replaces the inherited `lz2025-source` direct-detection fit with a published
-90% observed elastic SI upper-limit table. This works with both micrOMEGAs
-versions and preserves the abundance rescaling. Tables are checked for units,
-mass coverage and provenance; their checksum is recorded for checkpoint/resume.
+To use another observed 90% CL elastic SI upper limit, supply
+`--dm-limit-table /path/to/verified-si-limits.json`. Both supported micrOMEGAs
+versions use the same abundance rescaling. The scan checks table units, coverage
+and provenance and records the checksum for checkpoint/resume.
 See [the table format and LZ 2026 status](DM/direct-detection.md).
 The official mass limits from arXiv:2609.02823 remain unavailable: the linked
 HEPData record denied access even after login on 2026-09-17. An optional
@@ -1596,20 +1578,17 @@ trsmdm/bin/python reevaluate_trsm_dm_higgs.py \
   --micromegas-version 7 --checkpoint-every 25
 ```
 
-The same `--planck-cmb` / `--no-planck-cmb` controls apply. Reevaluation
-recovers the input's direct-detection treatment from its row provenance and
-metadata. A tabulated limit must have a recoverable, matching source file;
-otherwise supply `--dm-limit-table /path/to/limits.json` explicitly. This
-also preserves the temporary LZ 2026 approximation when it was selected.
-An intentional change of SI treatment can use `--dm-limit-table` or
-`--dm-limit-model lz2025-source` / `--dm-limit-model legacy-output`.
+The same `--planck-cmb` / `--no-planck-cmb` controls apply. Fresh evaluations
+use the combined observed LZ limit by default. To reproduce the earlier WS2024
+selection, pass `--dm-limit-model lz-ws2024-observed-v2`. For a custom
+table, including the high-mass approximation, pass the original file with
+`--dm-limit-table`. The historical analytic fits are available through
+`--dm-limit-model lz2025-source` and `--dm-limit-model legacy-output`.
 
-Repeat the evaluation options when resuming. The checkpoint verifies the
-backend, SI-table hash and CMB treatment; the completed file has a metadata
-sidecar recording them. Legacy reevaluation checkpoints resume with CMB
-disabled and the original default SI fit, then record the selected backend
-for subsequent resumes. CMB fields in an input are always recomputed or
-cleared and marked disabled. Older files are shown as CMB-unassessed by the
+On resume, the checkpoint supplies the saved direct-detection choice and CMB
+setting. The evaluator checks the physics configuration and input before adding
+rows. The completed table has a metadata sidecar with the configuration used.
+CMB fields are recomputed when enabled and marked disabled otherwise. Older files are shown as CMB-unassessed by the
 constraint plotting suite. No existing scan is reevaluated automatically.
 
 After completion, regenerate the constraint suite from the versioned file:

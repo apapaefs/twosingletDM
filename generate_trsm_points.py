@@ -1,5 +1,5 @@
 from trsm_inputs import PHYSICS_VERSION, VEV as SHARED_VEV, M1 as SHARED_M1
-from trsm_constraint_profile import profile_updates, physics_manifest
+from trsm_constraint_profile import profile_updates, physics_manifest, sha256 as file_sha256
 from trsm_theory_diagnostics import theory_diagnostics
 from ewpt_assessment import status_updates
 import argparse
@@ -232,7 +232,7 @@ def parse_args(argv=None):
         help=(
             "Normalized JSON table of published 90%% observed elastic SI "
             "per-nucleon upper limits (see DM/direct-detection.md). "
-            "Default: retain the existing lz2025-source fit."
+            "Default: observed LZ WS2025 below 9 GeV and WS2024 from 9 GeV."
         ),
     )
     range_group = parser.add_argument_group(
@@ -2970,6 +2970,19 @@ def prepare_campaign_runtime(runtag, args):
         return runtime
 
     metadata = load_json(args.resume_metadata_path, "scan metadata")
+    if metadata.get("indirect_detection") != indirect_detection_configuration():
+        raise CampaignStateError(
+            "The saved Fermi-LAT line prescription differs or is missing. "
+            "Resume with the original code and driver, or use reevaluate_trsm_dm_higgs.py "
+            "to apply the two-line assessment to a new output."
+        )
+    saved_driver = metadata.get("physics_manifest", {}).get("executables", {}).get("micromegas", {})
+    driver_path = micromegas_configuration(args)["executable"]
+    if "sha256" not in saved_driver or saved_driver["sha256"] != file_sha256(driver_path):
+        raise CampaignStateError(
+            "The micrOMEGAs executable checksum differs from the saved campaign or is missing. "
+            "Use the original driver to resume, or reevaluate the saved points into a new output."
+        )
     if metadata.get("configuration_fingerprint") not in (None, fingerprint):
         raise CampaignStateError(
             "Current immutable scan configuration does not match the saved metadata"

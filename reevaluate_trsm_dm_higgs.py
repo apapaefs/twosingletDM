@@ -25,7 +25,7 @@ from dm_thermal_relic_diagnostic import (
     resonance_proximity_updates,
 )
 from trsm_cmb import CMB_COLUMNS, add_cmb_arguments, cmb_configuration, cmb_diagnostics, require_cmb_capability
-from trsm_direct_detection import DEFAULT_LIMIT_MODEL, DEFAULT_LIMIT_TABLE, load_si_limit_table
+from trsm_direct_detection import DEFAULT_LIMIT_MODEL, PUBLISHED_LIMIT_TABLES, load_si_limit_table
 from trsm_micromegas import require_v2_capability, DEFAULT_MICROMEGAS_VERSION, MICROMEGAS_VERSIONS, micromegas_configuration, normalize_micromegas_version
 from trsm_scan_campaign import atomic_write_json
 
@@ -917,9 +917,9 @@ def parse_args(argv: Sequence[str] | None = None):
     parser.add_argument("--micromegas-version", type=normalize_micromegas_version,
                         choices=MICROMEGAS_VERSIONS, default=DEFAULT_MICROMEGAS_VERSION)
     limits = parser.add_mutually_exclusive_group()
-    limits.add_argument("--dm-limit-table", type=Path, help="Override the default observed LZ WS2024 SI table")
-    limits.add_argument("--dm-limit-model", choices=(DEFAULT_LIMIT_MODEL,"lz2025-source", "legacy-output"),
-                        help="Explicitly select an analytic SI fit instead of input provenance")
+    limits.add_argument("--dm-limit-table", type=Path, help="Override the default observed LZ SI limits")
+    limits.add_argument("--dm-limit-model", choices=(*PUBLISHED_LIMIT_TABLES, "lz2025-source", "legacy-output"),
+                        help="Select a published LZ table or a historical analytic SI fit")
     parser.add_argument("input", type=Path, help="Existing TRSM scan TSV")
     parser.add_argument("--output", type=Path, required=True, help="New versioned TSV")
     parser.add_argument(
@@ -946,23 +946,33 @@ def parse_args(argv: Sequence[str] | None = None):
 
 
 def resolve_evaluation_configuration(args):
-    """Freeze backend, CMB settings and the input's SI treatment before any output."""
+    """Freeze the physics configuration for a new evaluation or restore its checkpoint."""
+    partial = checkpoint_path(args.output.expanduser().resolve())
+    saved = {}
+    resuming = args.resume and partial.is_file()
+    if resuming:
+        saved = read_checkpoint_metadata(partial).get("evaluation_configuration", {})
     if args.planck_cmb is None:
-        partial = checkpoint_path(args.output.expanduser().resolve())
-        if args.resume and partial.is_file():
-            saved = read_checkpoint_metadata(partial)
-            args.planck_cmb = saved.get("evaluation_configuration", {}).get("planck_cmb", {}).get("enabled", False)
+        if resuming:
+            args.planck_cmb = saved.get("planck_cmb", {}).get("enabled", False)
         else:
             args.planck_cmb = args.micromegas_version == "7.1.4"
     backend = micromegas_configuration(args)
     require_v2_capability(backend["executable"])
     if args.planck_cmb:
         args._cmb_driver = require_cmb_capability(backend["executable"])
-    # A v2 reevaluation uses the agreed v2 default, regardless of the old fit.
-    model=args.dm_limit_model or DEFAULT_LIMIT_MODEL
-    table_path=args.dm_limit_table or (DEFAULT_LIMIT_TABLE if model==DEFAULT_LIMIT_MODEL else None)
-    table=load_si_limit_table(table_path) if table_path else None
-    dd_configuration=table.metadata() if table else {"model":model}
+    model = args.dm_limit_model or DEFAULT_LIMIT_MODEL
+    table_path = args.dm_limit_table
+    saved_dd = saved.get("direct_detection")
+    if saved_dd and args.dm_limit_model is None and table_path is None:
+        table_path = saved_dd.get("table_path")
+        if table_path is None:
+            model = saved_dd["model"]
+    table_path = table_path or PUBLISHED_LIMIT_TABLES.get(model)
+    table = load_si_limit_table(table_path) if table_path else None
+    dd_configuration = table.metadata() if table else {"model": model}
+    if saved_dd and dd_configuration != saved_dd:
+        raise ReEvaluationError("direct-detection configuration differs from the checkpoint")
     from test_trsm_DM import indirect_detection_configuration
     configuration = {"physics_version":PHYSICS_VERSION,
                      "physics_manifest":physics_manifest(backend["executable"]),

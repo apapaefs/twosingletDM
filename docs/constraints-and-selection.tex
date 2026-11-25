@@ -491,8 +491,8 @@ temperature is recorded as $T_f=M_3/X_f$ when a valid $X_f>0$ is available.
 \src{D}
 
 \subsection{Spin-independent direct detection}
-The default is the stored LZ WS2024 observed, power-constrained 90\% CL
-elastic isoscalar per-nucleon table. The wrapper reads the neutron SI cross
+The default uses the observed 90\% CL elastic isoscalar per-nucleon
+limits from the LZ light-DM and WS2024 analyses. The wrapper reads the neutron SI cross
 section from the micrOMEGAs cross-section output, in pb. The stored
 experimental values in $\mathrm{cm}^2$ are converted using
 $1\,\mathrm{cm}^2=10^{36}\,\mathrm{pb}$. The cut is
@@ -501,8 +501,12 @@ $1\,\mathrm{cm}^2=10^{36}\,\mathrm{pb}$. The cut is
  \quad\text{equivalently}\quad
  \sigma_n^{\rm SI}\le L_{\rm LZ}(M_3)/\xi\quad(\xi>0).
 \end{equation}
-The 26-point default table covers $9$--$10000\GeV$ and is interpolated
-logarithmically in both mass and limit. There is no extrapolation.
+For $3\leq M_3/\mathrm{GeV}<9$ we use the
+\href{https://doi.org/10.17182/hepdata.167350.v3/t1}{13-point light-DM release}.
+For $9\leq M_3/\mathrm{GeV}\leq10000$ we use the
+\href{https://doi.org/10.17182/hepdata.155182.v2/t1}{26-point WS2024 release}.
+Each release is interpolated logarithmically in mass and limit using its own 9 GeV endpoint.
+The code does not extrapolate.
 For positive $\xi$, an uncovered DD assessment is unavailable and cannot
 supply a DM pass. At $\xi=0$, the implementation sets the comparison limit
 to infinity, so a finite cross section is a non-veto. \src{D}\src{L}
@@ -512,8 +516,8 @@ to infinity, so a finite cross section is a non-veto. \src{D}\src{L}
 The plotting ratio is their quotient; it is not a comparison of an already
 rescaled cross section with a second rescaled bound. An explicit
 \code{--dm-limit-table} can replace the default data. The optional LZ2026
-high-mass approximation and historical fitted providers are not the default
-WS2024 prescription and must be identified from the saved metadata.
+high-mass approximation and historical fitted providers have separate identifiers
+in the saved metadata.
 
 \subsection{Gamma-ray lines}
 The driver supplies photon-containing two-body annihilation channels, with
@@ -529,56 +533,34 @@ The driver approximates the R16 region using $0.5^\circ$ patches inside
 $\sqrt{l^2+b^2}\le16^\circ$, excluding $|b|<5^\circ$ with $|l|>6^\circ$,
 and weights each line flux $\Phi_a$ by its photon multiplicity. \src{D}
 
-\paragraph{Why overlapping lines are combined.}
-The Fermi-LAT limit $L_{\rm R16}(E)$ bounds the flux of a \emph{single}
-line template: the LAT energy dispersion of a monochromatic line at $E$.
-Its 68\% half-width $\sigma_E$ is 6--10\% of $E$ between $1$ and
-$500\GeV$. Two lines closer than about $\sigma_E$ fill the same template,
-so a fit at $E$ measures their summed flux, and testing each line on its
-own underestimates the signal. The $\gamma\gamma$ and $Z\gamma$ lines are
-$m_Z^2/(4M_3)$ apart: $2.8\,\sigma_E$ at $M_3=100\GeV$, $1.2\,\sigma_E$
-at $150\GeV$ and less than $0.7\,\sigma_E$ above $200\GeV$. Above about
-$150\GeV$ the LAT therefore sees one line, with up to $1+R/2$ times the
-$\gamma\gamma$ flux.
-
-\paragraph{Prescription.}
-For a background-dominated fit, the amplitude fitted at $E$ is the
-projection of the signal on the template at $E$. A line at $E'$ with
-Gaussian dispersion contributes with the normalized overlap
+The production selection tests each line against the published single-line
+limit at its own photon energy. It records the largest ratio,
 \begin{equation}
- w(E,E')=\exp\!\left[-\frac{(E-E')^2}{4\sigma_E(E)^2}\right],
+ R_{\rm line}=\max_{a\,\mathrm{covered}}
+ \frac{\xi^2\Phi_a}{L_{\rm R16}(E_{\gamma,a})}\,,
 \end{equation}
-which is 1 for coincident lines and below $10^{-6}$ beyond $7.5\,\sigma_E$.
-The screen is
-\begin{equation}
- R_{\rm line}=\max_{a\,\mathrm{usable}}
- \frac{\xi^2\sum_b w(E_{\gamma,a},E_{\gamma,b})\,\Phi_b}{L_{\rm R16}(E_{\gamma,a})}\le1,
-\end{equation}
-with log--log interpolation of $L_{\rm R16}$ over $0.214$--$462\GeV$ and no
-extrapolation. An isolated line gives exactly the separate-line ratio
-$\xi^2\Phi_a/L_{\rm R16}(E_{\gamma,a})$ used before
-(\code{combine_lines=False}). Testing only at the line energies never
-overstates the signal. A continuous scan could find a response between two
-lines that is larger by at most 14\% for equal fluxes about $2\sigma_E$
-apart, and by at most 4\% for the $\gamma\gamma$/$Z\gamma$ pair.
-$\sigma_E(E)/E$ is the acceptance-weighted 68\% half-width for
-P8R3\_SOURCE\_V3, front+back, from the LAT performance tables. The line
-search (arXiv:1506.00013) used P8\_CLEAN events, whose resolution Pass~8 did
-not change significantly, with a triple-Gaussian dispersion resolved by
-EDISP type. The single Gaussian approximates that. Lines above $462\GeV$ are
-not printed by the driver, so for $462<M_3\lesssim466\GeV$ the
-$\gamma\gamma$ flux does not enter the $Z\gamma$ test.
-\code{dm_indirect_flux} stores the overlap-weighted flux at
-\code{dm_indirect_energy}. This remains a line-flux approximation, not a
-published-ROI likelihood evaluation. \src{D}
+and excludes points with $R_{\rm line}>1$. The table is interpolated in
+log--log space over $0.214$--$462\GeV$. The $Z\gamma$ line remains covered up
+to $M_3\simeq466.46\GeV$. The reported energy and flux refer to the line with
+the largest ratio. The two single-line comparisons have no assigned joint
+confidence level. \src{D}
 
-If no usable line is found, the code stores
+At high $M_3$ the energy separation $m_Z^2/(4M_3)$ becomes small compared with
+the LAT resolution. An optional diagnostic with \code{combine_lines=True}
+evaluates the sum of the predicted line fluxes at each covered line energy $E$,
+weighting the contribution at $E'$ by
+$\exp[-(E-E')^2/(4\sigma_E(E)^2)]$. Photons in a line just outside the
+table can contribute to a test at a covered energy. This approximation uses
+the acceptance-weighted P8R3\_SOURCE\_V3 resolution and a single Gaussian.
+The Fermi-LAT analysis of P8\_CLEAN events uses separate dispersion models
+for each energy-dispersion event type (arXiv:1506.00013, Secs.~IV--V).
+The Gaussian variation has no calibrated joint confidence level. \src{D}
+
+For a successful DM calculation with no usable line the code stores
 \code{dm_indirect_available=False} and
-\code{dm_indirect_detection_excluded=False}. This is a non-veto in the
-aggregate DM verdict, unlike an unavailable covered DD or enabled CMB
-assessment. The line availability must therefore be reported alongside
-the aggregate flag. The printed continuum flux is a diagnostic and is not
-an additional bound in this selection. \src{D}
+\code{dm_indirect_detection_excluded=False}. Other DM constraints can still
+exclude the point. A failed DM calculation yields unavailable component results
+and cannot qualify a point as passing. \src{D}
 
 \subsection{CMB energy injection}
 New version-7 scans enable the Planck CMB screen by default; version-6
@@ -908,7 +890,7 @@ digitized limits and flavour plot categories.\\
 \code{DMSummary.passed} (210--218), \code{summarize_dm_result},
 \code{assess_indirect_limit}, \code{test_dm}; solver, spectra and line output.\\
 \hypertarget{src:L}{L} & \code{trsm_direct_detection.py};
-\code{DM/data/lz2024/observed-si-v2.json} &
+\code{DM/data/lz2025/observed-si-with-ws2024.json} &
 Default numerical DD table, validation, interpolation and units.\\
 \hypertarget{src:B}{B} & \code{trsm_cmb.py}; \code{DM/main.c} &
 \code{assess_cmb_limit}, configuration/capability checks;

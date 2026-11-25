@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import hashlib
 import io
 import json
 import math
@@ -9,8 +10,8 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from test_generate_trsm_points_runner import load_generator_module
-from test_trsm_DM import DMPoint, MicromegasResult, summarize_dm_result, test_dm
-from trsm_direct_detection import load_si_limit_table
+from test_trsm_DM import DMPoint, MicromegasResult, direct_detection_base_limit, summarize_dm_result, test_dm
+from trsm_direct_detection import DEFAULT_LIMIT_TABLE, PUBLISHED_LIMIT_TABLES, load_si_limit_table
 
 
 def synthetic_table():
@@ -181,6 +182,37 @@ class TestSILimitTable(unittest.TestCase):
         summary=summarize_dm_result(point,result,limit_table=load_si_limit_table(self.path))
         self.assertIsNone(summary.direct_detection_excluded)
         self.assertIsNone(summary.passed)
+
+
+class TestPublishedLZLimits(unittest.TestCase):
+    def test_anchors_provenance_and_nine_gev_handoff(self):
+        table = load_si_limit_table(DEFAULT_LIMIT_TABLE)
+        provenance = table.metadata()["provenance"]
+        source = provenance["low_mass"]
+        raw = (DEFAULT_LIMIT_TABLE.parent / source["source_json"]).read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), source["source_json_sha256"])
+        data = json.loads(raw)
+        self.assertEqual(data["doi"], "10.17182/hepdata.167350.v3/t1")
+        self.assertEqual(data["headers"][0]["name"], "mass")
+        column = next(i for i, header in enumerate(data["headers"][1:]) if header["name"] == "limit")
+        anchors = [(float(row["x"][0]["value"]), float(row["y"][column]["value"]) * 1e36)
+                   for row in data["values"]]
+        self.assertEqual([m for m, _ in anchors], [3 + i / 2 for i in range(13)])
+        for mass, limit in anchors[:-1]:
+            self.assertEqual(table.upper_limit_pb(mass), limit)
+        self.assertAlmostEqual(table.upper_limit_pb(math.nextafter(9, 0)) / anchors[-1][1], 1)
+        midpoint = math.sqrt(8.5 * 9)
+        self.assertAlmostEqual(table.upper_limit_pb(midpoint) / math.sqrt(anchors[-2][1] * anchors[-1][1]), 1)
+
+        old_label = "lz-ws2024-observed-v2"
+        old = load_si_limit_table(PUBLISHED_LIMIT_TABLES[old_label])
+        self.assertEqual(old.sha256, provenance["high_mass"]["normalized_table_sha256"])
+        self.assertNotEqual(old.model_id, table.model_id)
+        for mass in (*old.masses_gev, 9.25, 62.5, 1765):
+            self.assertEqual(table.upper_limit_pb(mass), old.upper_limit_pb(mass))
+        self.assertEqual(direct_detection_base_limit(9, model=old_label), old.upper_limit_pb(9))
+        self.assertTrue(math.isnan(direct_detection_base_limit(8.5, model=old_label)))
+        self.assertEqual(table.metadata()["mass_range_gev"], [3, 10000])
 
 
 class TestLZ2026TemporaryLimit(unittest.TestCase):

@@ -2,11 +2,12 @@
 
 ## Release scope
 
-The active `vx=0` pipeline implements the approved plan. The next-scan profile
-uses micrOMEGAs **7.1.4**, the verified observed **LZ WS2024** SI numerical table,
+The `vx=0` pipeline described in this release report implemented the approved plan. The validated profile
+used micrOMEGAs **7.1.4**, the verified observed **LZ WS2024** SI numerical table,
 and a common **BSMPT 3.2.1** source on the laptop and manto. The corrected
 micrOMEGAs 6.1.15 backend remains available for comparisons. Every evaluated
-point is retained, including DM exclusions and unavailable assessments.
+point is written, including DM exclusions and unavailable assessments. New campaigns
+also use the LZ light-DM measurement below 9 GeV. [Current direct-detection inputs](../DM/direct-detection.md).
 
 The release commit is the repository `HEAD` recorded in each site's external
 `runtime-v2/runtime-manifest.json`. That receipt is generated after committing

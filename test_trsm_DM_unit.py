@@ -151,7 +151,7 @@ class TestTrsmDM(unittest.TestCase):
         self.assertFalse(dm_exclusion_info["dm_relic_excluded"])
         self.assertTrue(dm_exclusion_info["dm_direct_detection_excluded"])
         self.assertFalse(dm_exclusion_info["dm_indirect_detection_excluded"])
-        self.assertEqual(dm_exclusion_info["dm_limit_model"], "lz-ws2024-observed-v2")
+        self.assertEqual(dm_exclusion_info["dm_limit_model"], "lz-ws2025-lowmass-ws2024")
         self.assertEqual(dm_exclusion_info["dm_indirect_channels_seen"], 0)
         self.assertEqual(dm_exclusion_info["dm_indirect_channels_used"], 0)
 
@@ -181,7 +181,20 @@ class TestTrsmDM(unittest.TestCase):
         )
         self.assertLess(dm_exclusion_info["dm_indirect_ratio"], 1.0)
 
-    def test_loop_derived_z_gamma_line_is_combined_with_gamma_gamma(self):
+    def test_failed_zgamma_is_unassessed_unless_another_line_already_excludes(self):
+        failure = ("\nSkipping loop-derived photon-line channel Z A: invalid sigmaV(Z A)/sigmaV(A A)=NAN.\n"
+                   "Warning: at least one photon-line channel failed validity checks.\n")
+        for flux, expected in (("1.000000E-15", None), ("1.000000E+01", True)):
+            output = MICROMEGAS_OUTPUT_WITH_RESCALED_INDIRECT.replace("Phi_R16=1.000000E-09", f"Phi_R16={flux}") + failure
+            passed, _, fields = test_dm(lX=0.2, lPhiX=0.1, lSX=0.5, M3=50., vs=500.,
+                                        a12=0.3, M2=500., raw_output=output)
+            self.assertIs(fields["dm_indirect_detection_excluded"], expected)
+            self.assertIs(fields["dm_indirect_available"], expected is True)
+            self.assertIs(passed, False if expected else None)
+            self.assertFalse(fields["dm_direct_detection_excluded"])
+            self.assertEqual(fields["dm_assessment_reason"], "invalid Z gamma annihilation rate")
+
+    def test_default_uses_strongest_of_two_line_ratios(self):
         # DM/main.c derives XX -> Z A from XX -> A A (trsm_loop_zgamma_ratio)
         # and prints it in the standard line format at its own energy.
         output = MICROMEGAS_OUTPUT_WITH_RESCALED_INDIRECT.replace(
@@ -201,17 +214,12 @@ class TestTrsmDM(unittest.TestCase):
             a12=math.asin(0.3), M2=500.0, raw_output=output,
         )
         # Alone, the A A line has ratio ~0.12; the Z A line (~2.6) excludes.
-        # The lines are 0.26 sigma_E apart, so the A A flux adds to the Z A test
-        # with weight exp(-(dE)^2/(4 sigma_E^2)) ~ 0.98.
         self.assertIs(passed, False)
         self.assertTrue(dm_exclusion_info["dm_indirect_detection_excluded"])
         self.assertEqual(dm_exclusion_info["dm_indirect_channels_used"], 2)
         self.assertTrue(math.isclose(dm_exclusion_info["dm_indirect_energy"], 293.071))
-        sigma = fermi_lat_energy_resolution(293.071) * 293.071
-        weight = math.exp(-((300.0 - 293.071) ** 2) / (4 * sigma**2))
-        self.assertTrue(0.98 < weight < 0.99)
-        expected = (2.0e-9 + weight * 1.0e-10) / (fermi_lat_r16_line_limit(293.071) * (0.12 / 0.049) ** 2)
-        self.assertTrue(math.isclose(dm_exclusion_info["dm_indirect_flux"], 2.0e-9 + weight * 1.0e-10, rel_tol=1e-12))
+        expected = 2.0e-9 / (fermi_lat_r16_line_limit(293.071) * (0.12 / 0.049) ** 2)
+        self.assertEqual(dm_exclusion_info["dm_indirect_flux"], 2.0e-9)
         self.assertTrue(math.isclose(dm_exclusion_info["dm_indirect_ratio"], expected, rel_tol=1e-9))
 
     def test_negative_relic_density_fails_dm_check(self):
@@ -342,9 +350,24 @@ class TestGammaLineCombination(unittest.TestCase):
     def test_combination_respects_abundance_rescaling(self):
         flux = 0.6 * fermi_lat_r16_line_limit(200.0)
         lines = (IndirectLineChannel(200.0, flux), IndirectLineChannel(200.0, flux))
-        half = assess_indirect_limit(lines, omega=0.06)
+        half = assess_indirect_limit(lines, omega=0.06, combine_lines=True)
         self.assertTrue(math.isclose(half.max_ratio, 1.2 * 0.25, rel_tol=1e-12))
         self.assertFalse(assess_indirect_limit(lines, omega=0.0).available)
+
+    def test_only_covered_energies_are_tested_at_the_table_edge(self):
+        covered_energy = 464.0 - 91.1876**2 / (4 * 464.0)
+        limit = fermi_lat_r16_line_limit(covered_energy)
+        lines = (IndirectLineChannel(464.0, 0.8 * limit),
+                 IndirectLineChannel(covered_energy, 0.5 * limit))
+        separate = assess_indirect_limit(lines)
+        self.assertEqual(separate.channels_seen, 2)
+        self.assertEqual(separate.channels_used, 1)
+        self.assertEqual(separate.energy_gev, covered_energy)
+        self.assertAlmostEqual(separate.max_ratio, 0.5)
+        diagnostic = assess_indirect_limit(lines, combine_lines=True)
+        self.assertAlmostEqual(diagnostic.max_ratio, 0.5 + 0.8 * line_template_overlap(covered_energy, 464.0))
+        self.assertTrue(diagnostic.excluded)
+        self.assertFalse(assess_indirect_limit(lines[:1], combine_lines=True).available)
 
     def test_configuration_records_prescription(self):
         configuration = indirect_detection_configuration()

@@ -133,8 +133,8 @@ def main(argv=None):
                     print_summary(row)
                     sys.stdout.flush()
         print('Saved:', args.output_dir.resolve() / 'results.tsv')
-        return int(any(r.get('dm_calculation_status') != 'success' or
-                       (args.planck_cmb and not r['dm_cmb_available']) for r in rows))
+        return int(any(r.get('dm_calculation_status') != 'success' or r.get('dm_indirect_detection_excluded') is None
+                       or (args.planck_cmb and not r['dm_cmb_available']) for r in rows))
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1

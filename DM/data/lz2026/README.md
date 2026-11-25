@@ -2,7 +2,7 @@
 
 `lz2026-figs7-highmass-approx.json` is an **approximation**, not the official
 HEPData mass table. It is available as an explicit scan option while that
-release is inaccessible. The existing default fit is unchanged.
+release was inaccessible in September 2026.
 
 The input is the solid observed upper curve of Figure S7 in
 [arXiv:2609.02823v1](https://arxiv.org/abs/2609.02823v1), at delta = 0 and a
@@ -44,7 +44,7 @@ The same table can be selected with version 6. The existing relic-density
 rescaling is applied after this base limit. The scan checks mass coverage
 before writing output, records the approximation and source in its metadata,
 and includes `highmass-approx` and a checksum in the run name. Omitting
-`--dm-limit-table` restores the existing `lz2025-source` treatment.
+`--dm-limit-table` selects the current [published LZ limits](../../direct-detection.md).
 
 ## Reproducing the extraction
 
